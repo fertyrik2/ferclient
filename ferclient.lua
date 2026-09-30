@@ -6,9 +6,8 @@
     ██║     ███████╗██║  ██║╚██████╗███████╗██║███████╗██║ ╚████║   ██║
     ╚═╝     ╚══════╝╚═╝  ╚═╝ ╚═════╝╚══════╝╚═╝╚══════╝╚═╝  ╚═══╝   ╚═╝
 
-    FerClient | Rost Alpha Cheat
+    FerClient v1.1 | Rost Alpha
     ESP + Aimbot FOV | Mobile & PC
-    Version: 1.0
 ]]
 
 if getgenv().FerClient_Loaded then
@@ -30,6 +29,9 @@ local Workspace = game:GetService("Workspace")
 local Camera = Workspace.CurrentCamera
 local LP = Players.LocalPlayer
 
+--=========================================================
+-- ТЕМА
+--=========================================================
 local Theme = {
     Background = Color3.fromRGB(25, 45, 90),
     Panel      = Color3.fromRGB(35, 60, 115),
@@ -45,24 +47,22 @@ local Theme = {
     FontBold   = Enum.Font.GothamBold,
 }
 
+--=========================================================
+-- НАСТРОЙКИ
+--=========================================================
 local Config = {
     ESP = {
         Enabled = true,
-        Box = true,
-        Name = true,
-        Distance = true,
-        Health = true,
-        Tracer = true,
-        Color = Theme.Accent,
-        MaxDistance = 1500,
+        Box = true, Name = true, Distance = true, Health = true, Tracer = true,
+        Color = Theme.Accent, MaxDistance = 1500,
     },
     Aimbot = {
         Enabled = false,
-        FOV = 150,
-        Smoothness = 0.3,
-        MaxDistance = 600,
+        FOV = 200,              -- Радиус аима (меняется слайдером)
+        Smoothness = 0.4,       -- Плавность (0.1 = медленно, 1 = мгновенно)
+        MaxDistance = 600,      -- Дальность захвата
         TargetPart = "Head",
-        Visible = true,
+        Visible = false,        -- проверка стен (по умолчанию выкл — чтобы работало)
         ShowFOV = true,
         TriggerActive = false,
     }
@@ -73,10 +73,9 @@ local hasDrawing = pcall(function()
     t:Remove()
 end)
 
-if not hasDrawing then
-    warn("[FerClient] Drawing API не поддерживается! ESP работать не будет.")
-end
-
+--=========================================================
+-- ЗАГРУЗОЧНЫЙ ЭКРАН
+--=========================================================
 local LoaderGui = Instance.new("ScreenGui")
 LoaderGui.Name = "FerClient_Loader"
 LoaderGui.ResetOnSpawn = false
@@ -141,8 +140,7 @@ ProgressFill.Parent = ProgressBg
 Instance.new("UICorner", ProgressFill).CornerRadius = UDim.new(1, 0)
 
 task.spawn(function()
-    local steps = { 0.3, 0.6, 0.85, 1 }
-    for _, v in ipairs(steps) do
+    for _, v in ipairs({ 0.3, 0.6, 0.85, 1 }) do
         TweenService:Create(ProgressFill, TweenInfo.new(0.25), { Size = UDim2.new(v, 0, 1, 0) }):Play()
         task.wait(0.3)
     end
@@ -153,6 +151,9 @@ task.spawn(function()
     LoaderGui:Destroy()
 end)
 
+--=========================================================
+-- МЕНЮ
+--=========================================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "FerClient_Menu"
 ScreenGui.ResetOnSpawn = false
@@ -163,8 +164,8 @@ if not ScreenGui.Parent then ScreenGui.Parent = LP:WaitForChild("PlayerGui") end
 
 local Menu = Instance.new("Frame")
 Menu.Name = "FerClient_Frame"
-Menu.Size = UDim2.new(0, 250, 0, 310)
-Menu.Position = UDim2.new(0, 20, 0, 100)
+Menu.Size = UDim2.new(0, 260, 0, 420)
+Menu.Position = UDim2.new(0, 20, 0, 80)
 Menu.BackgroundColor3 = Theme.Background
 Menu.BorderSizePixel = 0
 Menu.Active = true
@@ -176,6 +177,7 @@ local MenuStroke = Instance.new("UIStroke", Menu)
 MenuStroke.Color = Theme.Border
 MenuStroke.Thickness = 1.5
 
+-- Топбар
 local TopBar = Instance.new("Frame")
 TopBar.Size = UDim2.new(1, 0, 0, 38)
 TopBar.BackgroundColor3 = Theme.Panel
@@ -222,16 +224,28 @@ MinimizeBtn.AutoButtonColor = false
 MinimizeBtn.Parent = TopBar
 Instance.new("UICorner", MinimizeBtn).CornerRadius = UDim.new(0, 4)
 
-local Content = Instance.new("Frame")
+-- Контейнер (со скроллом на случай переполнения)
+local Content = Instance.new("ScrollingFrame")
 Content.Size = UDim2.new(1, -16, 1, -50)
 Content.Position = UDim2.new(0, 8, 0, 46)
 Content.BackgroundTransparency = 1
+Content.BorderSizePixel = 0
+Content.ScrollBarThickness = 3
+Content.ScrollBarImageColor3 = Theme.Accent
+Content.CanvasSize = UDim2.new(0, 0, 0, 0)
 Content.Parent = Menu
 
 local Layout = Instance.new("UIListLayout", Content)
 Layout.Padding = UDim.new(0, 6)
 Layout.SortOrder = Enum.SortOrder.LayoutOrder
 
+Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    Content.CanvasSize = UDim2.new(0, 0, 0, Layout.AbsoluteContentSize.Y + 10)
+end)
+
+--=========================================================
+-- КНОПКА (улучшенная — меняет и фон, и текст)
+--=========================================================
 local function MakeButton(text, callback)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, 0, 0, 38)
@@ -267,43 +281,176 @@ local function MakeButton(text, callback)
     statusLabel.TextSize = 11
     statusLabel.Parent = btn
 
+    -- Hover
     btn.MouseEnter:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = Theme.Hover }):Play()
+        if not btn:GetAttribute("On") then
+            TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = Theme.Hover }):Play()
+        end
     end)
     btn.MouseLeave:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = Theme.Element }):Play()
+        if not btn:GetAttribute("On") then
+            TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = Theme.Element }):Play()
+        end
     end)
 
-    btn.MouseButton1Click:Connect(function()
+    -- Клик (и мышь, и тач)
+    local clickCooldown = false
+    local function handleClick()
+        if clickCooldown then return end
+        clickCooldown = true
+        task.delay(0.15, function() clickCooldown = false end)
         pcall(callback)
-    end)
+    end
+
+    btn.MouseButton1Click:Connect(handleClick)
+    btn.Activated:Connect(handleClick)
 
     return {
         Button = btn,
         SetOn = function(isOn)
+            btn:SetAttribute("On", isOn)
             statusLabel.Text = isOn and "ON" or "OFF"
             statusLabel.TextColor3 = isOn and Theme.Success or Theme.Danger
+            -- ВАЖНО: меняем ФОН кнопки тоже
+            TweenService:Create(btn, TweenInfo.new(0.2), {
+                BackgroundColor3 = isOn and Color3.fromRGB(40, 90, 60) or Theme.Element
+            }):Play()
+            TweenService:Create(stroke, TweenInfo.new(0.2), {
+                Color = isOn and Theme.Success or Theme.Border
+            }):Play()
         end
     }
 end
 
+--=========================================================
+-- СЛАЙДЕР
+--=========================================================
+local function MakeSlider(text, min, max, default, callback)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 52)
+    frame.BackgroundColor3 = Theme.Element
+    frame.BorderSizePixel = 0
+    frame.Parent = Content
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+
+    local stroke = Instance.new("UIStroke", frame)
+    stroke.Color = Theme.Border
+    stroke.Thickness = 1
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, -60, 0, 22)
+    nameLabel.Position = UDim2.new(0, 12, 0, 4)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = text
+    nameLabel.TextColor3 = Theme.Text
+    nameLabel.Font = Theme.Font
+    nameLabel.TextSize = 12
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.Parent = frame
+
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Size = UDim2.new(0, 50, 0, 22)
+    valueLabel.Position = UDim2.new(1, -55, 0, 4)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Text = tostring(default)
+    valueLabel.TextColor3 = Theme.Accent
+    valueLabel.Font = Theme.FontBold
+    valueLabel.TextSize = 12
+    valueLabel.Parent = frame
+
+    -- Трек
+    local track = Instance.new("Frame")
+    track.Size = UDim2.new(1, -24, 0, 8)
+    track.Position = UDim2.new(0, 12, 1, -20)
+    track.BackgroundColor3 = Theme.Background
+    track.BorderSizePixel = 0
+    track.Parent = frame
+    Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
+
+    -- Заполнение
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+    fill.BackgroundColor3 = Theme.Accent
+    fill.BorderSizePixel = 0
+    fill.Parent = track
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+
+    -- Кнопка-ползунок
+    local knob = Instance.new("Frame")
+    knob.AnchorPoint = Vector2.new(0.5, 0.5)
+    knob.Size = UDim2.new(0, 16, 0, 16)
+    knob.Position = UDim2.new((default - min) / (max - min), 0, 0.5, 0)
+    knob.BackgroundColor3 = Theme.Text
+    knob.BorderSizePixel = 0
+    knob.Parent = track
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
+    local knobStroke = Instance.new("UIStroke", knob)
+    knobStroke.Color = Theme.Accent
+    knobStroke.Thickness = 2
+
+    local dragging = false
+
+    local function updateFromX(x)
+        local relX = math.clamp(x - track.AbsolutePosition.X, 0, track.AbsoluteSize.X)
+        local ratio = relX / math.max(track.AbsoluteSize.X, 1)
+        local value = math.floor(min + (max - min) * ratio + 0.5)
+        fill.Size = UDim2.new(ratio, 0, 1, 0)
+        knob.Position = UDim2.new(ratio, 0, 0.5, 0)
+        valueLabel.Text = tostring(value)
+        pcall(callback, value)
+    end
+
+    -- Тач/мышь вниз на треке
+    track.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            updateFromX(input.Position.X)
+        end
+    end)
+
+    knob.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+        end
+    end)
+
+    UIS.InputChanged:Connect(function(input)
+        if not dragging then return end
+        if input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch then
+            updateFromX(input.Position.X)
+        end
+    end)
+
+    UIS.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    return {
+        Frame = frame,
+        SetValue = function(v)
+            local ratio = math.clamp((v - min) / (max - min), 0, 1)
+            fill.Size = UDim2.new(ratio, 0, 1, 0)
+            knob.Position = UDim2.new(ratio, 0, 0.5, 0)
+            valueLabel.Text = tostring(v)
+        end
+    }
+end
+
+--=========================================================
+-- КНОПКИ ESP
+--=========================================================
 local ESPButton = MakeButton("ESP", function()
     Config.ESP.Enabled = not Config.ESP.Enabled
     ESPButton.SetOn(Config.ESP.Enabled)
 end)
 ESPButton.SetOn(Config.ESP.Enabled)
-
-local AimButton = MakeButton("Aimbot", function()
-    Config.Aimbot.Enabled = not Config.Aimbot.Enabled
-    AimButton.SetOn(Config.Aimbot.Enabled)
-end)
-AimButton.SetOn(Config.Aimbot.Enabled)
-
-local FovButton = MakeButton("FOV Circle", function()
-    Config.Aimbot.ShowFOV = not Config.Aimbot.ShowFOV
-    FovButton.SetOn(Config.Aimbot.ShowFOV)
-end)
-FovButton.SetOn(Config.Aimbot.ShowFOV)
 
 local TracerButton = MakeButton("Tracers", function()
     Config.ESP.Tracer = not Config.ESP.Tracer
@@ -317,8 +464,39 @@ local HealthButton = MakeButton("Health Bar", function()
 end)
 HealthButton.SetOn(Config.ESP.Health)
 
+local AimButton = MakeButton("Aimbot", function()
+    Config.Aimbot.Enabled = not Config.Aimbot.Enabled
+    AimButton.SetOn(Config.Aimbot.Enabled)
+end)
+AimButton.SetOn(Config.Aimbot.Enabled)
+
+local FovButton = MakeButton("FOV Circle", function()
+    Config.Aimbot.ShowFOV = not Config.Aimbot.ShowFOV
+    FovButton.SetOn(Config.Aimbot.ShowFOV)
+end)
+FovButton.SetOn(Config.Aimbot.ShowFOV)
+
+--=========================================================
+-- СЛАЙДЕРЫ ДЛЯ AIMBOT (НОВОЕ!)
+--=========================================================
+local FovSlider = MakeSlider("FOV Radius", 30, 600, Config.Aimbot.FOV, function(v)
+    Config.Aimbot.FOV = v
+    FovCircle.Size = UDim2.new(0, v * 2, 0, v * 2)
+end)
+
+local SmoothSlider = MakeSlider("Smoothness x100", 10, 100, math.floor(Config.Aimbot.Smoothness * 100), function(v)
+    Config.Aimbot.Smoothness = v / 100
+end)
+
+local DistSlider = MakeSlider("Max Distance", 100, 2000, Config.Aimbot.MaxDistance, function(v)
+    Config.Aimbot.MaxDistance = v
+end)
+
+--=========================================================
+-- HOLD TO AIM
+--=========================================================
 local TriggerBtn = Instance.new("TextButton")
-TriggerBtn.Size = UDim2.new(1, 0, 0, 42)
+TriggerBtn.Size = UDim2.new(1, 0, 0, 44)
 TriggerBtn.BackgroundColor3 = Theme.Accent
 TriggerBtn.BorderSizePixel = 0
 TriggerBtn.Text = "HOLD TO AIM"
@@ -330,48 +508,41 @@ TriggerBtn.LayoutOrder = 100
 TriggerBtn.Parent = Content
 Instance.new("UICorner", TriggerBtn).CornerRadius = UDim.new(0, 6)
 
-local TrigStroke = Instance.new("UIStroke", TriggerBtn)
-TrigStroke.Color = Theme.Border
-TrigStroke.Thickness = 1
+local function setTrigActive(active)
+    Config.Aimbot.TriggerActive = active
+    TweenService:Create(TriggerBtn, TweenInfo.new(0.1), {
+        BackgroundColor3 = active and Color3.fromRGB(120, 180, 255) or Theme.Accent
+    }):Play()
+end
 
-TriggerBtn.MouseButton1Down:Connect(function()
-    Config.Aimbot.TriggerActive = true
-    TweenService:Create(TriggerBtn, TweenInfo.new(0.1), { BackgroundColor3 = Color3.fromRGB(120, 180, 255) }):Play()
-end)
-TriggerBtn.MouseButton1Up:Connect(function()
-    Config.Aimbot.TriggerActive = false
-    TweenService:Create(TriggerBtn, TweenInfo.new(0.1), { BackgroundColor3 = Theme.Accent }):Play()
-end)
+TriggerBtn.MouseButton1Down:Connect(function() setTrigActive(true) end)
+TriggerBtn.MouseButton1Up:Connect(function() setTrigActive(false) end)
 TriggerBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch then
-        Config.Aimbot.TriggerActive = true
-        TweenService:Create(TriggerBtn, TweenInfo.new(0.1), { BackgroundColor3 = Color3.fromRGB(120, 180, 255) }):Play()
-    end
+    if input.UserInputType == Enum.UserInputType.Touch then setTrigActive(true) end
 end)
 TriggerBtn.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch then
-        Config.Aimbot.TriggerActive = false
-        TweenService:Create(TriggerBtn, TweenInfo.new(0.1), { BackgroundColor3 = Theme.Accent }):Play()
-    end
+    if input.UserInputType == Enum.UserInputType.Touch then setTrigActive(false) end
 end)
+TriggerBtn.MouseLeave:Connect(function() setTrigActive(false) end)
 
+--=========================================================
+-- СВОРАЧИВАНИЕ
+--=========================================================
 local isMinimized = false
+local defaultMenuHeight = 420
 local function toggleMinimize()
     isMinimized = not isMinimized
-    local targetSize = isMinimized and UDim2.new(0, 250, 0, 38) or UDim2.new(0, 250, 0, 310)
+    local targetSize = isMinimized and UDim2.new(0, 260, 0, 38) or UDim2.new(0, 260, 0, defaultMenuHeight)
     TweenService:Create(Menu, TweenInfo.new(0.25, Enum.EasingStyle.Quad), { Size = targetSize }):Play()
     Content.Visible = not isMinimized
 end
 
 MinimizeBtn.MouseButton1Click:Connect(toggleMinimize)
+MinimizeBtn.Activated:Connect(toggleMinimize)
 
-MinimizeBtn.MouseEnter:Connect(function()
-    TweenService:Create(MinimizeBtn, TweenInfo.new(0.15), { BackgroundColor3 = Theme.Hover }):Play()
-end)
-MinimizeBtn.MouseLeave:Connect(function()
-    TweenService:Create(MinimizeBtn, TweenInfo.new(0.15), { BackgroundColor3 = Theme.Element }):Play()
-end)
-
+--=========================================================
+-- FOV КРУГ
+--=========================================================
 local FovCircle = Instance.new("Frame")
 FovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
 FovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
@@ -387,6 +558,9 @@ FovStroke.Color = Theme.Accent
 FovStroke.Thickness = 2
 FovStroke.Transparency = 0.2
 
+--=========================================================
+-- ESP СИСТЕМА
+--=========================================================
 local ESPCache = {}
 
 local function CreateESP(player)
@@ -432,12 +606,13 @@ end
 local function RemoveESP(player)
     local d = ESPCache[player]
     if not d then return end
-    for _, o in pairs(d) do
-        pcall(function() o:Remove() end)
-    end
+    for _, o in pairs(d) do pcall(function() o:Remove() end) end
     ESPCache[player] = nil
 end
 
+--=========================================================
+-- AIMBOT — БОЛЕЕ НАДЁЖНЫЙ МЕТОД
+--=========================================================
 local function IsVisible(part, character)
     local origin = Camera.CFrame.Position
     local params = RaycastParams.new()
@@ -480,7 +655,13 @@ local function GetClosestTarget()
     return closest
 end
 
+--=========================================================
+-- ГЛАВНЫЙ ЦИКЛ
+--=========================================================
+local aimActive = false
+
 RunService.RenderStepped:Connect(function()
+    -- FOV circle
     if Config.Aimbot.ShowFOV and Config.Aimbot.Enabled then
         FovCircle.Visible = true
         FovCircle.Size = UDim2.new(0, Config.Aimbot.FOV * 2, 0, Config.Aimbot.FOV * 2)
@@ -489,6 +670,7 @@ RunService.RenderStepped:Connect(function()
         FovCircle.Visible = false
     end
 
+    -- ESP
     if hasDrawing then
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LP then
@@ -564,6 +746,7 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
+    -- AIMBOT (улучшенный)
     if Config.Aimbot.Enabled then
         local shouldAim = Config.Aimbot.TriggerActive
             or UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
@@ -571,8 +754,12 @@ RunService.RenderStepped:Connect(function()
         if shouldAim then
             local target = GetClosestTarget()
             if target then
-                local newCF = CFrame.new(Camera.CFrame.Position, target.Position)
-                Camera.CFrame = Camera.CFrame:Lerp(newCF, Config.Aimbot.Smoothness)
+                -- Меняем CFrame НАПРЯМУЮ (а не Lerp) — чтобы игра не сбрасывала
+                local targetCF = CFrame.new(Camera.CFrame.Position, target.Position)
+                -- Смешиваем с текущей через Smooth
+                local currentCF = Camera.CFrame
+                local s = Config.Aimbot.Smoothness
+                Camera.CFrame = currentCF:Lerp(targetCF, s)
             end
         end
     end
@@ -580,10 +767,11 @@ end)
 
 Players.PlayerAdded:Connect(CreateESP)
 Players.PlayerRemoving:Connect(RemoveESP)
-for _, plr in ipairs(Players:GetPlayers()) do
-    CreateESP(plr)
-end
+for _, plr in ipairs(Players:GetPlayers()) do CreateESP(plr) end
 
+--=========================================================
+-- ГОРЯЧИЕ КЛАВИШИ (ПК)
+--=========================================================
 UIS.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == Enum.KeyCode.F1 then
@@ -597,6 +785,4 @@ UIS.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("[FerClient] Успешно загружен на Rost Alpha!")
-print("[FerClient] Версия: 1.0")
-print("[FerClient] F1 - ESP | F2 - Aimbot | RightShift - Свернуть")
+print("[FerClient] v1.1 загружен | ESP + Aimbot + Слайдеры")
