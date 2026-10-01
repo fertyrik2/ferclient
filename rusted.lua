@@ -1,6 +1,6 @@
 --[[
-    FerClient | Rusted Version v3
-    Silent Aim — универсальный перехват ремоутов
+    FerClient | Rusted Version v4
+    Silent Aim — универсальный перехват (FireServer + Raycast + Tool.Activated)
 ]]
 
 if getgenv().FerClient_Rusted_Loaded then
@@ -18,6 +18,7 @@ local UIS = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 local Lighting = game:GetService("Lighting")
+local StarterGui = game:GetService("StarterGui")
 local Camera = Workspace.CurrentCamera
 local LP = Players.LocalPlayer
 
@@ -65,7 +66,8 @@ local Config = {
         MaxDistance = 800,
         Prediction = true,
         PredictionX = 0.15,
-        DebugMode = false,  -- показывать какой ремоут ловится
+        DebugChat = false,  -- писать в чат что ловится
+        OnlyInCircle = true, -- стрелять только когда цель в кружке
     },
     Player = {
         NoFallDamage = false,
@@ -93,6 +95,19 @@ local Connections = {}
 local function TrackConn(conn)
     Connections[#Connections + 1] = conn
     return conn
+end
+
+--=========================================================
+-- ФУНКЦИЯ: вывод в чат игры
+--=========================================================
+local function chatMessage(text, color)
+    pcall(function()
+        StarterGui:SetCore("ChatMakeSystemMessage", {
+            Text = text,
+            Color = color or Color3.fromRGB(90, 160, 255),
+            Font = Enum.Font.GothamBold,
+        })
+    end)
 end
 
 --=========================================================
@@ -289,7 +304,7 @@ local Logo = Instance.new("TextLabel")
 Logo.Size = UDim2.new(0, 180, 1, 0)
 Logo.Position = UDim2.new(0, 28, 0, 0)
 Logo.BackgroundTransparency = 1
-Logo.Text = "FerClient | Rusted v3"
+Logo.Text = "FerClient | Rusted v4"
 Logo.TextColor3 = Theme.Text
 Logo.Font = Theme.FontBold
 Logo.TextSize = 13
@@ -685,13 +700,8 @@ local SilentBtn = MakeButton(AimScroller, "Silent Aim", false, function()
     Config.Silent.Enabled = not Config.Silent.Enabled
 end)
 
-local SilentDebugBtn = MakeButton(AimScroller, "Silent Debug", false, function()
-    Config.Silent.DebugMode = not Config.Silent.DebugMode
-    if Config.Silent.DebugMode then
-        showHitLog("Debug ON — смотри консоль Delta", Color3.fromRGB(90, 160, 255))
-    else
-        showHitLog("Debug OFF", Color3.fromRGB(255, 100, 100))
-    end
+local SilentChatBtn = MakeButton(AimScroller, "Silent Debug (чат)", false, function()
+    Config.Silent.DebugChat = not Config.Silent.DebugChat
 end)
 
 local PredictBtn = MakeButton(AimScroller, "Prediction", true, function()
@@ -904,7 +914,7 @@ local function Unload()
 
     getgenv().FerClient_Rusted_Loaded = false
     getgenv().FerClient_Rusted_Unloading = false
-    print("[FerClient] Rusted v3 — Выгружен.")
+    print("[FerClient] Rusted v4 — Выгружен.")
 end
 
 local lastUnloadClick = 0
@@ -986,7 +996,7 @@ local function RemoveESP(player)
 end
 
 --=========================================================
--- AIMBOT / SILENT
+-- AIMBOT / SILENT ЛОГИКА
 --=========================================================
 local function IsTeammate(plr)
     if not plr.Team or not LP.Team then return false end
@@ -1089,9 +1099,10 @@ end
 RunService:BindToRenderStep("FerClient_Rusted_Aimbot", AIM_PRIORITY, AimStep)
 
 --=========================================================
--- SILENT AIM — УНИВЕРСАЛЬНЫЙ ХУК
--- (перехватывает ВСЕ ремоуты и подменяет Vector3/CFrame)
+-- SILENT AIM — МНОГО МЕТОДОВ ОДНОВРЕМЕННО
 --=========================================================
+
+-- МЕТОД 1: Hook __namecall (FireServer / InvokeServer)
 pcall(function()
     if not (hookmetamethod and newcclosure) then return end
 
@@ -1099,20 +1110,19 @@ pcall(function()
     OldNC = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
         local method = getnamecallmethod()
 
-        -- Ловим все FireServer / InvokeServer
         if (method == "FireServer" or method == "InvokeServer") and typeof(self) == "Instance" then
             local args = table.pack(...)
 
-            -- DEBUG: показываем что вызвано
-            if Config.Silent.DebugMode then
+            -- Debug в чат
+            if Config.Silent.DebugChat and Config.Silent.Enabled then
                 local argsStr = ""
                 for i = 1, args.n do
                     argsStr = argsStr .. i .. ":" .. typeof(args[i]) .. " "
                 end
-                print("[FerClient DEBUG] Remote: " .. self:GetFullName() .. " | Args: " .. argsStr)
+                chatMessage("[REMOTE] " .. self.Name .. " | " .. argsStr, Color3.fromRGB(90, 160, 255))
             end
 
-            -- Если Silent Aim включён и есть цель — подменяем координаты
+            -- Подмена координат
             if Config.Silent.Enabled and silentTargetPos then
                 local newArgs = {}
                 local replaced = false
@@ -1120,11 +1130,9 @@ pcall(function()
                 for i = 1, args.n do
                     local v = args[i]
                     if typeof(v) == "Vector3" then
-                        -- Подменяем Vector3 на позицию цели
                         newArgs[i] = silentTargetPos
                         replaced = true
                     elseif typeof(v) == "CFrame" then
-                        -- Подменяем CFrame на позицию цели
                         newArgs[i] = CFrame.new(silentTargetPos)
                         replaced = true
                     else
@@ -1141,8 +1149,46 @@ pcall(function()
         return OldNC(self, ...)
     end))
 
-    print("[FerClient] Silent Aim hook установлен")
+    print("[FerClient] Hook __namecall установлен")
 end)
+
+-- МЕТОД 2: Hook Workspace.Raycast (если стрельба через raycast)
+pcall(function()
+    if not (hookmetamethod and newcclosure) then return end
+
+    local OldRaycast
+    OldRaycast = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        if method == "Raycast" and self == Workspace then
+            if Config.Silent.Enabled and silentTargetPos then
+                local args = table.pack(...)
+                local origin = args[1]
+                -- Подменяем направление на цель
+                if typeof(origin) == "Vector3" then
+                    local newDir = (silentTargetPos - origin).Unit * (silentTargetPos - origin).Magnitude
+                    args[2] = newDir
+                    return OldRaycast(self, table.unpack(args, 1, args.n))
+                end
+            end
+        end
+        return OldRaycast(self, ...)
+    end))
+
+    print("[FerClient] Hook Raycast установлен")
+end)
+
+-- МЕТОД 3: Hook Tool.Activated (если клиентская стрельба)
+TrackConn(LP.CharacterAdded:Connect(function(char)
+    char.ChildAdded:Connect(function(tool)
+        if tool:IsA("Tool") then
+            TrackConn(tool.Activated:Connect(function()
+                if Config.Silent.DebugChat and Config.Silent.Enabled then
+                    chatMessage("[Tool.Activated] " .. tool.Name, Color3.fromRGB(255, 200, 0))
+                end
+            end))
+        end
+    end)
+end))
 
 --=========================================================
 -- SPEED HACK
@@ -1308,13 +1354,12 @@ end))
 -- ESP ЦИКЛ
 --=========================================================
 TrackConn(RunService.RenderStepped:Connect(function()
-    -- FOV круг
     if Config.Aimbot.ShowFOV and (Config.Aimbot.Enabled or Config.Silent.Enabled) then
         FovCircle.Visible = true
         FovCircle.Size = UDim2.new(0, Config.Aimbot.FOV * 2, 0, Config.Aimbot.FOV * 2)
         FovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
         if Config.Silent.Enabled and silentTarget then
-            FovStroke.Color = Theme.Success  -- зелёный = цель в кружке
+            FovStroke.Color = Theme.Success
         else
             FovStroke.Color = Theme.Accent
         end
@@ -1322,7 +1367,6 @@ TrackConn(RunService.RenderStepped:Connect(function()
         FovCircle.Visible = false
     end
 
-    -- ESP
     if hasDrawing then
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LP then
@@ -1423,6 +1467,9 @@ TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     elseif input.KeyCode == Enum.KeyCode.F5 then
         Config.Silent.Enabled = not Config.Silent.Enabled
         SilentBtn.SetOn(Config.Silent.Enabled)
+    elseif input.KeyCode == Enum.KeyCode.F6 then
+        Config.Silent.DebugChat = not Config.Silent.DebugChat
+        SilentChatBtn.SetOn(Config.Silent.DebugChat)
     elseif input.KeyCode == Enum.KeyCode.F7 then
         Config.Player.SpeedEnabled = not Config.Player.SpeedEnabled
         SpeedBtn.SetOn(Config.Player.SpeedEnabled)
@@ -1441,6 +1488,5 @@ AimTab.Btn.TextColor3 = Theme.Text
 AimScroller.Visible = true
 activeTab = AimTab
 
-print("[FerClient] Rusted v3 загружен")
-print("Silent Aim — универсальный перехват ремоутов")
-print("Включи 'Silent Debug' чтобы увидеть какие ремоуты ловятся")
+chatMessage("[FerClient] Rusted v4 загружен", Color3.fromRGB(90, 160, 255))
+print("[FerClient] Rusted v4 загружен — Silent Aim с 3 методами")
