@@ -1,7 +1,8 @@
 --[[
-    FerClient v3.2 | Rost Alpha
+    FerClient v3.3 | Rost Alpha
     AIM + VISUAL + MISC
-    Прямоугольное меню + Снежинки + Infinite Jump
+    Silent Aim + Prediction + Auto Fire + Infinite Jump
+    Прямоугольное меню + Снежинки
 ]]
 
 if getgenv().FerClient_Loaded then
@@ -32,8 +33,6 @@ local Theme = {
     Tab        = Color3.fromRGB(18, 18, 18),
     TabActive  = Color3.fromRGB(30, 30, 30),
     Element    = Color3.fromRGB(22, 22, 22),
-    ElementOn  = Color3.fromRGB(0, 80, 40),
-    ElementOff = Color3.fromRGB(90, 15, 15),
     Hover      = Color3.fromRGB(35, 35, 35),
     Accent     = Color3.fromRGB(90, 160, 255),
     Success    = Color3.fromRGB(50, 255, 100),
@@ -58,9 +57,25 @@ local Config = {
         Enabled = false, AutoAim = false, FOV = 200, Smoothness = 0.5,
         MaxDistance = 600, TargetPart = "Head", Visible = false,
         TeamCheck = true, ShowFOV = true, TriggerActive = false,
+        Prediction = true,
+        PredictionX = 0.15,
+        AutoFire = false,
+        AutoFireDelay = 0.05,
+        LastFire = 0,
+    },
+    Silent = {
+        Enabled = false,
+        TargetPart = "Head",
+        Visible = false,
+        TeamCheck = true,
+        FOV = 200,
+        MaxDistance = 600,
+        Prediction = true,
+        PredictionX = 0.15,
     },
     Misc = {
         InfiniteJump = false,
+        HitLogs = true,
     }
 }
 
@@ -72,6 +87,57 @@ local Connections = {}
 local function TrackConn(conn)
     Connections[#Connections + 1] = conn
     return conn
+end
+
+--=========================================================
+-- HIT LOGS GUI
+--=========================================================
+local HitLogsGui = Instance.new("ScreenGui")
+HitLogsGui.Name = "FerClient_HitLogs"
+HitLogsGui.ResetOnSpawn = false
+HitLogsGui.IgnoreGuiInset = true
+HitLogsGui.DisplayOrder = 999
+pcall(function() HitLogsGui.Parent = HUI end)
+if not HitLogsGui.Parent then HitLogsGui.Parent = LP:WaitForChild("PlayerGui") end
+
+local HitLogsHolder = Instance.new("Frame")
+HitLogsHolder.Size = UDim2.new(0, 500, 0, 300)
+HitLogsHolder.Position = UDim2.new(0.5, -250, 0, 100)
+HitLogsHolder.BackgroundTransparency = 1
+HitLogsHolder.Parent = HitLogsGui
+
+local HitLogsLayout = Instance.new("UIListLayout", HitLogsHolder)
+HitLogsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+HitLogsLayout.Padding = UDim.new(0, 2)
+
+local hitLogOrder = 0
+local function showHitLog(text, color)
+    if not Config.Misc.HitLogs then return end
+    if not text then return end
+
+    local lbl = Instance.new("TextLabel")
+    hitLogOrder = hitLogOrder + 1
+    lbl.LayoutOrder = hitLogOrder
+    lbl.Size = UDim2.new(1, 0, 0, 18)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text
+    lbl.TextColor3 = color or Color3.fromRGB(255, 255, 255)
+    lbl.TextStrokeColor3 = Color3.new(0, 0, 0)
+    lbl.TextStrokeTransparency = 0.3
+    lbl.TextXAlignment = Enum.TextXAlignment.Center
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 14
+    lbl.TextTransparency = 1
+    lbl.Parent = HitLogsHolder
+
+    TweenService:Create(lbl, TweenInfo.new(0.15), { TextTransparency = 0 }):Play()
+
+    task.delay(3, function()
+        local tw = TweenService:Create(lbl, TweenInfo.new(0.5), { TextTransparency = 1 })
+        tw:Play()
+        tw.Completed:Wait()
+        pcall(function() lbl:Destroy() end)
+    end)
 end
 
 --=========================================================
@@ -96,7 +162,7 @@ Menu.BackgroundColor3 = Theme.Background
 Menu.BorderSizePixel = 0
 Menu.Active = true
 Menu.Draggable = true
-Menu.Visible = false     -- изначально СКРЫТО
+Menu.Visible = false
 Menu.ClipsDescendants = false
 Menu.Parent = ScreenGui
 
@@ -188,7 +254,7 @@ TrackConn(RunService.RenderStepped:Connect(function(dt)
 end))
 
 --=========================================================
--- КНОПКА ОТКРЫТИЯ/ЗАКРЫТИЯ (ПРЯМОУГОЛЬНАЯ)
+-- КНОПКА ОТКРЫТИЯ/ЗАКРЫТИЯ
 --=========================================================
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Name = "FerClient_Toggle"
@@ -241,7 +307,7 @@ local Logo = Instance.new("TextLabel")
 Logo.Size = UDim2.new(0, 160, 1, 0)
 Logo.Position = UDim2.new(0, 28, 0, 0)
 Logo.BackgroundTransparency = 1
-Logo.Text = "FerClient v3.2"
+Logo.Text = "FerClient v3.3"
 Logo.TextColor3 = Theme.Text
 Logo.Font = Theme.FontBold
 Logo.TextSize = 13
@@ -249,7 +315,6 @@ Logo.TextXAlignment = Enum.TextXAlignment.Left
 Logo.ZIndex = 4
 Logo.Parent = TopBar
 
--- Minimize
 local MinimizeBtn = Instance.new("TextButton")
 MinimizeBtn.Size = UDim2.new(0, 22, 0, 22)
 MinimizeBtn.Position = UDim2.new(1, -60, 0, 8)
@@ -263,7 +328,6 @@ MinimizeBtn.AutoButtonColor = false
 MinimizeBtn.ZIndex = 4
 MinimizeBtn.Parent = TopBar
 
--- Unload
 local UnloadBtn = Instance.new("TextButton")
 UnloadBtn.Size = UDim2.new(0, 22, 0, 22)
 UnloadBtn.Position = UDim2.new(1, -32, 0, 8)
@@ -278,7 +342,7 @@ UnloadBtn.ZIndex = 4
 UnloadBtn.Parent = TopBar
 
 --=========================================================
--- ВКЛАДКИ (3 штуки: AIM / VISUAL / MISC)
+-- ВКЛАДКИ
 --=========================================================
 local TabBar = Instance.new("Frame")
 TabBar.Size = UDim2.new(1, -16, 0, 34)
@@ -369,7 +433,7 @@ local VisualTab = CreateTab("VISUAL", VisualScroller)
 local MiscTab = CreateTab("MISC", MiscScroller)
 
 --=========================================================
--- КНОПКА (прямоугольная, цвет ON/OFF)
+-- КНОПКА
 --=========================================================
 local function MakeButton(parent, text, defaultOn, callback)
     local btn = Instance.new("TextButton")
@@ -633,6 +697,23 @@ local AutoAimBtn = MakeButton(AimScroller, "Auto Aim", false, function()
     Config.Aimbot.AutoAim = not Config.Aimbot.AutoAim
 end)
 
+local AutoFireBtn = MakeButton(AimScroller, "Auto Fire", false, function()
+    Config.Aimbot.AutoFire = not Config.Aimbot.AutoFire
+end)
+
+local SilentBtn = MakeButton(AimScroller, "Silent Aim", false, function()
+    Config.Silent.Enabled = not Config.Silent.Enabled
+end)
+
+local SilentTeamBtn = MakeButton(AimScroller, "Silent Team Check", true, function()
+    Config.Silent.TeamCheck = not Config.Silent.TeamCheck
+end)
+
+local PredictBtn = MakeButton(AimScroller, "Prediction (упреждение)", true, function()
+    Config.Aimbot.Prediction = not Config.Aimbot.Prediction
+    Config.Silent.Prediction = Config.Aimbot.Prediction
+end)
+
 local FovButton = MakeButton(AimScroller, "FOV Circle", true, function()
     Config.Aimbot.ShowFOV = not Config.Aimbot.ShowFOV
 end)
@@ -647,10 +728,12 @@ end)
 
 MakeDropdown(AimScroller, "Target Part", { "Head", "HumanoidRootPart", "Torso" }, Config.Aimbot.TargetPart, function(v)
     Config.Aimbot.TargetPart = v
+    Config.Silent.TargetPart = v
 end)
 
 MakeSlider(AimScroller, "FOV Radius", 30, 600, Config.Aimbot.FOV, function(v)
     Config.Aimbot.FOV = v
+    Config.Silent.FOV = v
     FovCircle.Size = UDim2.new(0, v * 2, 0, v * 2)
 end)
 
@@ -658,8 +741,14 @@ MakeSlider(AimScroller, "Smoothness x100", 10, 100, math.floor(Config.Aimbot.Smo
     Config.Aimbot.Smoothness = v / 100
 end)
 
+MakeSlider(AimScroller, "Prediction x1000", 0, 500, math.floor(Config.Aimbot.PredictionX * 1000), function(v)
+    Config.Aimbot.PredictionX = v / 1000
+    Config.Silent.PredictionX = v / 1000
+end)
+
 MakeSlider(AimScroller, "Max Distance", 100, 2000, Config.Aimbot.MaxDistance, function(v)
     Config.Aimbot.MaxDistance = v
+    Config.Silent.MaxDistance = v
 end)
 
 --=========================================================
@@ -694,17 +783,20 @@ MakeSlider(VisualScroller, "ESP Max Distance", 200, 3000, Config.ESP.MaxDistance
 end)
 
 --=========================================================
--- ВКЛАДКА MISC (Infinite Jump)
+-- ВКЛАДКА MISC
 --=========================================================
 local InfJumpBtn = MakeButton(MiscScroller, "Infinite Jump", false, function()
     Config.Misc.InfiniteJump = not Config.Misc.InfiniteJump
 end)
 
--- Заголовок-разделитель
+local HitLogsBtn = MakeButton(MiscScroller, "Hit Logs", true, function()
+    Config.Misc.HitLogs = not Config.Misc.HitLogs
+end)
+
 local sepLabel = Instance.new("TextLabel")
 sepLabel.Size = UDim2.new(1, 0, 0, 24)
 sepLabel.BackgroundTransparency = 1
-sepLabel.Text = "— INFINITE JUMP —"
+sepLabel.Text = "— INFO —"
 sepLabel.TextColor3 = Theme.TextDim
 sepLabel.Font = Theme.FontBold
 sepLabel.TextSize = 11
@@ -712,9 +804,9 @@ sepLabel.ZIndex = 3
 sepLabel.Parent = MiscScroller
 
 local infoLabel = Instance.new("TextLabel")
-infoLabel.Size = UDim2.new(1, 0, 0, 40)
+infoLabel.Size = UDim2.new(1, 0, 0, 60)
 infoLabel.BackgroundTransparency = 1
-infoLabel.Text = "Прыжок не имеет ограничений.\nПрыгай сколько хочешь в воздухе."
+infoLabel.Text = "Infinite Jump — бесконечные прыжки.\nHit Logs — показ попаданий внизу.\nSilent Aim — вкладка AIM."
 infoLabel.TextColor3 = Theme.TextDim
 infoLabel.Font = Theme.Font
 infoLabel.TextSize = 11
@@ -810,7 +902,7 @@ MinimizeBtn.MouseButton1Click:Connect(function()
 end)
 
 --=========================================================
--- КНОПКА ОТКРЫТИЯ/ЗАКРЫТИЯ МЕНЮ
+-- КНОПКА ОТКРЫТИЯ/ЗАКРЫТИЯ
 --=========================================================
 local lastToggle = 0
 ToggleBtn.MouseButton1Click:Connect(function()
@@ -847,6 +939,7 @@ local function Unload()
     Connections = {}
 
     pcall(function() ScreenGui:Destroy() end)
+    pcall(function() HitLogsGui:Destroy() end)
 
     getgenv().FerClient_Loaded = false
     getgenv().FerClient_Unloading = false
@@ -933,10 +1026,9 @@ local function RemoveESP(player)
 end
 
 --=========================================================
--- AIMBOT
+-- AIMBOT + SILENT AIM
 --=========================================================
 local function IsTeammate(plr)
-    if not Config.Aimbot.TeamCheck then return false end
     if not plr.Team or not LP.Team then return false end
     return plr.Team == LP.Team
 end
@@ -952,26 +1044,36 @@ local function IsVisible(part, character)
     return result.Instance and result.Instance:IsDescendantOf(character)
 end
 
+local function GetPredictedPosition(part, predTime)
+    local velocity = part.AssemblyLinearVelocity
+    if not velocity then return part.Position end
+    return part.Position + velocity * predTime
+end
+
 local function GetClosestTarget()
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    local closest, closestDist = nil, Config.Aimbot.FOV
+    local closest, closestDist, closestPos = nil, Config.Aimbot.FOV, nil
 
     for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LP and not IsTeammate(plr) then
-            local char = plr.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum and hum.Health > 0 then
-                local part = char:FindFirstChild(Config.Aimbot.TargetPart)
-                if part then
-                    local sp, onScreen = Camera:WorldToViewportPoint(part.Position)
-                    if onScreen then
-                        local d3 = (Camera.CFrame.Position - part.Position).Magnitude
-                        if d3 <= Config.Aimbot.MaxDistance then
-                            local sd = (Vector2.new(sp.X, sp.Y) - center).Magnitude
-                            if sd < closestDist then
-                                if not Config.Aimbot.Visible or IsVisible(part, char) then
-                                    closestDist = sd
-                                    closest = part
+        if plr ~= LP then
+            if not (Config.Aimbot.TeamCheck and IsTeammate(plr)) then
+                local char = plr.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health > 0 then
+                    local part = char:FindFirstChild(Config.Aimbot.TargetPart)
+                    if part then
+                        local predPos = Config.Aimbot.Prediction and GetPredictedPosition(part, Config.Aimbot.PredictionX) or part.Position
+                        local sp, onScreen = Camera:WorldToViewportPoint(predPos)
+                        if onScreen then
+                            local d3 = (Camera.CFrame.Position - predPos).Magnitude
+                            if d3 <= Config.Aimbot.MaxDistance then
+                                local sd = (Vector2.new(sp.X, sp.Y) - center).Magnitude
+                                if sd < closestDist then
+                                    if not Config.Aimbot.Visible or IsVisible(part, char) then
+                                        closestDist = sd
+                                        closest = part
+                                        closestPos = predPos
+                                    end
                                 end
                             end
                         end
@@ -980,12 +1082,51 @@ local function GetClosestTarget()
             end
         end
     end
-    return closest
+    return closest, closestPos
 end
+
+local function GetSilentTarget()
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    local closest, closestPos, closestDist = nil, nil, Config.Silent.FOV
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LP then
+            if not (Config.Silent.TeamCheck and IsTeammate(plr)) then
+                local char = plr.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health > 0 then
+                    local part = char:FindFirstChild(Config.Silent.TargetPart)
+                    if part then
+                        local predPos = Config.Silent.Prediction and GetPredictedPosition(part, Config.Silent.PredictionX) or part.Position
+                        local sp, onScreen = Camera:WorldToViewportPoint(predPos)
+                        if onScreen then
+                            local d3 = (Camera.CFrame.Position - predPos).Magnitude
+                            if d3 <= Config.Silent.MaxDistance then
+                                local sd = (Vector2.new(sp.X, sp.Y) - center).Magnitude
+                                if sd < closestDist then
+                                    if not Config.Silent.Visible or IsVisible(part, char) then
+                                        closestDist = sd
+                                        closest = part
+                                        closestPos = predPos
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return closest, closestPos
+end
+
+local silentTarget = nil
+local silentTargetPos = nil
 
 local AIM_PRIORITY = Enum.RenderPriority.Camera.Value + 10
 
 local function AimStep()
+    -- Находим цель
     local shouldAim = false
     if Config.Aimbot.Enabled then
         if Config.Aimbot.AutoAim then
@@ -996,16 +1137,68 @@ local function AimStep()
             shouldAim = true
         end
     end
-    if not shouldAim then return end
 
-    local target = GetClosestTarget()
-    if target then
-        local targetCF = CFrame.new(Camera.CFrame.Position, target.Position)
-        Camera.CFrame = Camera.CFrame:Lerp(targetCF, Config.Aimbot.Smoothness)
+    if shouldAim then
+        local target, predPos = GetClosestTarget()
+        if target and predPos then
+            -- Наводимся ровно на голову (с учётом движения)
+            local targetCF = CFrame.new(Camera.CFrame.Position, predPos)
+            Camera.CFrame = Camera.CFrame:Lerp(targetCF, Config.Aimbot.Smoothness)
+
+            -- Auto Fire
+            if Config.Aimbot.AutoFire then
+                local now = tick()
+                if now - Config.Aimbot.LastFire >= Config.Aimbot.AutoFireDelay then
+                    Config.Aimbot.LastFire = now
+                    pcall(function()
+                        local vim = game:GetService("VirtualInputManager")
+                        vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+                        task.wait(0.02)
+                        vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+                    end)
+                end
+            end
+        end
+    end
+
+    -- Silent Aim: обновляем цель
+    if Config.Silent.Enabled then
+        local st, sp = GetSilentTarget()
+        silentTarget = st
+        silentTargetPos = sp
+    else
+        silentTarget = nil
+        silentTargetPos = nil
     end
 end
 
 RunService:BindToRenderStep("FerClient_Aimbot", AIM_PRIORITY, AimStep)
+
+-- Хук на __namecall для Silent Aim
+pcall(function()
+    if hookmetamethod and newcclosure then
+        local oldNC
+        oldNC = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            if (method == "FireServer" or method == "InvokeServer")
+                and Config.Silent.Enabled and silentTargetPos then
+                local args = {...}
+                local newArgs = {}
+                for i, v in ipairs(args) do
+                    if typeof(v) == "Vector3" then
+                        newArgs[i] = silentTargetPos
+                    elseif typeof(v) == "CFrame" then
+                        newArgs[i] = CFrame.new(silentTargetPos)
+                    else
+                        newArgs[i] = v
+                    end
+                end
+                return oldNC(self, table.unpack(newArgs))
+            end
+            return oldNC(self, ...)
+        end))
+    end
+end)
 
 --=========================================================
 -- ESP ЦИКЛ
@@ -1116,6 +1309,9 @@ TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     elseif input.KeyCode == Enum.KeyCode.F4 then
         Config.Misc.InfiniteJump = not Config.Misc.InfiniteJump
         InfJumpBtn.SetOn(Config.Misc.InfiniteJump)
+    elseif input.KeyCode == Enum.KeyCode.F5 then
+        Config.Silent.Enabled = not Config.Silent.Enabled
+        SilentBtn.SetOn(Config.Silent.Enabled)
     elseif input.KeyCode == Enum.KeyCode.RightShift then
         Menu.Visible = not Menu.Visible
     elseif input.KeyCode == Enum.KeyCode.Delete then
@@ -1123,12 +1319,11 @@ TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     end
 end))
 
--- Активная вкладка по умолчанию — AIM
 AimTab.Btn.BackgroundColor3 = Theme.TabActive
 AimTab.Btn.TextColor3 = Theme.Text
 AimScroller.Visible = true
 activeTab = AimTab
 
-print("[FerClient] v3.2 загружен")
-print("Меню открывается кнопкой FC")
-print("F1=ESP | F2=Aimbot | F3=AutoAim | F4=InfJump | RightShift=Меню | Del=Unload")
+print("[FerClient] v3.3 загружен")
+print("Silent Aim + Prediction + Auto Fire + Infinite Jump")
+print("F1=ESP | F2=Aimbot | F3=AutoAim | F4=InfJump | F5=Silent | RS=Меню | Del=Unload")
