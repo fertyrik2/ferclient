@@ -1,6 +1,7 @@
 --[[
-    FerClient v3.0 | Rost Alpha
-    AIM + VISUAL + Hide + Unload + Snowflakes
+    FerClient v3.2 | Rost Alpha
+    AIM + VISUAL + MISC
+    Прямоугольное меню + Снежинки + Infinite Jump
 ]]
 
 if getgenv().FerClient_Loaded then
@@ -57,6 +58,9 @@ local Config = {
         Enabled = false, AutoAim = false, FOV = 200, Smoothness = 0.5,
         MaxDistance = 600, TargetPart = "Head", Visible = false,
         TeamCheck = true, ShowFOV = true, TriggerActive = false,
+    },
+    Misc = {
+        InfiniteJump = false,
     }
 }
 
@@ -82,7 +86,7 @@ pcall(function() ScreenGui.Parent = HUI end)
 if not ScreenGui.Parent then ScreenGui.Parent = LP:WaitForChild("PlayerGui") end
 
 --=========================================================
--- МЕНЮ
+-- МЕНЮ (ПРЯМОУГОЛЬНОЕ)
 --=========================================================
 local Menu = Instance.new("Frame")
 Menu.Name = "FerClient_Main"
@@ -92,7 +96,7 @@ Menu.BackgroundColor3 = Theme.Background
 Menu.BorderSizePixel = 0
 Menu.Active = true
 Menu.Draggable = true
-Menu.Visible = true
+Menu.Visible = false     -- изначально СКРЫТО
 Menu.ClipsDescendants = false
 Menu.Parent = ScreenGui
 
@@ -101,7 +105,7 @@ MenuStroke.Color = Theme.Border
 MenuStroke.Thickness = 1
 
 --=========================================================
--- ❄️ СНЕЖИНКИ В МЕНЮ
+-- ❄️ СНЕЖИНКИ
 --=========================================================
 local SnowContainer = Instance.new("Frame")
 SnowContainer.Name = "SnowContainer"
@@ -160,7 +164,6 @@ TrackConn(RunService.RenderStepped:Connect(function(dt)
         if f and f.Parent then
             local currentY = f.Position.Y.Scale
             local currentX = data.xRatio
-
             local speedRatio = data.speed / math.max(Menu.AbsoluteSize.Y, 1)
             currentY = currentY + speedRatio * dt
 
@@ -185,37 +188,34 @@ TrackConn(RunService.RenderStepped:Connect(function(dt)
 end))
 
 --=========================================================
--- МИНИ-КНОПКА
+-- КНОПКА ОТКРЫТИЯ/ЗАКРЫТИЯ (ПРЯМОУГОЛЬНАЯ)
 --=========================================================
-local MiniBtn = Instance.new("TextButton")
-MiniBtn.Name = "FerClient_MiniBtn"
-MiniBtn.Size = UDim2.new(0, 44, 0, 44)
-MiniBtn.Position = UDim2.new(0, 10, 0.5, -22)
-MiniBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-MiniBtn.BorderSizePixel = 0
-MiniBtn.Text = "FC"
-MiniBtn.TextColor3 = Theme.Accent
-MiniBtn.Font = Theme.FontBold
-MiniBtn.TextSize = 15
-MiniBtn.AutoButtonColor = false
-MiniBtn.Visible = false
-MiniBtn.Active = true
-MiniBtn.Draggable = true
-MiniBtn.Parent = ScreenGui
-Instance.new("UICorner", MiniBtn).CornerRadius = UDim.new(1, 0)
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Name = "FerClient_Toggle"
+ToggleBtn.Size = UDim2.new(0, 50, 0, 28)
+ToggleBtn.Position = UDim2.new(0, 10, 0.5, -14)
+ToggleBtn.BackgroundColor3 = Theme.Background
+ToggleBtn.BorderSizePixel = 0
+ToggleBtn.Text = "FC"
+ToggleBtn.TextColor3 = Theme.Accent
+ToggleBtn.Font = Theme.FontBold
+ToggleBtn.TextSize = 14
+ToggleBtn.AutoButtonColor = false
+ToggleBtn.Active = true
+ToggleBtn.Draggable = true
+ToggleBtn.Parent = ScreenGui
 
-local MiniStroke = Instance.new("UIStroke", MiniBtn)
-MiniStroke.Color = Theme.Accent
-MiniStroke.Thickness = 2
-MiniStroke.Transparency = 0.2
+local ToggleStroke = Instance.new("UIStroke", ToggleBtn)
+ToggleStroke.Color = Theme.Accent
+ToggleStroke.Thickness = 1.5
 
-MiniBtn.MouseEnter:Connect(function()
-    MiniBtn.BackgroundColor3 = Theme.Accent
-    MiniBtn.TextColor3 = Color3.new(1, 1, 1)
+ToggleBtn.MouseEnter:Connect(function()
+    ToggleBtn.BackgroundColor3 = Theme.Accent
+    ToggleBtn.TextColor3 = Color3.new(1, 1, 1)
 end)
-MiniBtn.MouseLeave:Connect(function()
-    MiniBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-    MiniBtn.TextColor3 = Theme.Accent
+ToggleBtn.MouseLeave:Connect(function()
+    ToggleBtn.BackgroundColor3 = Theme.Background
+    ToggleBtn.TextColor3 = Theme.Accent
 end)
 
 --=========================================================
@@ -241,7 +241,7 @@ local Logo = Instance.new("TextLabel")
 Logo.Size = UDim2.new(0, 160, 1, 0)
 Logo.Position = UDim2.new(0, 28, 0, 0)
 Logo.BackgroundTransparency = 1
-Logo.Text = "FerClient v3.0"
+Logo.Text = "FerClient v3.2"
 Logo.TextColor3 = Theme.Text
 Logo.Font = Theme.FontBold
 Logo.TextSize = 13
@@ -249,21 +249,7 @@ Logo.TextXAlignment = Enum.TextXAlignment.Left
 Logo.ZIndex = 4
 Logo.Parent = TopBar
 
--- Hide (👁)
-local HideBtn = Instance.new("TextButton")
-HideBtn.Size = UDim2.new(0, 22, 0, 22)
-HideBtn.Position = UDim2.new(1, -88, 0, 8)
-HideBtn.BackgroundColor3 = Theme.Accent
-HideBtn.BorderSizePixel = 0
-HideBtn.Text = "👁"
-HideBtn.TextColor3 = Color3.new(1, 1, 1)
-HideBtn.Font = Theme.FontBold
-HideBtn.TextSize = 12
-HideBtn.AutoButtonColor = false
-HideBtn.ZIndex = 4
-HideBtn.Parent = TopBar
-
--- Minimize (—)
+-- Minimize
 local MinimizeBtn = Instance.new("TextButton")
 MinimizeBtn.Size = UDim2.new(0, 22, 0, 22)
 MinimizeBtn.Position = UDim2.new(1, -60, 0, 8)
@@ -277,7 +263,7 @@ MinimizeBtn.AutoButtonColor = false
 MinimizeBtn.ZIndex = 4
 MinimizeBtn.Parent = TopBar
 
--- Unload (✕)
+-- Unload
 local UnloadBtn = Instance.new("TextButton")
 UnloadBtn.Size = UDim2.new(0, 22, 0, 22)
 UnloadBtn.Position = UDim2.new(1, -32, 0, 8)
@@ -292,7 +278,7 @@ UnloadBtn.ZIndex = 4
 UnloadBtn.Parent = TopBar
 
 --=========================================================
--- ВКЛАДКИ
+-- ВКЛАДКИ (3 штуки: AIM / VISUAL / MISC)
 --=========================================================
 local TabBar = Instance.new("Frame")
 TabBar.Size = UDim2.new(1, -16, 0, 34)
@@ -344,19 +330,20 @@ end
 
 local AimScroller = MakeScroller()
 local VisualScroller = MakeScroller()
+local MiscScroller = MakeScroller()
 
 local tabs = {}
 local activeTab = nil
 
 local function CreateTab(name, scroller)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.5, -2, 1, 0)
+    btn.Size = UDim2.new(0.33, -3, 1, 0)
     btn.BackgroundColor3 = Theme.Tab
     btn.BorderSizePixel = 0
     btn.Text = name
     btn.TextColor3 = Theme.TextDim
     btn.Font = Theme.FontBold
-    btn.TextSize = 12
+    btn.TextSize = 11
     btn.AutoButtonColor = false
     btn.ZIndex = 4
     btn.Parent = TabBar
@@ -379,9 +366,10 @@ end
 
 local AimTab = CreateTab("AIM", AimScroller)
 local VisualTab = CreateTab("VISUAL", VisualScroller)
+local MiscTab = CreateTab("MISC", MiscScroller)
 
 --=========================================================
--- КНОПКА
+-- КНОПКА (прямоугольная, цвет ON/OFF)
 --=========================================================
 local function MakeButton(parent, text, defaultOn, callback)
     local btn = Instance.new("TextButton")
@@ -404,7 +392,6 @@ local function MakeButton(parent, text, defaultOn, callback)
     indicator.BorderSizePixel = 0
     indicator.ZIndex = 4
     indicator.Parent = btn
-    Instance.new("UICorner", indicator).CornerRadius = UDim.new(0, 2)
 
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Size = UDim2.new(1, -110, 1, 0)
@@ -532,7 +519,6 @@ local function MakeSlider(parent, text, min, max, default, callback)
     knob.BorderSizePixel = 0
     knob.ZIndex = 6
     knob.Parent = track
-    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
 
     local knobStroke = Instance.new("UIStroke", knob)
     knobStroke.Color = Theme.Accent
@@ -708,6 +694,67 @@ MakeSlider(VisualScroller, "ESP Max Distance", 200, 3000, Config.ESP.MaxDistance
 end)
 
 --=========================================================
+-- ВКЛАДКА MISC (Infinite Jump)
+--=========================================================
+local InfJumpBtn = MakeButton(MiscScroller, "Infinite Jump", false, function()
+    Config.Misc.InfiniteJump = not Config.Misc.InfiniteJump
+end)
+
+-- Заголовок-разделитель
+local sepLabel = Instance.new("TextLabel")
+sepLabel.Size = UDim2.new(1, 0, 0, 24)
+sepLabel.BackgroundTransparency = 1
+sepLabel.Text = "— INFINITE JUMP —"
+sepLabel.TextColor3 = Theme.TextDim
+sepLabel.Font = Theme.FontBold
+sepLabel.TextSize = 11
+sepLabel.ZIndex = 3
+sepLabel.Parent = MiscScroller
+
+local infoLabel = Instance.new("TextLabel")
+infoLabel.Size = UDim2.new(1, 0, 0, 40)
+infoLabel.BackgroundTransparency = 1
+infoLabel.Text = "Прыжок не имеет ограничений.\nПрыгай сколько хочешь в воздухе."
+infoLabel.TextColor3 = Theme.TextDim
+infoLabel.Font = Theme.Font
+infoLabel.TextSize = 11
+infoLabel.TextWrapped = true
+infoLabel.ZIndex = 3
+infoLabel.Parent = MiscScroller
+
+-- Логика Infinite Jump
+local infJumpConn = nil
+local function startInfiniteJump()
+    if infJumpConn then return end
+    infJumpConn = UIS.JumpRequest:Connect(function()
+        if not Config.Misc.InfiniteJump then return end
+        local char = LP.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end
+    end)
+    TrackConn(infJumpConn)
+end
+
+local function stopInfiniteJump()
+    if infJumpConn then
+        pcall(function() infJumpConn:Disconnect() end)
+        infJumpConn = nil
+    end
+end
+
+TrackConn(RunService.Heartbeat:Connect(function()
+    if Config.Misc.InfiniteJump then
+        startInfiniteJump()
+    else
+        stopInfiniteJump()
+    end
+end))
+
+--=========================================================
 -- HOLD TO AIM
 --=========================================================
 local TriggerBtn = Instance.new("TextButton")
@@ -763,39 +810,14 @@ MinimizeBtn.MouseButton1Click:Connect(function()
 end)
 
 --=========================================================
--- СКРЫТИЕ
+-- КНОПКА ОТКРЫТИЯ/ЗАКРЫТИЯ МЕНЮ
 --=========================================================
-local isHidden = false
-local savedPosition = UDim2.new(0, 20, 0, 80)
-
-local function hideMenuToMini()
-    savedPosition = Menu.Position
-    isHidden = true
-    MiniBtn.Position = savedPosition
-    MiniBtn.Visible = true
-    Menu.Position = UDim2.new(0, -500, 0, Menu.Position.Y.Offset)
-end
-
-local function showMenuFromMini()
-    isHidden = false
-    MiniBtn.Visible = false
-    Menu.Position = savedPosition
-end
-
-local lastHideClick = 0
-HideBtn.MouseButton1Click:Connect(function()
+local lastToggle = 0
+ToggleBtn.MouseButton1Click:Connect(function()
     local now = tick()
-    if now - lastHideClick < 0.3 then return end
-    lastHideClick = now
-    hideMenuToMini()
-end)
-
-local lastMiniClick = 0
-MiniBtn.MouseButton1Click:Connect(function()
-    local now = tick()
-    if now - lastMiniClick < 0.3 then return end
-    lastMiniClick = now
-    showMenuFromMini()
+    if now - lastToggle < 0.3 then return end
+    lastToggle = now
+    Menu.Visible = not Menu.Visible
 end)
 
 --=========================================================
@@ -1091,18 +1113,22 @@ TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     elseif input.KeyCode == Enum.KeyCode.F3 then
         Config.Aimbot.AutoAim = not Config.Aimbot.AutoAim
         AutoAimBtn.SetOn(Config.Aimbot.AutoAim)
+    elseif input.KeyCode == Enum.KeyCode.F4 then
+        Config.Misc.InfiniteJump = not Config.Misc.InfiniteJump
+        InfJumpBtn.SetOn(Config.Misc.InfiniteJump)
     elseif input.KeyCode == Enum.KeyCode.RightShift then
-        toggleMinimize()
-    elseif input.KeyCode == Enum.KeyCode.H then
-        if isHidden then showMenuFromMini() else hideMenuToMini() end
+        Menu.Visible = not Menu.Visible
     elseif input.KeyCode == Enum.KeyCode.Delete then
         Unload()
     end
 end))
 
+-- Активная вкладка по умолчанию — AIM
 AimTab.Btn.BackgroundColor3 = Theme.TabActive
 AimTab.Btn.TextColor3 = Theme.Text
 AimScroller.Visible = true
 activeTab = AimTab
 
-print("[FerClient] v3.0 загружен — со снежинками ❄️")
+print("[FerClient] v3.2 загружен")
+print("Меню открывается кнопкой FC")
+print("F1=ESP | F2=Aimbot | F3=AutoAim | F4=InfJump | RightShift=Меню | Del=Unload")
