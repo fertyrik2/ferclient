@@ -1,7 +1,7 @@
 --[[
-    FerClient v2.8 | Rost Alpha
+    FerClient v2.9 | Rost Alpha
     AIM + VISUAL + Hide + Unload
-    Чёрный фон, прямоугольное меню
+    Фикс кнопок ON/OFF
 ]]
 
 if getgenv().FerClient_Loaded then
@@ -27,17 +27,17 @@ local LP = Players.LocalPlayer
 -- ТЕМА (чёрный фон)
 --=========================================================
 local Theme = {
-    Background = Color3.fromRGB(10, 10, 10),        -- почти чёрный
-    Panel      = Color3.fromRGB(15, 15, 15),        -- чёрный топбар
-    Tab        = Color3.fromRGB(18, 18, 18),        -- фон табов
-    TabActive  = Color3.fromRGB(30, 30, 30),        -- активный таб
-    Element    = Color3.fromRGB(22, 22, 22),        -- кнопка по умолчанию
-    ElementOn  = Color3.fromRGB(0, 80, 40),         -- зелёный фон ON
-    ElementOff = Color3.fromRGB(90, 15, 15),        -- красный фон OFF
-    Hover      = Color3.fromRGB(35, 35, 35),        -- при наведении
-    Accent     = Color3.fromRGB(90, 160, 255),      -- синий акцент
-    Success    = Color3.fromRGB(50, 255, 100),      -- ярко-зелёный
-    Danger     = Color3.fromRGB(255, 60, 60),       -- ярко-красный
+    Background = Color3.fromRGB(10, 10, 10),
+    Panel      = Color3.fromRGB(15, 15, 15),
+    Tab        = Color3.fromRGB(18, 18, 18),
+    TabActive  = Color3.fromRGB(30, 30, 30),
+    Element    = Color3.fromRGB(22, 22, 22),
+    ElementOn  = Color3.fromRGB(0, 80, 40),
+    ElementOff = Color3.fromRGB(90, 15, 15),
+    Hover      = Color3.fromRGB(35, 35, 35),
+    Accent     = Color3.fromRGB(90, 160, 255),
+    Success    = Color3.fromRGB(50, 255, 100),
+    Danger     = Color3.fromRGB(255, 60, 60),
     Text       = Color3.fromRGB(240, 245, 255),
     TextDim    = Color3.fromRGB(140, 150, 170),
     Border     = Color3.fromRGB(50, 50, 55),
@@ -83,7 +83,7 @@ pcall(function() ScreenGui.Parent = HUI end)
 if not ScreenGui.Parent then ScreenGui.Parent = LP:WaitForChild("PlayerGui") end
 
 --=========================================================
--- МЕНЮ (ПРЯМОУГОЛЬНОЕ — без UICorner)
+-- МЕНЮ
 --=========================================================
 local Menu = Instance.new("Frame")
 Menu.Name = "FerClient_Main"
@@ -101,7 +101,7 @@ MenuStroke.Color = Theme.Border
 MenuStroke.Thickness = 1
 
 --=========================================================
--- МИНИ-КНОПКА (круглая, чтобы сразу видно было)
+-- МИНИ-КНОПКА
 --=========================================================
 local MiniBtn = Instance.new("TextButton")
 MiniBtn.Name = "FerClient_MiniBtn"
@@ -155,14 +155,14 @@ local Logo = Instance.new("TextLabel")
 Logo.Size = UDim2.new(0, 160, 1, 0)
 Logo.Position = UDim2.new(0, 28, 0, 0)
 Logo.BackgroundTransparency = 1
-Logo.Text = "FerClient v2.8"
+Logo.Text = "FerClient v2.9"
 Logo.TextColor3 = Theme.Text
 Logo.Font = Theme.FontBold
 Logo.TextSize = 13
 Logo.TextXAlignment = Enum.TextXAlignment.Left
 Logo.Parent = TopBar
 
--- Кнопка HIDE (скрыть меню в иконку FC)
+-- Hide (👁)
 local HideBtn = Instance.new("TextButton")
 HideBtn.Size = UDim2.new(0, 22, 0, 22)
 HideBtn.Position = UDim2.new(1, -88, 0, 8)
@@ -175,14 +175,7 @@ HideBtn.TextSize = 12
 HideBtn.AutoButtonColor = false
 HideBtn.Parent = TopBar
 
-HideBtn.MouseEnter:Connect(function()
-    HideBtn.BackgroundColor3 = Color3.fromRGB(120, 180, 255)
-end)
-HideBtn.MouseLeave:Connect(function()
-    HideBtn.BackgroundColor3 = Theme.Accent
-end)
-
--- Кнопка MINIMIZE
+-- Minimize (—)
 local MinimizeBtn = Instance.new("TextButton")
 MinimizeBtn.Size = UDim2.new(0, 22, 0, 22)
 MinimizeBtn.Position = UDim2.new(1, -60, 0, 8)
@@ -195,14 +188,7 @@ MinimizeBtn.TextSize = 13
 MinimizeBtn.AutoButtonColor = false
 MinimizeBtn.Parent = TopBar
 
-MinimizeBtn.MouseEnter:Connect(function()
-    MinimizeBtn.BackgroundColor3 = Theme.Hover
-end)
-MinimizeBtn.MouseLeave:Connect(function()
-    MinimizeBtn.BackgroundColor3 = Theme.Element
-end)
-
--- Кнопка UNLOAD
+-- Unload (✕)
 local UnloadBtn = Instance.new("TextButton")
 UnloadBtn.Size = UDim2.new(0, 22, 0, 22)
 UnloadBtn.Position = UDim2.new(1, -32, 0, 8)
@@ -214,13 +200,6 @@ UnloadBtn.Font = Theme.FontBold
 UnloadBtn.TextSize = 13
 UnloadBtn.AutoButtonColor = false
 UnloadBtn.Parent = TopBar
-
-UnloadBtn.MouseEnter:Connect(function()
-    UnloadBtn.BackgroundColor3 = Color3.fromRGB(255, 120, 120)
-end)
-UnloadBtn.MouseLeave:Connect(function()
-    UnloadBtn.BackgroundColor3 = Theme.Danger
-end)
 
 --=========================================================
 -- ВКЛАДКИ
@@ -307,26 +286,25 @@ local AimTab = CreateTab("AIM", AimScroller)
 local VisualTab = CreateTab("VISUAL", VisualScroller)
 
 --=========================================================
--- КНОПКА (фикс: цветной квадрат слева показывает состояние)
+-- КНОПКА (ФИКС v2.9)
 --=========================================================
 local function MakeButton(parent, text, defaultOn, callback)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, 0, 0, 40)
-    btn.BackgroundColor3 = Theme.Element
+    btn.BackgroundColor3 = Color3.fromRGB(90, 15, 15)
     btn.BorderSizePixel = 0
     btn.Text = ""
     btn.AutoButtonColor = false
     btn.Parent = parent
 
     local stroke = Instance.new("UIStroke", btn)
-    stroke.Color = Theme.Border
-    stroke.Thickness = 1
+    stroke.Color = Color3.fromRGB(255, 60, 60)
+    stroke.Thickness = 1.5
 
-    -- Цветной индикатор состояния (квадрат слева) — главный визуал
     local indicator = Instance.new("Frame")
     indicator.Size = UDim2.new(0, 14, 0, 14)
     indicator.Position = UDim2.new(0, 10, 0.5, -7)
-    indicator.BackgroundColor3 = Theme.Danger
+    indicator.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
     indicator.BorderSizePixel = 0
     indicator.Parent = btn
     Instance.new("UICorner", indicator).CornerRadius = UDim.new(0, 2)
@@ -336,8 +314,8 @@ local function MakeButton(parent, text, defaultOn, callback)
     nameLabel.Position = UDim2.new(0, 32, 0, 0)
     nameLabel.BackgroundTransparency = 1
     nameLabel.Text = text
-    nameLabel.TextColor3 = Theme.Text
-    nameLabel.Font = Theme.Font
+    nameLabel.TextColor3 = Color3.fromRGB(240, 245, 255)
+    nameLabel.Font = Enum.Font.GothamMedium
     nameLabel.TextSize = 13
     nameLabel.TextXAlignment = Enum.TextXAlignment.Left
     nameLabel.Parent = btn
@@ -347,47 +325,50 @@ local function MakeButton(parent, text, defaultOn, callback)
     statusLabel.Position = UDim2.new(1, -54, 0, 0)
     statusLabel.BackgroundTransparency = 1
     statusLabel.Text = "OFF"
-    statusLabel.TextColor3 = Theme.Danger
-    statusLabel.Font = Theme.FontBold
+    statusLabel.TextColor3 = Color3.fromRGB(255, 60, 60)
+    statusLabel.Font = Enum.Font.GothamBold
     statusLabel.TextSize = 12
     statusLabel.Parent = btn
 
-    -- Функция смены состояния (меняем НАПРЯМУЮ, без tween)
-    local function setState(isOn)
-        btn:SetAttribute("On", isOn)
+    local isOn = false
 
-        -- Меняем ВСЁ: фон, обводку, индикатор, текст
-        btn.BackgroundColor3 = isOn and Theme.ElementOn or Theme.ElementOff
-        stroke.Color = isOn and Theme.Success or Theme.Danger
-        stroke.Thickness = isOn and 2 or 1
-        indicator.BackgroundColor3 = isOn and Theme.Success or Theme.Danger
-
-        statusLabel.Text = isOn and "ON" or "OFF"
-        statusLabel.TextColor3 = isOn and Theme.Success or Theme.Danger
+    local function applyState()
+        if isOn then
+            btn.BackgroundColor3 = Color3.fromRGB(0, 80, 40)
+            stroke.Color = Color3.fromRGB(50, 255, 100)
+            stroke.Thickness = 2
+            indicator.BackgroundColor3 = Color3.fromRGB(50, 255, 100)
+            statusLabel.Text = "ON"
+            statusLabel.TextColor3 = Color3.fromRGB(50, 255, 100)
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(90, 15, 15)
+            stroke.Color = Color3.fromRGB(255, 60, 60)
+            stroke.Thickness = 1.5
+            indicator.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+            statusLabel.Text = "OFF"
+            statusLabel.TextColor3 = Color3.fromRGB(255, 60, 60)
+        end
     end
 
-    -- Hover — только подсветка текста, без ломания цвета фона
-    btn.MouseEnter:Connect(function()
-        nameLabel.TextColor3 = Theme.Accent
-    end)
-    btn.MouseLeave:Connect(function()
-        nameLabel.TextColor3 = Theme.Text
-    end)
+    isOn = defaultOn or false
+    applyState()
 
-    -- Клик
     local lastClick = 0
     btn.MouseButton1Click:Connect(function()
         local now = tick()
         if now - lastClick < 0.25 then return end
         lastClick = now
         pcall(callback)
+        isOn = not isOn
+        applyState()
     end)
-
-    setState(defaultOn or false)
 
     return {
         Button = btn,
-        SetOn = setState,
+        SetOn = function(v)
+            isOn = v and true or false
+            applyState()
+        end
     }
 end
 
@@ -552,27 +533,22 @@ end
 --=========================================================
 local AimButton = MakeButton(AimScroller, "Aimbot", false, function()
     Config.Aimbot.Enabled = not Config.Aimbot.Enabled
-    AimButton.SetOn(Config.Aimbot.Enabled)
 end)
 
 local AutoAimBtn = MakeButton(AimScroller, "Auto Aim", false, function()
     Config.Aimbot.AutoAim = not Config.Aimbot.AutoAim
-    AutoAimBtn.SetOn(Config.Aimbot.AutoAim)
 end)
 
 local FovButton = MakeButton(AimScroller, "FOV Circle", true, function()
     Config.Aimbot.ShowFOV = not Config.Aimbot.ShowFOV
-    FovButton.SetOn(Config.Aimbot.ShowFOV)
 end)
 
 local VisibleBtn = MakeButton(AimScroller, "Visible Check", false, function()
     Config.Aimbot.Visible = not Config.Aimbot.Visible
-    VisibleBtn.SetOn(Config.Aimbot.Visible)
 end)
 
 local TeamBtn = MakeButton(AimScroller, "Team Check", true, function()
     Config.Aimbot.TeamCheck = not Config.Aimbot.TeamCheck
-    TeamBtn.SetOn(Config.Aimbot.TeamCheck)
 end)
 
 MakeDropdown(AimScroller, "Target Part", { "Head", "HumanoidRootPart", "Torso" }, Config.Aimbot.TargetPart, function(v)
@@ -597,32 +573,26 @@ end)
 --=========================================================
 local ESPButton = MakeButton(VisualScroller, "ESP", true, function()
     Config.ESP.Enabled = not Config.ESP.Enabled
-    ESPButton.SetOn(Config.ESP.Enabled)
 end)
 
 local BoxButton = MakeButton(VisualScroller, "Boxes", true, function()
     Config.ESP.Box = not Config.ESP.Box
-    BoxButton.SetOn(Config.ESP.Box)
 end)
 
 local NameButton = MakeButton(VisualScroller, "Names", true, function()
     Config.ESP.Name = not Config.ESP.Name
-    NameButton.SetOn(Config.ESP.Name)
 end)
 
 local DistButton = MakeButton(VisualScroller, "Distance", true, function()
     Config.ESP.Distance = not Config.ESP.Distance
-    DistButton.SetOn(Config.ESP.Distance)
 end)
 
 local TracerButton = MakeButton(VisualScroller, "Tracers", true, function()
     Config.ESP.Tracer = not Config.ESP.Tracer
-    TracerButton.SetOn(Config.ESP.Tracer)
 end)
 
 local HealthButton = MakeButton(VisualScroller, "Health Bar", true, function()
     Config.ESP.Health = not Config.ESP.Health
-    HealthButton.SetOn(Config.ESP.Health)
 end)
 
 MakeSlider(VisualScroller, "ESP Max Distance", 200, 3000, Config.ESP.MaxDistance, function(v)
@@ -664,13 +634,12 @@ end)
 TriggerBtn.MouseLeave:Connect(function() setTrig(false) end)
 
 --=========================================================
--- СВОРАЧИВАНИЕ (Minimize)
+-- СВОРАЧИВАНИЕ
 --=========================================================
 local isMinimized = false
 local function toggleMinimize()
     isMinimized = not isMinimized
-    local targetSize = isMinimized and UDim2.new(0, 280, 0, 38) or UDim2.new(0, 280, 0, 460)
-    Menu.Size = targetSize
+    Menu.Size = isMinimized and UDim2.new(0, 280, 0, 38) or UDim2.new(0, 280, 0, 460)
     TabBar.Visible = not isMinimized
     Content.Visible = not isMinimized
     TriggerBtn.Visible = not isMinimized
@@ -685,29 +654,22 @@ MinimizeBtn.MouseButton1Click:Connect(function()
 end)
 
 --=========================================================
--- СКРЫТИЕ (Hide) — ФИКС через перемещение за экран
+-- СКРЫТИЕ
 --=========================================================
 local isHidden = false
 local savedPosition = UDim2.new(0, 20, 0, 80)
 
 local function hideMenuToMini()
-    -- Запоминаем позицию
     savedPosition = Menu.Position
     isHidden = true
-
-    -- Мини-кнопка появляется на позиции меню
     MiniBtn.Position = savedPosition
     MiniBtn.Visible = true
-
-    -- Меню УЕЗЖАЕТ за экран (по X на -500) — но остаётся Visible
     Menu.Position = UDim2.new(0, -500, 0, Menu.Position.Y.Offset)
 end
 
 local function showMenuFromMini()
     isHidden = false
     MiniBtn.Visible = false
-
-    -- Меню возвращается на своё место
     Menu.Position = savedPosition
 end
 
@@ -884,8 +846,7 @@ local function GetClosestTarget()
                         end
                     end
                 end
-            end
-        end
+            end        end
     end
     return closest
 end
@@ -1034,5 +995,4 @@ AimTab.Btn.TextColor3 = Theme.Text
 AimTab.Scroller.Visible = true
 activeTab = AimTab
 
-print("[FerClient] v2.8 — чёрный фон, прямоугольное меню")
-print("Кнопки: 👁 скрыть | — свернуть | ✕ выгрузить")
+print("[FerClient] v2.9 загружен — кнопки переключаются зелёный/красный")
