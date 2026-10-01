@@ -1,8 +1,8 @@
 --[[
-    FerClient v3.3 | Rost Alpha
-    AIM + VISUAL + MISC
-    Silent Aim + Prediction + Auto Fire + Infinite Jump
-    Прямоугольное меню + Снежинки
+    FerClient v4.0 | Rost Alpha
+    AIM + VISUAL + MISC + GUN MODS + PLAYER
+    Silent Aim + Prediction + No Recoil + No Spread + Rapid Fire
+    No Fall Damage + Fullbright + X-Ray
 ]]
 
 if getgenv().FerClient_Loaded then
@@ -21,6 +21,7 @@ local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
 local Camera = Workspace.CurrentCamera
 local LP = Players.LocalPlayer
 
@@ -57,21 +58,26 @@ local Config = {
         Enabled = false, AutoAim = false, FOV = 200, Smoothness = 0.5,
         MaxDistance = 600, TargetPart = "Head", Visible = false,
         TeamCheck = true, ShowFOV = true, TriggerActive = false,
-        Prediction = true,
-        PredictionX = 0.15,
-        AutoFire = false,
-        AutoFireDelay = 0.05,
-        LastFire = 0,
+        Prediction = true, PredictionX = 0.15,
+        AutoFire = false, AutoFireDelay = 0.05, LastFire = 0,
     },
     Silent = {
-        Enabled = false,
-        TargetPart = "Head",
-        Visible = false,
-        TeamCheck = true,
-        FOV = 200,
-        MaxDistance = 600,
-        Prediction = true,
-        PredictionX = 0.15,
+        Enabled = false, TargetPart = "Head", Visible = false,
+        TeamCheck = true, FOV = 200, MaxDistance = 600,
+        Prediction = true, PredictionX = 0.15,
+    },
+    Gun = {
+        NoRecoil = false,
+        NoSpread = false,
+        RapidFire = false,
+    },
+    Player = {
+        NoFallDamage = false,
+    },
+    Visual = {
+        Fullbright = false,
+        XRay = false,
+        XRayTransparency = 0.5,
     },
     Misc = {
         InfiniteJump = false,
@@ -90,7 +96,7 @@ local function TrackConn(conn)
 end
 
 --=========================================================
--- HIT LOGS GUI
+-- HIT LOGS
 --=========================================================
 local HitLogsGui = Instance.new("ScreenGui")
 HitLogsGui.Name = "FerClient_HitLogs"
@@ -114,7 +120,6 @@ local hitLogOrder = 0
 local function showHitLog(text, color)
     if not Config.Misc.HitLogs then return end
     if not text then return end
-
     local lbl = Instance.new("TextLabel")
     hitLogOrder = hitLogOrder + 1
     lbl.LayoutOrder = hitLogOrder
@@ -129,9 +134,7 @@ local function showHitLog(text, color)
     lbl.TextSize = 14
     lbl.TextTransparency = 1
     lbl.Parent = HitLogsHolder
-
     TweenService:Create(lbl, TweenInfo.new(0.15), { TextTransparency = 0 }):Play()
-
     task.delay(3, function()
         local tw = TweenService:Create(lbl, TweenInfo.new(0.5), { TextTransparency = 1 })
         tw:Play()
@@ -152,12 +155,12 @@ pcall(function() ScreenGui.Parent = HUI end)
 if not ScreenGui.Parent then ScreenGui.Parent = LP:WaitForChild("PlayerGui") end
 
 --=========================================================
--- МЕНЮ (ПРЯМОУГОЛЬНОЕ)
+-- МЕНЮ
 --=========================================================
 local Menu = Instance.new("Frame")
 Menu.Name = "FerClient_Main"
-Menu.Size = UDim2.new(0, 280, 0, 460)
-Menu.Position = UDim2.new(0, 20, 0, 80)
+Menu.Size = UDim2.new(0, 300, 0, 480)
+Menu.Position = UDim2.new(0, 20, 0, 60)
 Menu.BackgroundColor3 = Theme.Background
 Menu.BorderSizePixel = 0
 Menu.Active = true
@@ -171,10 +174,9 @@ MenuStroke.Color = Theme.Border
 MenuStroke.Thickness = 1
 
 --=========================================================
--- ❄️ СНЕЖИНКИ
+-- СНЕЖИНКИ
 --=========================================================
 local SnowContainer = Instance.new("Frame")
-SnowContainer.Name = "SnowContainer"
 SnowContainer.Size = UDim2.new(1, 0, 1, 0)
 SnowContainer.BackgroundTransparency = 1
 SnowContainer.ClipsDescendants = true
@@ -182,12 +184,7 @@ SnowContainer.ZIndex = 2
 SnowContainer.Parent = Menu
 
 local SNOW_COUNT = 30
-local SNOW_MIN_SIZE = 4
-local SNOW_MAX_SIZE = 12
-local SNOW_MIN_SPEED = 15
-local SNOW_MAX_SPEED = 40
 local SNOW_SYMBOLS = { "❄", "❅", "❆", "•", "*" }
-
 local snowflakes = {}
 
 local function createSnowflake()
@@ -196,32 +193,26 @@ local function createSnowflake()
     flake.Text = SNOW_SYMBOLS[math.random(1, #SNOW_SYMBOLS)]
     flake.TextColor3 = Color3.fromRGB(200, 220, 255)
     flake.Font = Enum.Font.GothamBold
-    flake.TextSize = math.random(SNOW_MIN_SIZE, SNOW_MAX_SIZE)
+    flake.TextSize = math.random(4, 12)
     flake.TextTransparency = math.random(40, 80) / 100
     flake.Size = UDim2.new(0, 20, 0, 20)
     flake.AnchorPoint = Vector2.new(0.5, 0.5)
     flake.ZIndex = 2
     flake.Parent = SnowContainer
-
     local startX = math.random(0, 100)
     flake.Position = UDim2.new(startX / 100, 0, -0.05, 0)
-
-    local data = {
-        label = flake,
-        xRatio = startX / 100,
-        speed = math.random(SNOW_MIN_SPEED, SNOW_MAX_SPEED),
+    snowflakes[#snowflakes + 1] = {
+        label = flake, xRatio = startX / 100,
+        speed = math.random(15, 40),
         swayAmp = math.random(10, 30) / 1000,
         swayFreq = math.random(15, 40) / 10,
         rotation = math.random(0, 360),
         rotSpeed = (math.random(-60, 60)) / 10,
         phase = math.random(0, 100) / 10,
     }
-    snowflakes[#snowflakes + 1] = data
 end
 
-for i = 1, SNOW_COUNT do
-    createSnowflake()
-end
+for i = 1, SNOW_COUNT do createSnowflake() end
 
 TrackConn(RunService.RenderStepped:Connect(function(dt)
     if not SnowContainer.Parent then return end
@@ -230,23 +221,18 @@ TrackConn(RunService.RenderStepped:Connect(function(dt)
         if f and f.Parent then
             local currentY = f.Position.Y.Scale
             local currentX = data.xRatio
-            local speedRatio = data.speed / math.max(Menu.AbsoluteSize.Y, 1)
-            currentY = currentY + speedRatio * dt
-
+            currentY = currentY + (data.speed / math.max(Menu.AbsoluteSize.Y, 1)) * dt
             data.phase = data.phase + dt * data.swayFreq
             local swayX = math.sin(data.phase) * data.swayAmp
-
             data.rotation = data.rotation + data.rotSpeed * dt * 60
-
             if currentY > 1.05 then
                 currentY = -0.05
                 data.xRatio = math.random(0, 100) / 100
-                data.speed = math.random(SNOW_MIN_SPEED, SNOW_MAX_SPEED)
+                data.speed = math.random(15, 40)
                 data.label.Text = SNOW_SYMBOLS[math.random(1, #SNOW_SYMBOLS)]
-                data.label.TextSize = math.random(SNOW_MIN_SIZE, SNOW_MAX_SIZE)
+                data.label.TextSize = math.random(4, 12)
                 data.label.TextTransparency = math.random(40, 80) / 100
             end
-
             f.Position = UDim2.new(currentX + swayX, 0, currentY, 0)
             f.Rotation = data.rotation
         end
@@ -254,10 +240,9 @@ TrackConn(RunService.RenderStepped:Connect(function(dt)
 end))
 
 --=========================================================
--- КНОПКА ОТКРЫТИЯ/ЗАКРЫТИЯ
+-- КНОПКА FC
 --=========================================================
 local ToggleBtn = Instance.new("TextButton")
-ToggleBtn.Name = "FerClient_Toggle"
 ToggleBtn.Size = UDim2.new(0, 50, 0, 28)
 ToggleBtn.Position = UDim2.new(0, 10, 0.5, -14)
 ToggleBtn.BackgroundColor3 = Theme.Background
@@ -304,10 +289,10 @@ Dot.Parent = TopBar
 Instance.new("UICorner", Dot).CornerRadius = UDim.new(1, 0)
 
 local Logo = Instance.new("TextLabel")
-Logo.Size = UDim2.new(0, 160, 1, 0)
+Logo.Size = UDim2.new(0, 180, 1, 0)
 Logo.Position = UDim2.new(0, 28, 0, 0)
 Logo.BackgroundTransparency = 1
-Logo.Text = "FerClient v3.3"
+Logo.Text = "FerClient v4.0"
 Logo.TextColor3 = Theme.Text
 Logo.Font = Theme.FontBold
 Logo.TextSize = 13
@@ -342,7 +327,7 @@ UnloadBtn.ZIndex = 4
 UnloadBtn.Parent = TopBar
 
 --=========================================================
--- ВКЛАДКИ
+-- ВКЛАДКИ (5 штук)
 --=========================================================
 local TabBar = Instance.new("Frame")
 TabBar.Size = UDim2.new(1, -16, 0, 34)
@@ -355,7 +340,7 @@ TabBar.Parent = Menu
 local TabLayout = Instance.new("UIListLayout", TabBar)
 TabLayout.FillDirection = Enum.FillDirection.Horizontal
 TabLayout.SortOrder = Enum.SortOrder.LayoutOrder
-TabLayout.Padding = UDim.new(0, 4)
+TabLayout.Padding = UDim.new(0, 3)
 TabLayout.Parent = TabBar
 
 local TabPadding = Instance.new("UIPadding", TabBar)
@@ -394,20 +379,22 @@ end
 
 local AimScroller = MakeScroller()
 local VisualScroller = MakeScroller()
+local GunScroller = MakeScroller()
+local PlayerScroller = MakeScroller()
 local MiscScroller = MakeScroller()
 
 local tabs = {}
 local activeTab = nil
 
-local function CreateTab(name, scroller)
+local function CreateTab(name, scroller, widthRatio)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.33, -3, 1, 0)
+    btn.Size = UDim2.new(widthRatio, -3, 1, 0)
     btn.BackgroundColor3 = Theme.Tab
     btn.BorderSizePixel = 0
     btn.Text = name
     btn.TextColor3 = Theme.TextDim
     btn.Font = Theme.FontBold
-    btn.TextSize = 11
+    btn.TextSize = 10
     btn.AutoButtonColor = false
     btn.ZIndex = 4
     btn.Parent = TabBar
@@ -428,9 +415,11 @@ local function CreateTab(name, scroller)
     return tab
 end
 
-local AimTab = CreateTab("AIM", AimScroller)
-local VisualTab = CreateTab("VISUAL", VisualScroller)
-local MiscTab = CreateTab("MISC", MiscScroller)
+local AimTab = CreateTab("AIM", AimScroller, 0.2)
+local VisualTab = CreateTab("VIS", VisualScroller, 0.2)
+local GunTab = CreateTab("GUN", GunScroller, 0.2)
+local PlayerTab = CreateTab("PLR", PlayerScroller, 0.2)
+local MiscTab = CreateTab("MISC", MiscScroller, 0.2)
 
 --=========================================================
 -- КНОПКА
@@ -464,7 +453,7 @@ local function MakeButton(parent, text, defaultOn, callback)
     nameLabel.Text = text
     nameLabel.TextColor3 = Color3.fromRGB(240, 245, 255)
     nameLabel.Font = Enum.Font.GothamMedium
-    nameLabel.TextSize = 13
+    nameLabel.TextSize = 12
     nameLabel.TextXAlignment = Enum.TextXAlignment.Left
     nameLabel.ZIndex = 4
     nameLabel.Parent = btn
@@ -476,7 +465,7 @@ local function MakeButton(parent, text, defaultOn, callback)
     statusLabel.Text = "OFF"
     statusLabel.TextColor3 = Color3.fromRGB(255, 60, 60)
     statusLabel.Font = Enum.Font.GothamBold
-    statusLabel.TextSize = 12
+    statusLabel.TextSize = 11
     statusLabel.ZIndex = 4
     statusLabel.Parent = btn
 
@@ -709,7 +698,7 @@ local SilentTeamBtn = MakeButton(AimScroller, "Silent Team Check", true, functio
     Config.Silent.TeamCheck = not Config.Silent.TeamCheck
 end)
 
-local PredictBtn = MakeButton(AimScroller, "Prediction (упреждение)", true, function()
+local PredictBtn = MakeButton(AimScroller, "Prediction", true, function()
     Config.Aimbot.Prediction = not Config.Aimbot.Prediction
     Config.Silent.Prediction = Config.Aimbot.Prediction
 end)
@@ -778,9 +767,65 @@ local HealthButton = MakeButton(VisualScroller, "Health Bar", true, function()
     Config.ESP.Health = not Config.ESP.Health
 end)
 
+local FullbrightBtn = MakeButton(VisualScroller, "Fullbright", false, function()
+    Config.Visual.Fullbright = not Config.Visual.Fullbright
+end)
+
+local XRayBtn = MakeButton(VisualScroller, "X-Ray (стены)", false, function()
+    Config.Visual.XRay = not Config.Visual.XRay
+end)
+
 MakeSlider(VisualScroller, "ESP Max Distance", 200, 3000, Config.ESP.MaxDistance, function(v)
     Config.ESP.MaxDistance = v
 end)
+
+MakeSlider(VisualScroller, "X-Ray x100", 10, 90, math.floor(Config.Visual.XRayTransparency * 100), function(v)
+    Config.Visual.XRayTransparency = v / 100
+end)
+
+--=========================================================
+-- ВКЛАДКА GUN
+--=========================================================
+local NoRecoilBtn = MakeButton(GunScroller, "No Recoil", false, function()
+    Config.Gun.NoRecoil = not Config.Gun.NoRecoil
+end)
+
+local NoSpreadBtn = MakeButton(GunScroller, "No Spread", false, function()
+    Config.Gun.NoSpread = not Config.Gun.NoSpread
+end)
+
+local RapidFireBtn = MakeButton(GunScroller, "Rapid Fire", false, function()
+    Config.Gun.RapidFire = not Config.Gun.RapidFire
+end)
+
+local infoGun = Instance.new("TextLabel")
+infoGun.Size = UDim2.new(1, 0, 0, 60)
+infoGun.BackgroundTransparency = 1
+infoGun.Text = "No Recoil — нет отдачи\nNo Spread — нет разброса\nRapid Fire — быстрая стрельба"
+infoGun.TextColor3 = Theme.TextDim
+infoGun.Font = Theme.Font
+infoGun.TextSize = 11
+infoGun.TextWrapped = true
+infoGun.ZIndex = 3
+infoGun.Parent = GunScroller
+
+--=========================================================
+-- ВКЛАДКА PLAYER
+--=========================================================
+local NoFallBtn = MakeButton(PlayerScroller, "No Fall Damage", false, function()
+    Config.Player.NoFallDamage = not Config.Player.NoFallDamage
+end)
+
+local infoPlayer = Instance.new("TextLabel")
+infoPlayer.Size = UDim2.new(1, 0, 0, 60)
+infoPlayer.BackgroundTransparency = 1
+infoPlayer.Text = "No Fall Damage — урон от падения = 0"
+infoPlayer.TextColor3 = Theme.TextDim
+infoPlayer.Font = Theme.Font
+infoPlayer.TextSize = 11
+infoPlayer.TextWrapped = true
+infoPlayer.ZIndex = 3
+infoPlayer.Parent = PlayerScroller
 
 --=========================================================
 -- ВКЛАДКА MISC
@@ -792,59 +837,6 @@ end)
 local HitLogsBtn = MakeButton(MiscScroller, "Hit Logs", true, function()
     Config.Misc.HitLogs = not Config.Misc.HitLogs
 end)
-
-local sepLabel = Instance.new("TextLabel")
-sepLabel.Size = UDim2.new(1, 0, 0, 24)
-sepLabel.BackgroundTransparency = 1
-sepLabel.Text = "— INFO —"
-sepLabel.TextColor3 = Theme.TextDim
-sepLabel.Font = Theme.FontBold
-sepLabel.TextSize = 11
-sepLabel.ZIndex = 3
-sepLabel.Parent = MiscScroller
-
-local infoLabel = Instance.new("TextLabel")
-infoLabel.Size = UDim2.new(1, 0, 0, 60)
-infoLabel.BackgroundTransparency = 1
-infoLabel.Text = "Infinite Jump — бесконечные прыжки.\nHit Logs — показ попаданий внизу.\nSilent Aim — вкладка AIM."
-infoLabel.TextColor3 = Theme.TextDim
-infoLabel.Font = Theme.Font
-infoLabel.TextSize = 11
-infoLabel.TextWrapped = true
-infoLabel.ZIndex = 3
-infoLabel.Parent = MiscScroller
-
--- Логика Infinite Jump
-local infJumpConn = nil
-local function startInfiniteJump()
-    if infJumpConn then return end
-    infJumpConn = UIS.JumpRequest:Connect(function()
-        if not Config.Misc.InfiniteJump then return end
-        local char = LP.Character
-        if char then
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            if hum then
-                hum:ChangeState(Enum.HumanoidStateType.Jumping)
-            end
-        end
-    end)
-    TrackConn(infJumpConn)
-end
-
-local function stopInfiniteJump()
-    if infJumpConn then
-        pcall(function() infJumpConn:Disconnect() end)
-        infJumpConn = nil
-    end
-end
-
-TrackConn(RunService.Heartbeat:Connect(function()
-    if Config.Misc.InfiniteJump then
-        startInfiniteJump()
-    else
-        stopInfiniteJump()
-    end
-end))
 
 --=========================================================
 -- HOLD TO AIM
@@ -887,7 +879,7 @@ TriggerBtn.MouseLeave:Connect(function() setTrig(false) end)
 local isMinimized = false
 local function toggleMinimize()
     isMinimized = not isMinimized
-    Menu.Size = isMinimized and UDim2.new(0, 280, 0, 38) or UDim2.new(0, 280, 0, 460)
+    Menu.Size = isMinimized and UDim2.new(0, 300, 0, 38) or UDim2.new(0, 300, 0, 480)
     TabBar.Visible = not isMinimized
     Content.Visible = not isMinimized
     TriggerBtn.Visible = not isMinimized
@@ -901,9 +893,6 @@ MinimizeBtn.MouseButton1Click:Connect(function()
     toggleMinimize()
 end)
 
---=========================================================
--- КНОПКА ОТКРЫТИЯ/ЗАКРЫТИЯ
---=========================================================
 local lastToggle = 0
 ToggleBtn.MouseButton1Click:Connect(function()
     local now = tick()
@@ -937,6 +926,13 @@ local function Unload()
         pcall(function() c:Disconnect() end)
     end
     Connections = {}
+
+    -- Восстанавливаем яркость
+    pcall(function()
+        Lighting.Brightness = 2
+        Lighting.ClockTime = 14
+        Lighting.GlobalShadows = true
+    end)
 
     pcall(function() ScreenGui:Destroy() end)
     pcall(function() HitLogsGui:Destroy() end)
@@ -1026,7 +1022,7 @@ local function RemoveESP(player)
 end
 
 --=========================================================
--- AIMBOT + SILENT AIM
+-- AIMBOT / SILENT AIM
 --=========================================================
 local function IsTeammate(plr)
     if not plr.Team or not LP.Team then return false end
@@ -1053,7 +1049,6 @@ end
 local function GetClosestTarget()
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     local closest, closestDist, closestPos = nil, Config.Aimbot.FOV, nil
-
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LP then
             if not (Config.Aimbot.TeamCheck and IsTeammate(plr)) then
@@ -1088,7 +1083,6 @@ end
 local function GetSilentTarget()
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     local closest, closestPos, closestDist = nil, nil, Config.Silent.FOV
-
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LP then
             if not (Config.Silent.TeamCheck and IsTeammate(plr)) then
@@ -1126,7 +1120,6 @@ local silentTargetPos = nil
 local AIM_PRIORITY = Enum.RenderPriority.Camera.Value + 10
 
 local function AimStep()
-    -- Находим цель
     local shouldAim = false
     if Config.Aimbot.Enabled then
         if Config.Aimbot.AutoAim then
@@ -1141,11 +1134,9 @@ local function AimStep()
     if shouldAim then
         local target, predPos = GetClosestTarget()
         if target and predPos then
-            -- Наводимся ровно на голову (с учётом движения)
             local targetCF = CFrame.new(Camera.CFrame.Position, predPos)
             Camera.CFrame = Camera.CFrame:Lerp(targetCF, Config.Aimbot.Smoothness)
 
-            -- Auto Fire
             if Config.Aimbot.AutoFire then
                 local now = tick()
                 if now - Config.Aimbot.LastFire >= Config.Aimbot.AutoFireDelay then
@@ -1161,7 +1152,6 @@ local function AimStep()
         end
     end
 
-    -- Silent Aim: обновляем цель
     if Config.Silent.Enabled then
         local st, sp = GetSilentTarget()
         silentTarget = st
@@ -1174,7 +1164,7 @@ end
 
 RunService:BindToRenderStep("FerClient_Aimbot", AIM_PRIORITY, AimStep)
 
--- Хук на __namecall для Silent Aim
+-- Хук Silent Aim
 pcall(function()
     if hookmetamethod and newcclosure then
         local oldNC
@@ -1199,6 +1189,182 @@ pcall(function()
         end))
     end
 end)
+
+--=========================================================
+-- GUN MODS — No Recoil / No Spread / Rapid Fire
+--=========================================================
+local function ApplyGunMods()
+    pcall(function()
+        -- Ищем RecoilHandler и GunBase в игре
+        local RS = game:GetService("ReplicatedStorage")
+        local GunFolder = RS:FindFirstChild("Gun")
+        if not GunFolder then return end
+
+        local Scripts = GunFolder:FindFirstChild("Scripts")
+        if not Scripts then return end
+
+        -- No Recoil
+        if Config.Gun.NoRecoil then
+            local Recoil = Scripts:FindFirstChild("RecoilHandler")
+            if Recoil and not Recoil:GetAttribute("FerClientHooked") then
+                Recoil:SetAttribute("FerClientHooked", true)
+                local ok, mod = pcall(require, Recoil)
+                if ok and type(mod) == "table" then
+                    if mod.nextStep and not mod._fc_nextStep then
+                        mod._fc_nextStep = mod.nextStep
+                        mod.nextStep = function() end
+                    end
+                    if mod.setRecoilMultiplier and not mod._fc_setRecoilMultiplier then
+                        mod._fc_setRecoilMultiplier = mod.setRecoilMultiplier
+                        mod.setRecoilMultiplier = function() end
+                    end
+                end
+            end
+        end
+
+        -- No Spread + Rapid Fire через GunBase
+        local GunBase = Scripts:FindFirstChild("GunBase")
+        if GunBase then
+            local ok, base = pcall(require, GunBase)
+            if ok and type(base) == "table" then
+                -- No Spread
+                if Config.Gun.NoSpread then
+                    if base.getSpread and not base._fc_getSpread then
+                        base._fc_getSpread = base.getSpread
+                        base.getSpread = function(self, ...)
+                            return 0
+                        end
+                    end
+                elseif base._fc_getSpread then
+                    base.getSpread = base._fc_getSpread
+                    base._fc_getSpread = nil
+                end
+
+                -- Rapid Fire
+                if Config.Gun.RapidFire then
+                    if base.fire and not base._fc_fire then
+                        base._fc_fire = base.fire
+                        base.fire = function(self, ...)
+                            if self then
+                                if rawget(self, "FireDelay") then
+                                    rawset(self, "FireDelay", 0.01)
+                                end
+                                if rawget(self, "FiringOnCooldown") then
+                                    rawset(self, "FiringOnCooldown", false)
+                                end
+                            end
+                            return base._fc_fire(self, ...)
+                        end
+                    end
+                elseif base._fc_fire then
+                    base.fire = base._fc_fire
+                    base._fc_fire = nil
+                end
+            end
+        end
+    end)
+end
+
+TrackConn(RunService.Heartbeat:Connect(function()
+    if Config.Gun.NoRecoil or Config.Gun.NoSpread or Config.Gun.RapidFire then
+        ApplyGunMods()
+    end
+end))
+
+--=========================================================
+-- NO FALL DAMAGE
+--=========================================================
+local noFallConn = nil
+local function startNoFall()
+    if noFallConn then return end
+    noFallConn = RunService.Heartbeat:Connect(function()
+        if not Config.Player.NoFallDamage then return end
+        local char = LP.Character
+        if not char then return end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+        end
+    end)
+    TrackConn(noFallConn)
+end
+startNoFall()
+
+--=========================================================
+-- FULLBRIGHT
+--=========================================================
+local fullbrightConn = nil
+local function startFullbright()
+    if fullbrightConn then return end
+    fullbrightConn = RunService.Heartbeat:Connect(function()
+        if not Config.Visual.Fullbright then return end
+        pcall(function()
+            Lighting.Brightness = 5
+            Lighting.ClockTime = 14
+            Lighting.FogEnd = 100000
+            Lighting.GlobalShadows = false
+            Lighting.Ambient = Color3.fromRGB(200, 200, 200)
+            Lighting.OutdoorAmbient = Color3.fromRGB(200, 200, 200)
+        end)
+    end)
+    TrackConn(fullbrightConn)
+end
+startFullbright()
+
+--=========================================================
+-- X-RAY
+--=========================================================
+local xrayConn = nil
+local function startXRay()
+    if xrayConn then return end
+    xrayConn = RunService.Heartbeat:Connect(function()
+        if not Config.Visual.XRay then return end
+        pcall(function()
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if obj:IsA("BasePart") and not obj:IsDescendantOf(LP.Character) then
+                    obj.LocalTransparencyModifier = Config.Visual.XRayTransparency
+                end
+            end
+        end)
+    end)
+    TrackConn(xrayConn)
+end
+startXRay()
+
+--=========================================================
+-- INFINITE JUMP
+--=========================================================
+local infJumpConn = nil
+local function startInfiniteJump()
+    if infJumpConn then return end
+    infJumpConn = UIS.JumpRequest:Connect(function()
+        if not Config.Misc.InfiniteJump then return end
+        local char = LP.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end
+    end)
+    TrackConn(infJumpConn)
+end
+
+local function stopInfiniteJump()
+    if infJumpConn then
+        pcall(function() infJumpConn:Disconnect() end)
+        infJumpConn = nil
+    end
+end
+
+TrackConn(RunService.Heartbeat:Connect(function()
+    if Config.Misc.InfiniteJump then
+        startInfiniteJump()
+    else
+        stopInfiniteJump()
+    end
+end))
 
 --=========================================================
 -- ESP ЦИКЛ
@@ -1312,6 +1478,15 @@ TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     elseif input.KeyCode == Enum.KeyCode.F5 then
         Config.Silent.Enabled = not Config.Silent.Enabled
         SilentBtn.SetOn(Config.Silent.Enabled)
+    elseif input.KeyCode == Enum.KeyCode.F6 then
+        Config.Gun.NoRecoil = not Config.Gun.NoRecoil
+        NoRecoilBtn.SetOn(Config.Gun.NoRecoil)
+    elseif input.KeyCode == Enum.KeyCode.F7 then
+        Config.Gun.NoSpread = not Config.Gun.NoSpread
+        NoSpreadBtn.SetOn(Config.Gun.NoSpread)
+    elseif input.KeyCode == Enum.KeyCode.F8 then
+        Config.Visual.Fullbright = not Config.Visual.Fullbright
+        FullbrightBtn.SetOn(Config.Visual.Fullbright)
     elseif input.KeyCode == Enum.KeyCode.RightShift then
         Menu.Visible = not Menu.Visible
     elseif input.KeyCode == Enum.KeyCode.Delete then
@@ -1324,6 +1499,6 @@ AimTab.Btn.TextColor3 = Theme.Text
 AimScroller.Visible = true
 activeTab = AimTab
 
-print("[FerClient] v3.3 загружен")
-print("Silent Aim + Prediction + Auto Fire + Infinite Jump")
-print("F1=ESP | F2=Aimbot | F3=AutoAim | F4=InfJump | F5=Silent | RS=Меню | Del=Unload")
+print("[FerClient] v4.0 загружен")
+print("F1=ESP F2=Aim F3=AutoAim F4=InfJump F5=Silent F6=NoRecoil F7=NoSpread F8=Fullbright")
+print("RS=Меню Del=Unload")
