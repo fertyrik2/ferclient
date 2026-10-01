@@ -1,14 +1,11 @@
 --[[
-    FerClient v4.0 | Rost Alpha
-    AIM + VISUAL + MISC + GUN MODS + PLAYER
-    Silent Aim + Prediction + No Recoil + No Spread + Rapid Fire
-    No Fall Damage + Fullbright + X-Ray
+    FerClient v4.1 | Rost Alpha
+    AIM + VISUAL + GUN + PLAYER + MISC
+    Speed + Noclip + Aim Assist + FPS Boost
 ]]
 
 if getgenv().FerClient_Loaded then
-    if getgenv().FerClient_Unload then
-        pcall(getgenv().FerClient_Unload)
-    end
+    if getgenv().FerClient_Unload then pcall(getgenv().FerClient_Unload) end
     task.wait(0.2)
 end
 getgenv().FerClient_Loaded = true
@@ -61,23 +58,31 @@ local Config = {
         Prediction = true, PredictionX = 0.15,
         AutoFire = false, AutoFireDelay = 0.05, LastFire = 0,
     },
+    AimAssist = {
+        Enabled = false,
+        Strength = 50,
+        FOV = 150,
+        Smoothness = 0.15,
+    },
     Silent = {
         Enabled = false, TargetPart = "Head", Visible = false,
         TeamCheck = true, FOV = 200, MaxDistance = 600,
         Prediction = true, PredictionX = 0.15,
     },
     Gun = {
-        NoRecoil = false,
-        NoSpread = false,
-        RapidFire = false,
+        NoRecoil = false, NoSpread = false, RapidFire = false,
     },
     Player = {
         NoFallDamage = false,
+        SpeedEnabled = false,
+        SpeedValue = 30,
+        Noclip = false,
     },
     Visual = {
         Fullbright = false,
         XRay = false,
         XRayTransparency = 0.5,
+        FPSBoost = false,
     },
     Misc = {
         InfiniteJump = false,
@@ -144,7 +149,7 @@ local function showHitLog(text, color)
 end
 
 --=========================================================
--- ГЛАВНЫЙ GUI
+-- GUI
 --=========================================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "FerClient_Menu"
@@ -154,9 +159,6 @@ ScreenGui.DisplayOrder = 100
 pcall(function() ScreenGui.Parent = HUI end)
 if not ScreenGui.Parent then ScreenGui.Parent = LP:WaitForChild("PlayerGui") end
 
---=========================================================
--- МЕНЮ
---=========================================================
 local Menu = Instance.new("Frame")
 Menu.Name = "FerClient_Main"
 Menu.Size = UDim2.new(0, 300, 0, 480)
@@ -292,7 +294,7 @@ local Logo = Instance.new("TextLabel")
 Logo.Size = UDim2.new(0, 180, 1, 0)
 Logo.Position = UDim2.new(0, 28, 0, 0)
 Logo.BackgroundTransparency = 1
-Logo.Text = "FerClient v4.0"
+Logo.Text = "FerClient v4.1"
 Logo.TextColor3 = Theme.Text
 Logo.Font = Theme.FontBold
 Logo.TextSize = 13
@@ -327,7 +329,7 @@ UnloadBtn.ZIndex = 4
 UnloadBtn.Parent = TopBar
 
 --=========================================================
--- ВКЛАДКИ (5 штук)
+-- ВКЛАДКИ
 --=========================================================
 local TabBar = Instance.new("Frame")
 TabBar.Size = UDim2.new(1, -16, 0, 34)
@@ -676,7 +678,7 @@ local function MakeDropdown(parent, text, options, default, callback)
 end
 
 --=========================================================
--- ВКЛАДКА AIM
+-- AIM ВКЛАДКА
 --=========================================================
 local AimButton = MakeButton(AimScroller, "Aimbot", false, function()
     Config.Aimbot.Enabled = not Config.Aimbot.Enabled
@@ -686,16 +688,16 @@ local AutoAimBtn = MakeButton(AimScroller, "Auto Aim", false, function()
     Config.Aimbot.AutoAim = not Config.Aimbot.AutoAim
 end)
 
+local AimAssistBtn = MakeButton(AimScroller, "Aim Assist", false, function()
+    Config.AimAssist.Enabled = not Config.AimAssist.Enabled
+end)
+
 local AutoFireBtn = MakeButton(AimScroller, "Auto Fire", false, function()
     Config.Aimbot.AutoFire = not Config.Aimbot.AutoFire
 end)
 
 local SilentBtn = MakeButton(AimScroller, "Silent Aim", false, function()
     Config.Silent.Enabled = not Config.Silent.Enabled
-end)
-
-local SilentTeamBtn = MakeButton(AimScroller, "Silent Team Check", true, function()
-    Config.Silent.TeamCheck = not Config.Silent.TeamCheck
 end)
 
 local PredictBtn = MakeButton(AimScroller, "Prediction", true, function()
@@ -713,6 +715,7 @@ end)
 
 local TeamBtn = MakeButton(AimScroller, "Team Check", true, function()
     Config.Aimbot.TeamCheck = not Config.Aimbot.TeamCheck
+    Config.Silent.TeamCheck = Config.Aimbot.TeamCheck
 end)
 
 MakeDropdown(AimScroller, "Target Part", { "Head", "HumanoidRootPart", "Torso" }, Config.Aimbot.TargetPart, function(v)
@@ -730,9 +733,12 @@ MakeSlider(AimScroller, "Smoothness x100", 10, 100, math.floor(Config.Aimbot.Smo
     Config.Aimbot.Smoothness = v / 100
 end)
 
-MakeSlider(AimScroller, "Prediction x1000", 0, 500, math.floor(Config.Aimbot.PredictionX * 1000), function(v)
-    Config.Aimbot.PredictionX = v / 1000
-    Config.Silent.PredictionX = v / 1000
+MakeSlider(AimScroller, "Aim Assist Strength", 10, 100, Config.AimAssist.Strength, function(v)
+    Config.AimAssist.Strength = v
+end)
+
+MakeSlider(AimScroller, "Aim Assist FOV", 30, 400, Config.AimAssist.FOV, function(v)
+    Config.AimAssist.FOV = v
 end)
 
 MakeSlider(AimScroller, "Max Distance", 100, 2000, Config.Aimbot.MaxDistance, function(v)
@@ -741,7 +747,7 @@ MakeSlider(AimScroller, "Max Distance", 100, 2000, Config.Aimbot.MaxDistance, fu
 end)
 
 --=========================================================
--- ВКЛАДКА VISUAL
+-- VISUAL ВКЛАДКА
 --=========================================================
 local ESPButton = MakeButton(VisualScroller, "ESP", true, function()
     Config.ESP.Enabled = not Config.ESP.Enabled
@@ -771,7 +777,7 @@ local FullbrightBtn = MakeButton(VisualScroller, "Fullbright", false, function()
     Config.Visual.Fullbright = not Config.Visual.Fullbright
 end)
 
-local XRayBtn = MakeButton(VisualScroller, "X-Ray (стены)", false, function()
+local XRayBtn = MakeButton(VisualScroller, "X-Ray", false, function()
     Config.Visual.XRay = not Config.Visual.XRay
 end)
 
@@ -784,7 +790,7 @@ MakeSlider(VisualScroller, "X-Ray x100", 10, 90, math.floor(Config.Visual.XRayTr
 end)
 
 --=========================================================
--- ВКЛАДКА GUN
+-- GUN ВКЛАДКА
 --=========================================================
 local NoRecoilBtn = MakeButton(GunScroller, "No Recoil", false, function()
     Config.Gun.NoRecoil = not Config.Gun.NoRecoil
@@ -798,37 +804,31 @@ local RapidFireBtn = MakeButton(GunScroller, "Rapid Fire", false, function()
     Config.Gun.RapidFire = not Config.Gun.RapidFire
 end)
 
-local infoGun = Instance.new("TextLabel")
-infoGun.Size = UDim2.new(1, 0, 0, 60)
-infoGun.BackgroundTransparency = 1
-infoGun.Text = "No Recoil — нет отдачи\nNo Spread — нет разброса\nRapid Fire — быстрая стрельба"
-infoGun.TextColor3 = Theme.TextDim
-infoGun.Font = Theme.Font
-infoGun.TextSize = 11
-infoGun.TextWrapped = true
-infoGun.ZIndex = 3
-infoGun.Parent = GunScroller
+--=========================================================
+-- PLAYER ВКЛАДКА
+--=========================================================
+local SpeedBtn = MakeButton(PlayerScroller, "Speed Hack", false, function()
+    Config.Player.SpeedEnabled = not Config.Player.SpeedEnabled
+end)
 
---=========================================================
--- ВКЛАДКА PLAYER
---=========================================================
+MakeSlider(PlayerScroller, "Speed (10-100)", 10, 100, Config.Player.SpeedValue, function(v)
+    Config.Player.SpeedValue = v
+end)
+
+local NoclipBtn = MakeButton(PlayerScroller, "Noclip", false, function()
+    Config.Player.Noclip = not Config.Player.Noclip
+end)
+
 local NoFallBtn = MakeButton(PlayerScroller, "No Fall Damage", false, function()
     Config.Player.NoFallDamage = not Config.Player.NoFallDamage
 end)
 
-local infoPlayer = Instance.new("TextLabel")
-infoPlayer.Size = UDim2.new(1, 0, 0, 60)
-infoPlayer.BackgroundTransparency = 1
-infoPlayer.Text = "No Fall Damage — урон от падения = 0"
-infoPlayer.TextColor3 = Theme.TextDim
-infoPlayer.Font = Theme.Font
-infoPlayer.TextSize = 11
-infoPlayer.TextWrapped = true
-infoPlayer.ZIndex = 3
-infoPlayer.Parent = PlayerScroller
+local FPSBoostBtn = MakeButton(PlayerScroller, "FPS Boost", false, function()
+    Config.Visual.FPSBoost = not Config.Visual.FPSBoost
+end)
 
 --=========================================================
--- ВКЛАДКА MISC
+-- MISC ВКЛАДКА
 --=========================================================
 local InfJumpBtn = MakeButton(MiscScroller, "Infinite Jump", false, function()
     Config.Misc.InfiniteJump = not Config.Misc.InfiniteJump
@@ -874,7 +874,7 @@ end)
 TriggerBtn.MouseLeave:Connect(function() setTrig(false) end)
 
 --=========================================================
--- СВОРАЧИВАНИЕ
+-- СВОРАЧИВАНИЕ + FC КНОПКА
 --=========================================================
 local isMinimized = false
 local function toggleMinimize()
@@ -910,9 +910,7 @@ local function Unload()
     if getgenv().FerClient_Unloading then return end
     getgenv().FerClient_Unloading = true
 
-    pcall(function()
-        RunService:UnbindFromRenderStep("FerClient_Aimbot")
-    end)
+    pcall(function() RunService:UnbindFromRenderStep("FerClient_Aimbot") end)
 
     if ESPCache then
         for _, d in pairs(ESPCache) do
@@ -927,11 +925,19 @@ local function Unload()
     end
     Connections = {}
 
-    -- Восстанавливаем яркость
     pcall(function()
         Lighting.Brightness = 2
         Lighting.ClockTime = 14
         Lighting.GlobalShadows = true
+    end)
+
+    -- Восстанавливаем графику
+    pcall(function()
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                obj.Material = Enum.Material.Plastic
+            end
+        end
     end)
 
     pcall(function() ScreenGui:Destroy() end)
@@ -939,7 +945,6 @@ local function Unload()
 
     getgenv().FerClient_Loaded = false
     getgenv().FerClient_Unloading = false
-
     print("[FerClient] Выгружен.")
 end
 
@@ -1022,7 +1027,7 @@ local function RemoveESP(player)
 end
 
 --=========================================================
--- AIMBOT / SILENT AIM
+-- AIMBOT + SILENT + AIM ASSIST
 --=========================================================
 local function IsTeammate(plr)
     if not plr.Team or not LP.Team then return false end
@@ -1046,9 +1051,9 @@ local function GetPredictedPosition(part, predTime)
     return part.Position + velocity * predTime
 end
 
-local function GetClosestTarget()
+local function GetClosestTarget(fovRange, maxRange)
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    local closest, closestDist, closestPos = nil, Config.Aimbot.FOV, nil
+    local closest, closestDist, closestPos = nil, fovRange, nil
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LP then
             if not (Config.Aimbot.TeamCheck and IsTeammate(plr)) then
@@ -1061,7 +1066,7 @@ local function GetClosestTarget()
                         local sp, onScreen = Camera:WorldToViewportPoint(predPos)
                         if onScreen then
                             local d3 = (Camera.CFrame.Position - predPos).Magnitude
-                            if d3 <= Config.Aimbot.MaxDistance then
+                            if d3 <= maxRange then
                                 local sd = (Vector2.new(sp.X, sp.Y) - center).Magnitude
                                 if sd < closestDist then
                                     if not Config.Aimbot.Visible or IsVisible(part, char) then
@@ -1120,6 +1125,7 @@ local silentTargetPos = nil
 local AIM_PRIORITY = Enum.RenderPriority.Camera.Value + 10
 
 local function AimStep()
+    -- Aimbot
     local shouldAim = false
     if Config.Aimbot.Enabled then
         if Config.Aimbot.AutoAim then
@@ -1132,7 +1138,7 @@ local function AimStep()
     end
 
     if shouldAim then
-        local target, predPos = GetClosestTarget()
+        local target, predPos = GetClosestTarget(Config.Aimbot.FOV, Config.Aimbot.MaxDistance)
         if target and predPos then
             local targetCF = CFrame.new(Camera.CFrame.Position, predPos)
             Camera.CFrame = Camera.CFrame:Lerp(targetCF, Config.Aimbot.Smoothness)
@@ -1152,6 +1158,17 @@ local function AimStep()
         end
     end
 
+    -- Aim Assist (лёгкая коррекция)
+    if Config.AimAssist.Enabled then
+        local target, predPos = GetClosestTarget(Config.AimAssist.FOV, 500)
+        if target and predPos then
+            local strength = Config.AimAssist.Strength / 100
+            local targetCF = CFrame.new(Camera.CFrame.Position, predPos)
+            Camera.CFrame = Camera.CFrame:Lerp(targetCF, strength * 0.15)
+        end
+    end
+
+    -- Silent Aim
     if Config.Silent.Enabled then
         local st, sp = GetSilentTarget()
         silentTarget = st
@@ -1164,7 +1181,7 @@ end
 
 RunService:BindToRenderStep("FerClient_Aimbot", AIM_PRIORITY, AimStep)
 
--- Хук Silent Aim
+-- Silent Aim Hook
 pcall(function()
     if hookmetamethod and newcclosure then
         local oldNC
@@ -1191,19 +1208,16 @@ pcall(function()
 end)
 
 --=========================================================
--- GUN MODS — No Recoil / No Spread / Rapid Fire
+-- GUN MODS
 --=========================================================
 local function ApplyGunMods()
     pcall(function()
-        -- Ищем RecoilHandler и GunBase в игре
         local RS = game:GetService("ReplicatedStorage")
         local GunFolder = RS:FindFirstChild("Gun")
         if not GunFolder then return end
-
         local Scripts = GunFolder:FindFirstChild("Scripts")
         if not Scripts then return end
 
-        -- No Recoil
         if Config.Gun.NoRecoil then
             local Recoil = Scripts:FindFirstChild("RecoilHandler")
             if Recoil and not Recoil:GetAttribute("FerClientHooked") then
@@ -1222,36 +1236,27 @@ local function ApplyGunMods()
             end
         end
 
-        -- No Spread + Rapid Fire через GunBase
         local GunBase = Scripts:FindFirstChild("GunBase")
         if GunBase then
             local ok, base = pcall(require, GunBase)
             if ok and type(base) == "table" then
-                -- No Spread
                 if Config.Gun.NoSpread then
                     if base.getSpread and not base._fc_getSpread then
                         base._fc_getSpread = base.getSpread
-                        base.getSpread = function(self, ...)
-                            return 0
-                        end
+                        base.getSpread = function(self, ...) return 0 end
                     end
                 elseif base._fc_getSpread then
                     base.getSpread = base._fc_getSpread
                     base._fc_getSpread = nil
                 end
 
-                -- Rapid Fire
                 if Config.Gun.RapidFire then
                     if base.fire and not base._fc_fire then
                         base._fc_fire = base.fire
                         base.fire = function(self, ...)
                             if self then
-                                if rawget(self, "FireDelay") then
-                                    rawset(self, "FireDelay", 0.01)
-                                end
-                                if rawget(self, "FiringOnCooldown") then
-                                    rawset(self, "FiringOnCooldown", false)
-                                end
+                                if rawget(self, "FireDelay") then rawset(self, "FireDelay", 0.01) end
+                                if rawget(self, "FiringOnCooldown") then rawset(self, "FiringOnCooldown", false) end
                             end
                             return base._fc_fire(self, ...)
                         end
@@ -1272,97 +1277,226 @@ TrackConn(RunService.Heartbeat:Connect(function()
 end))
 
 --=========================================================
--- NO FALL DAMAGE
+-- SPEED HACK
 --=========================================================
-local noFallConn = nil
-local function startNoFall()
-    if noFallConn then return end
-    noFallConn = RunService.Heartbeat:Connect(function()
-        if not Config.Player.NoFallDamage then return end
+local speedConn = nil
+local savedWalkSpeed = 16
+
+TrackConn(RunService.Heartbeat:Connect(function()
+    local char = LP.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+
+    if Config.Player.SpeedEnabled then
+        hum.WalkSpeed = Config.Player.SpeedValue
+    else
+        if hum.WalkSpeed ~= savedWalkSpeed then
+            hum.WalkSpeed = savedWalkSpeed
+        end
+    end
+end))
+
+TrackConn(LP.CharacterAdded:Connect(function(char)
+    local hum = char:WaitForChild("Humanoid", 5)
+    if hum then
+        savedWalkSpeed = hum.WalkSpeed
+        if Config.Player.SpeedEnabled then
+            hum.WalkSpeed = Config.Player.SpeedValue
+        end
+    end
+end))
+
+--=========================================================
+-- NOCLIP (максимально надёжный)
+--=========================================================
+local noclipConns = {}
+local originalStates = {}
+
+local function enableNoclip()
+    local char = LP.Character
+    if not char then return end
+
+    -- Метод 1: CanCollide = false
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            originalStates[part] = part.CanCollide
+            part.CanCollide = false
+        end
+    end
+
+    -- Метод 2: Humanoid states
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+    end
+end
+
+local function disableNoclip()
+    local char = LP.Character
+    if not char then
+        originalStates = {}
+        return
+    end
+
+    for part, state in pairs(originalStates) do
+        pcall(function()
+            if part and part.Parent then
+                part.CanCollide = state
+            end
+        end)
+    end
+    originalStates = {}
+end
+
+-- Цикл Noclip
+TrackConn(RunService.Heartbeat:Connect(function()
+    if Config.Player.Noclip then
         local char = LP.Character
         if not char then return end
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+        -- Постоянно обновляем CanCollide = false
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                if originalStates[part] == nil then
+                    originalStates[part] = part.CanCollide
+                end
+                part.CanCollide = false
+            end
         end
-    end)
-    TrackConn(noFallConn)
-end
-startNoFall()
+    end
+end))
+
+-- Отключаем Noclip при смерти/респавне
+TrackConn(LP.CharacterRemoving:Connect(function()
+    originalStates = {}
+end))
+
+TrackConn(LP.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    if Config.Player.Noclip then
+        enableNoclip()
+    end
+end))
+
+--=========================================================
+-- NO FALL DAMAGE
+--=========================================================
+TrackConn(RunService.Heartbeat:Connect(function()
+    if not Config.Player.NoFallDamage then return end
+    local char = LP.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+    end
+end))
 
 --=========================================================
 -- FULLBRIGHT
 --=========================================================
-local fullbrightConn = nil
-local function startFullbright()
-    if fullbrightConn then return end
-    fullbrightConn = RunService.Heartbeat:Connect(function()
-        if not Config.Visual.Fullbright then return end
-        pcall(function()
-            Lighting.Brightness = 5
-            Lighting.ClockTime = 14
-            Lighting.FogEnd = 100000
-            Lighting.GlobalShadows = false
-            Lighting.Ambient = Color3.fromRGB(200, 200, 200)
-            Lighting.OutdoorAmbient = Color3.fromRGB(200, 200, 200)
-        end)
+TrackConn(RunService.Heartbeat:Connect(function()
+    if not Config.Visual.Fullbright then return end
+    pcall(function()
+        Lighting.Brightness = 5
+        Lighting.ClockTime = 14
+        Lighting.FogEnd = 100000
+        Lighting.GlobalShadows = false
+        Lighting.Ambient = Color3.fromRGB(200, 200, 200)
+        Lighting.OutdoorAmbient = Color3.fromRGB(200, 200, 200)
     end)
-    TrackConn(fullbrightConn)
-end
-startFullbright()
+end))
 
 --=========================================================
 -- X-RAY
 --=========================================================
-local xrayConn = nil
-local function startXRay()
-    if xrayConn then return end
-    xrayConn = RunService.Heartbeat:Connect(function()
-        if not Config.Visual.XRay then return end
-        pcall(function()
-            for _, obj in ipairs(Workspace:GetDescendants()) do
-                if obj:IsA("BasePart") and not obj:IsDescendantOf(LP.Character) then
-                    obj.LocalTransparencyModifier = Config.Visual.XRayTransparency
-                end
+TrackConn(RunService.Heartbeat:Connect(function()
+    if not Config.Visual.XRay then return end
+    pcall(function()
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj:IsA("BasePart") and not obj:IsDescendantOf(LP.Character) then
+                obj.LocalTransparencyModifier = Config.Visual.XRayTransparency
             end
-        end)
+        end
     end)
-    TrackConn(xrayConn)
+end))
+
+--=========================================================
+-- FPS BOOST (оптимизация графики)
+--=========================================================
+local fpsBoostApplied = false
+
+local function applyFPSBoost()
+    if fpsBoostApplied then return end
+    fpsBoostApplied = true
+
+    pcall(function()
+        -- Убираем эффекты освещения
+        for _, obj in ipairs(Lighting:GetChildren()) do
+            if obj:IsA("BloomEffect") or obj:IsA("BlurEffect")
+                or obj:IsA("SunRaysEffect") or obj:IsA("ColorCorrectionEffect")
+                or obj:IsA("DepthOfFieldEffect") then
+                obj.Enabled = false
+            end
+        end
+
+        -- Уменьшаем качество
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 1000
+
+        -- Убираем частицы/трейлы
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") or obj:IsA("Trail")
+                or obj:IsA("Smoke") or obj:IsA("Fire")
+                or obj:IsA("Sparkles") then
+                obj.Enabled = false
+            elseif obj:IsA("BasePart") then
+                obj.Material = Enum.Material.Plastic
+                obj.Reflectance = 0
+                obj.CastShadow = false
+            end
+        end
+    end)
+
+    -- Roblox fflags для производительности
+    pcall(function()
+        setfflag("DFIntTaskSchedulerTargetFps", "240")
+        setfflag("FFlagDisablePostFx", "true")
+        setfflag("FFlagCommitToGraphicsQualityFix", "true")
+        setfflag("FIntRenderShadowIntensity", "0")
+        setfflag("DFIntDebugForceMSAASamples", "1")
+    end)
 end
-startXRay()
+
+local function removeFPSBoost()
+    fpsBoostApplied = false
+    pcall(function()
+        Lighting.Brightness = 2
+        Lighting.ClockTime = 14
+        Lighting.GlobalShadows = true
+    end)
+end
+
+TrackConn(RunService.Heartbeat:Connect(function()
+    if Config.Visual.FPSBoost then
+        applyFPSBoost()
+    elseif fpsBoostApplied then
+        removeFPSBoost()
+    end
+end))
 
 --=========================================================
 -- INFINITE JUMP
 --=========================================================
-local infJumpConn = nil
-local function startInfiniteJump()
-    if infJumpConn then return end
-    infJumpConn = UIS.JumpRequest:Connect(function()
-        if not Config.Misc.InfiniteJump then return end
-        local char = LP.Character
-        if char then
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            if hum then
-                hum:ChangeState(Enum.HumanoidStateType.Jumping)
-            end
+TrackConn(UIS.JumpRequest:Connect(function()
+    if not Config.Misc.InfiniteJump then return end
+    local char = LP.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
         end
-    end)
-    TrackConn(infJumpConn)
-end
-
-local function stopInfiniteJump()
-    if infJumpConn then
-        pcall(function() infJumpConn:Disconnect() end)
-        infJumpConn = nil
-    end
-end
-
-TrackConn(RunService.Heartbeat:Connect(function()
-    if Config.Misc.InfiniteJump then
-        startInfiniteJump()
-    else
-        stopInfiniteJump()
     end
 end))
 
@@ -1482,11 +1616,11 @@ TrackConn(UIS.InputBegan:Connect(function(input, gpe)
         Config.Gun.NoRecoil = not Config.Gun.NoRecoil
         NoRecoilBtn.SetOn(Config.Gun.NoRecoil)
     elseif input.KeyCode == Enum.KeyCode.F7 then
-        Config.Gun.NoSpread = not Config.Gun.NoSpread
-        NoSpreadBtn.SetOn(Config.Gun.NoSpread)
+        Config.Player.SpeedEnabled = not Config.Player.SpeedEnabled
+        SpeedBtn.SetOn(Config.Player.SpeedEnabled)
     elseif input.KeyCode == Enum.KeyCode.F8 then
-        Config.Visual.Fullbright = not Config.Visual.Fullbright
-        FullbrightBtn.SetOn(Config.Visual.Fullbright)
+        Config.Player.Noclip = not Config.Player.Noclip
+        NoclipBtn.SetOn(Config.Player.Noclip)
     elseif input.KeyCode == Enum.KeyCode.RightShift then
         Menu.Visible = not Menu.Visible
     elseif input.KeyCode == Enum.KeyCode.Delete then
@@ -1499,6 +1633,6 @@ AimTab.Btn.TextColor3 = Theme.Text
 AimScroller.Visible = true
 activeTab = AimTab
 
-print("[FerClient] v4.0 загружен")
-print("F1=ESP F2=Aim F3=AutoAim F4=InfJump F5=Silent F6=NoRecoil F7=NoSpread F8=Fullbright")
-print("RS=Меню Del=Unload")
+print("[FerClient] v4.1 загружен")
+print("Speed + Noclip + Aim Assist + FPS Boost")
+print("F1=ESP F2=Aim F3=AutoAim F4=InfJump F5=Silent F6=NoRecoil F7=Speed F8=Noclip")
