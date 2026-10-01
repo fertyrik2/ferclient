@@ -1,7 +1,6 @@
 --[[
-    FerClient v2.9 | Rost Alpha
-    AIM + VISUAL + Hide + Unload
-    Фикс кнопок ON/OFF
+    FerClient v3.0 | Rost Alpha
+    AIM + VISUAL + Hide + Unload + Snowflakes
 ]]
 
 if getgenv().FerClient_Loaded then
@@ -24,7 +23,7 @@ local Camera = Workspace.CurrentCamera
 local LP = Players.LocalPlayer
 
 --=========================================================
--- ТЕМА (чёрный фон)
+-- ТЕМА
 --=========================================================
 local Theme = {
     Background = Color3.fromRGB(10, 10, 10),
@@ -94,11 +93,96 @@ Menu.BorderSizePixel = 0
 Menu.Active = true
 Menu.Draggable = true
 Menu.Visible = true
+Menu.ClipsDescendants = false
 Menu.Parent = ScreenGui
 
 local MenuStroke = Instance.new("UIStroke", Menu)
 MenuStroke.Color = Theme.Border
 MenuStroke.Thickness = 1
+
+--=========================================================
+-- ❄️ СНЕЖИНКИ В МЕНЮ
+--=========================================================
+local SnowContainer = Instance.new("Frame")
+SnowContainer.Name = "SnowContainer"
+SnowContainer.Size = UDim2.new(1, 0, 1, 0)
+SnowContainer.BackgroundTransparency = 1
+SnowContainer.ClipsDescendants = true
+SnowContainer.ZIndex = 2
+SnowContainer.Parent = Menu
+
+local SNOW_COUNT = 30
+local SNOW_MIN_SIZE = 4
+local SNOW_MAX_SIZE = 12
+local SNOW_MIN_SPEED = 15
+local SNOW_MAX_SPEED = 40
+local SNOW_SYMBOLS = { "❄", "❅", "❆", "•", "*" }
+
+local snowflakes = {}
+
+local function createSnowflake()
+    local flake = Instance.new("TextLabel")
+    flake.BackgroundTransparency = 1
+    flake.Text = SNOW_SYMBOLS[math.random(1, #SNOW_SYMBOLS)]
+    flake.TextColor3 = Color3.fromRGB(200, 220, 255)
+    flake.Font = Enum.Font.GothamBold
+    flake.TextSize = math.random(SNOW_MIN_SIZE, SNOW_MAX_SIZE)
+    flake.TextTransparency = math.random(40, 80) / 100
+    flake.Size = UDim2.new(0, 20, 0, 20)
+    flake.AnchorPoint = Vector2.new(0.5, 0.5)
+    flake.ZIndex = 2
+    flake.Parent = SnowContainer
+
+    local startX = math.random(0, 100)
+    flake.Position = UDim2.new(startX / 100, 0, -0.05, 0)
+
+    local data = {
+        label = flake,
+        xRatio = startX / 100,
+        speed = math.random(SNOW_MIN_SPEED, SNOW_MAX_SPEED),
+        swayAmp = math.random(10, 30) / 1000,
+        swayFreq = math.random(15, 40) / 10,
+        rotation = math.random(0, 360),
+        rotSpeed = (math.random(-60, 60)) / 10,
+        phase = math.random(0, 100) / 10,
+    }
+    snowflakes[#snowflakes + 1] = data
+end
+
+for i = 1, SNOW_COUNT do
+    createSnowflake()
+end
+
+TrackConn(RunService.RenderStepped:Connect(function(dt)
+    if not SnowContainer.Parent then return end
+    for _, data in ipairs(snowflakes) do
+        local f = data.label
+        if f and f.Parent then
+            local currentY = f.Position.Y.Scale
+            local currentX = data.xRatio
+
+            local speedRatio = data.speed / math.max(Menu.AbsoluteSize.Y, 1)
+            currentY = currentY + speedRatio * dt
+
+            data.phase = data.phase + dt * data.swayFreq
+            local swayX = math.sin(data.phase) * data.swayAmp
+
+            data.rotation = data.rotation + data.rotSpeed * dt * 60
+
+            if currentY > 1.05 then
+                currentY = -0.05
+                data.xRatio = math.random(0, 100) / 100
+                data.speed = math.random(SNOW_MIN_SPEED, SNOW_MAX_SPEED)
+                data.label.Text = SNOW_SYMBOLS[math.random(1, #SNOW_SYMBOLS)]
+                data.label.TextSize = math.random(SNOW_MIN_SIZE, SNOW_MAX_SIZE)
+                data.label.TextTransparency = math.random(40, 80) / 100
+            end
+
+            f.Position = UDim2.new(currentX + swayX, 0, currentY, 0)
+            f.Rotation = data.rotation
+        end
+    end
+end))
 
 --=========================================================
 -- МИНИ-КНОПКА
@@ -141,6 +225,7 @@ local TopBar = Instance.new("Frame")
 TopBar.Size = UDim2.new(1, 0, 0, 38)
 TopBar.BackgroundColor3 = Theme.Panel
 TopBar.BorderSizePixel = 0
+TopBar.ZIndex = 3
 TopBar.Parent = Menu
 
 local Dot = Instance.new("Frame")
@@ -148,6 +233,7 @@ Dot.Size = UDim2.new(0, 8, 0, 8)
 Dot.Position = UDim2.new(0, 12, 0.5, -4)
 Dot.BackgroundColor3 = Theme.Success
 Dot.BorderSizePixel = 0
+Dot.ZIndex = 4
 Dot.Parent = TopBar
 Instance.new("UICorner", Dot).CornerRadius = UDim.new(1, 0)
 
@@ -155,11 +241,12 @@ local Logo = Instance.new("TextLabel")
 Logo.Size = UDim2.new(0, 160, 1, 0)
 Logo.Position = UDim2.new(0, 28, 0, 0)
 Logo.BackgroundTransparency = 1
-Logo.Text = "FerClient v2.9"
+Logo.Text = "FerClient v3.0"
 Logo.TextColor3 = Theme.Text
 Logo.Font = Theme.FontBold
 Logo.TextSize = 13
 Logo.TextXAlignment = Enum.TextXAlignment.Left
+Logo.ZIndex = 4
 Logo.Parent = TopBar
 
 -- Hide (👁)
@@ -173,6 +260,7 @@ HideBtn.TextColor3 = Color3.new(1, 1, 1)
 HideBtn.Font = Theme.FontBold
 HideBtn.TextSize = 12
 HideBtn.AutoButtonColor = false
+HideBtn.ZIndex = 4
 HideBtn.Parent = TopBar
 
 -- Minimize (—)
@@ -186,6 +274,7 @@ MinimizeBtn.TextColor3 = Theme.Text
 MinimizeBtn.Font = Theme.FontBold
 MinimizeBtn.TextSize = 13
 MinimizeBtn.AutoButtonColor = false
+MinimizeBtn.ZIndex = 4
 MinimizeBtn.Parent = TopBar
 
 -- Unload (✕)
@@ -199,6 +288,7 @@ UnloadBtn.TextColor3 = Theme.Text
 UnloadBtn.Font = Theme.FontBold
 UnloadBtn.TextSize = 13
 UnloadBtn.AutoButtonColor = false
+UnloadBtn.ZIndex = 4
 UnloadBtn.Parent = TopBar
 
 --=========================================================
@@ -209,6 +299,7 @@ TabBar.Size = UDim2.new(1, -16, 0, 34)
 TabBar.Position = UDim2.new(0, 8, 0, 46)
 TabBar.BackgroundColor3 = Theme.Tab
 TabBar.BorderSizePixel = 0
+TabBar.ZIndex = 3
 TabBar.Parent = Menu
 
 local TabLayout = Instance.new("UIListLayout", TabBar)
@@ -222,11 +313,13 @@ TabPadding.PaddingTop = UDim.new(0, 4)
 TabPadding.PaddingLeft = UDim.new(0, 4)
 TabPadding.PaddingRight = UDim.new(0, 4)
 TabPadding.PaddingBottom = UDim.new(0, 4)
+TabPadding.Parent = TabBar
 
 local Content = Instance.new("Frame")
 Content.Size = UDim2.new(1, -16, 1, -140)
 Content.Position = UDim2.new(0, 8, 0, 88)
 Content.BackgroundTransparency = 1
+Content.ZIndex = 3
 Content.Parent = Menu
 
 local function MakeScroller()
@@ -238,6 +331,7 @@ local function MakeScroller()
     sf.ScrollBarImageColor3 = Theme.Accent
     sf.CanvasSize = UDim2.new(0, 0, 0, 0)
     sf.Visible = false
+    sf.ZIndex = 3
     sf.Parent = Content
     local layout = Instance.new("UIListLayout", sf)
     layout.Padding = UDim.new(0, 6)
@@ -264,6 +358,7 @@ local function CreateTab(name, scroller)
     btn.Font = Theme.FontBold
     btn.TextSize = 12
     btn.AutoButtonColor = false
+    btn.ZIndex = 4
     btn.Parent = TabBar
 
     local tab = { Btn = btn, Scroller = scroller, Name = name }
@@ -286,7 +381,7 @@ local AimTab = CreateTab("AIM", AimScroller)
 local VisualTab = CreateTab("VISUAL", VisualScroller)
 
 --=========================================================
--- КНОПКА (ФИКС v2.9)
+-- КНОПКА
 --=========================================================
 local function MakeButton(parent, text, defaultOn, callback)
     local btn = Instance.new("TextButton")
@@ -295,6 +390,7 @@ local function MakeButton(parent, text, defaultOn, callback)
     btn.BorderSizePixel = 0
     btn.Text = ""
     btn.AutoButtonColor = false
+    btn.ZIndex = 3
     btn.Parent = parent
 
     local stroke = Instance.new("UIStroke", btn)
@@ -306,6 +402,7 @@ local function MakeButton(parent, text, defaultOn, callback)
     indicator.Position = UDim2.new(0, 10, 0.5, -7)
     indicator.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
     indicator.BorderSizePixel = 0
+    indicator.ZIndex = 4
     indicator.Parent = btn
     Instance.new("UICorner", indicator).CornerRadius = UDim.new(0, 2)
 
@@ -318,6 +415,7 @@ local function MakeButton(parent, text, defaultOn, callback)
     nameLabel.Font = Enum.Font.GothamMedium
     nameLabel.TextSize = 13
     nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.ZIndex = 4
     nameLabel.Parent = btn
 
     local statusLabel = Instance.new("TextLabel")
@@ -328,6 +426,7 @@ local function MakeButton(parent, text, defaultOn, callback)
     statusLabel.TextColor3 = Color3.fromRGB(255, 60, 60)
     statusLabel.Font = Enum.Font.GothamBold
     statusLabel.TextSize = 12
+    statusLabel.ZIndex = 4
     statusLabel.Parent = btn
 
     local isOn = false
@@ -380,6 +479,7 @@ local function MakeSlider(parent, text, min, max, default, callback)
     frame.Size = UDim2.new(1, 0, 0, 52)
     frame.BackgroundColor3 = Theme.Element
     frame.BorderSizePixel = 0
+    frame.ZIndex = 3
     frame.Parent = parent
 
     local stroke = Instance.new("UIStroke", frame)
@@ -395,6 +495,7 @@ local function MakeSlider(parent, text, min, max, default, callback)
     nameLabel.Font = Theme.Font
     nameLabel.TextSize = 12
     nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.ZIndex = 4
     nameLabel.Parent = frame
 
     local valueLabel = Instance.new("TextLabel")
@@ -405,6 +506,7 @@ local function MakeSlider(parent, text, min, max, default, callback)
     valueLabel.TextColor3 = Theme.Accent
     valueLabel.Font = Theme.FontBold
     valueLabel.TextSize = 12
+    valueLabel.ZIndex = 4
     valueLabel.Parent = frame
 
     local track = Instance.new("Frame")
@@ -412,12 +514,14 @@ local function MakeSlider(parent, text, min, max, default, callback)
     track.Position = UDim2.new(0, 12, 1, -20)
     track.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
     track.BorderSizePixel = 0
+    track.ZIndex = 4
     track.Parent = frame
 
     local fill = Instance.new("Frame")
     fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
     fill.BackgroundColor3 = Theme.Accent
     fill.BorderSizePixel = 0
+    fill.ZIndex = 5
     fill.Parent = track
 
     local knob = Instance.new("Frame")
@@ -426,6 +530,7 @@ local function MakeSlider(parent, text, min, max, default, callback)
     knob.Position = UDim2.new((default - min) / (max - min), 0, 0.5, 0)
     knob.BackgroundColor3 = Theme.Text
     knob.BorderSizePixel = 0
+    knob.ZIndex = 6
     knob.Parent = track
     Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
 
@@ -482,6 +587,7 @@ local function MakeDropdown(parent, text, options, default, callback)
     frame.Size = UDim2.new(1, 0, 0, 40)
     frame.BackgroundColor3 = Theme.Element
     frame.BorderSizePixel = 0
+    frame.ZIndex = 3
     frame.Parent = parent
 
     local stroke = Instance.new("UIStroke", frame)
@@ -497,6 +603,7 @@ local function MakeDropdown(parent, text, options, default, callback)
     nameLabel.Font = Theme.Font
     nameLabel.TextSize = 12
     nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.ZIndex = 4
     nameLabel.Parent = frame
 
     local valueBtn = Instance.new("TextButton")
@@ -509,6 +616,7 @@ local function MakeDropdown(parent, text, options, default, callback)
     valueBtn.Font = Theme.FontBold
     valueBtn.TextSize = 11
     valueBtn.AutoButtonColor = false
+    valueBtn.ZIndex = 4
     valueBtn.Parent = frame
 
     local idx = 1
@@ -612,6 +720,7 @@ TriggerBtn.TextColor3 = Color3.new(1, 1, 1)
 TriggerBtn.Font = Theme.FontBold
 TriggerBtn.TextSize = 13
 TriggerBtn.AutoButtonColor = false
+TriggerBtn.ZIndex = 3
 TriggerBtn.Parent = Menu
 
 local TrigStroke = Instance.new("UIStroke", TriggerBtn)
@@ -692,6 +801,8 @@ end)
 --=========================================================
 -- UNLOAD
 --=========================================================
+local ESPCache = {}
+
 local function Unload()
     if getgenv().FerClient_Unloading then return end
     getgenv().FerClient_Unloading = true
@@ -752,8 +863,6 @@ FovStroke.Transparency = 0.2
 --=========================================================
 -- ESP
 --=========================================================
-local ESPCache = {}
-
 local function CreateESP(player)
     if player == LP or ESPCache[player] then return end
     if not hasDrawing then return end
@@ -846,7 +955,8 @@ local function GetClosestTarget()
                         end
                     end
                 end
-            end        end
+            end
+        end
     end
     return closest
 end
@@ -992,7 +1102,7 @@ end))
 
 AimTab.Btn.BackgroundColor3 = Theme.TabActive
 AimTab.Btn.TextColor3 = Theme.Text
-AimTab.Scroller.Visible = true
+AimScroller.Visible = true
 activeTab = AimTab
 
-print("[FerClient] v2.9 загружен — кнопки переключаются зелёный/красный")
+print("[FerClient] v3.0 загружен — со снежинками ❄️")
