@@ -1,6 +1,7 @@
 --[[
-    FerClient v2.7 | Rost Alpha
-    AIM + Auto Aim + VISUAL + Hide + Unload
+    FerClient v2.8 | Rost Alpha
+    AIM + VISUAL + Hide + Unload
+    Чёрный фон, прямоугольное меню
 ]]
 
 if getgenv().FerClient_Loaded then
@@ -23,23 +24,23 @@ local Camera = Workspace.CurrentCamera
 local LP = Players.LocalPlayer
 
 --=========================================================
--- ТЕМА
+-- ТЕМА (чёрный фон)
 --=========================================================
 local Theme = {
-    Background = Color3.fromRGB(20, 38, 78),
-    Panel      = Color3.fromRGB(30, 55, 110),
-    Tab        = Color3.fromRGB(25, 45, 90),
-    TabActive  = Color3.fromRGB(60, 110, 200),
-    Element    = Color3.fromRGB(42, 72, 135),
-    ElementOn  = Color3.fromRGB(30, 130, 70),      -- зелёный фон ON
-    ElementOff = Color3.fromRGB(140, 40, 40),      -- красный фон OFF
-    Hover      = Color3.fromRGB(58, 95, 175),
-    Accent     = Color3.fromRGB(90, 160, 255),
-    Success    = Color3.fromRGB(80, 255, 130),     -- ярко-зелёный
-    Danger     = Color3.fromRGB(255, 80, 90),      -- ярко-красный
+    Background = Color3.fromRGB(10, 10, 10),        -- почти чёрный
+    Panel      = Color3.fromRGB(15, 15, 15),        -- чёрный топбар
+    Tab        = Color3.fromRGB(18, 18, 18),        -- фон табов
+    TabActive  = Color3.fromRGB(30, 30, 30),        -- активный таб
+    Element    = Color3.fromRGB(22, 22, 22),        -- кнопка по умолчанию
+    ElementOn  = Color3.fromRGB(0, 80, 40),         -- зелёный фон ON
+    ElementOff = Color3.fromRGB(90, 15, 15),        -- красный фон OFF
+    Hover      = Color3.fromRGB(35, 35, 35),        -- при наведении
+    Accent     = Color3.fromRGB(90, 160, 255),      -- синий акцент
+    Success    = Color3.fromRGB(50, 255, 100),      -- ярко-зелёный
+    Danger     = Color3.fromRGB(255, 60, 60),       -- ярко-красный
     Text       = Color3.fromRGB(240, 245, 255),
-    TextDim    = Color3.fromRGB(160, 185, 220),
-    Border     = Color3.fromRGB(60, 100, 175),
+    TextDim    = Color3.fromRGB(140, 150, 170),
+    Border     = Color3.fromRGB(50, 50, 55),
     Font       = Enum.Font.GothamMedium,
     FontBold   = Enum.Font.GothamBold,
 }
@@ -54,22 +55,14 @@ local Config = {
         MaxDistance = 1500, Color = Theme.Accent,
     },
     Aimbot = {
-        Enabled = false,
-        AutoAim = false,
-        FOV = 200,
-        Smoothness = 0.5,
-        MaxDistance = 600,
-        TargetPart = "Head",
-        Visible = false,
-        TeamCheck = true,
-        ShowFOV = true,
-        TriggerActive = false,
+        Enabled = false, AutoAim = false, FOV = 200, Smoothness = 0.5,
+        MaxDistance = 600, TargetPart = "Head", Visible = false,
+        TeamCheck = true, ShowFOV = true, TriggerActive = false,
     }
 }
 
 local hasDrawing = pcall(function()
-    local t = Drawing.new("Square")
-    t:Remove()
+    local t = Drawing.new("Square"); t:Remove()
 end)
 
 local Connections = {}
@@ -90,7 +83,7 @@ pcall(function() ScreenGui.Parent = HUI end)
 if not ScreenGui.Parent then ScreenGui.Parent = LP:WaitForChild("PlayerGui") end
 
 --=========================================================
--- МЕНЮ
+-- МЕНЮ (ПРЯМОУГОЛЬНОЕ — без UICorner)
 --=========================================================
 local Menu = Instance.new("Frame")
 Menu.Name = "FerClient_Main"
@@ -102,27 +95,26 @@ Menu.Active = true
 Menu.Draggable = true
 Menu.Visible = true
 Menu.Parent = ScreenGui
-Instance.new("UICorner", Menu).CornerRadius = UDim.new(0, 10)
 
 local MenuStroke = Instance.new("UIStroke", Menu)
 MenuStroke.Color = Theme.Border
-MenuStroke.Thickness = 1.5
+MenuStroke.Thickness = 1
 
 --=========================================================
--- МИНИ-КНОПКА (когда меню скрыто)
+-- МИНИ-КНОПКА (круглая, чтобы сразу видно было)
 --=========================================================
 local MiniBtn = Instance.new("TextButton")
 MiniBtn.Name = "FerClient_MiniBtn"
 MiniBtn.Size = UDim2.new(0, 44, 0, 44)
 MiniBtn.Position = UDim2.new(0, 10, 0.5, -22)
-MiniBtn.BackgroundColor3 = Theme.Panel
+MiniBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 MiniBtn.BorderSizePixel = 0
 MiniBtn.Text = "FC"
 MiniBtn.TextColor3 = Theme.Accent
 MiniBtn.Font = Theme.FontBold
 MiniBtn.TextSize = 15
 MiniBtn.AutoButtonColor = false
-MiniBtn.Visible = false  -- изначально скрыта
+MiniBtn.Visible = false
 MiniBtn.Active = true
 MiniBtn.Draggable = true
 MiniBtn.Parent = ScreenGui
@@ -134,38 +126,22 @@ MiniStroke.Thickness = 2
 MiniStroke.Transparency = 0.2
 
 MiniBtn.MouseEnter:Connect(function()
-    TweenService:Create(MiniBtn, TweenInfo.new(0.15), {
-        BackgroundColor3 = Theme.Accent
-    }):Play()
-    TweenService:Create(MiniBtn, TweenInfo.new(0.15), {
-        TextColor3 = Color3.new(1, 1, 1)
-    }):Play()
+    MiniBtn.BackgroundColor3 = Theme.Accent
+    MiniBtn.TextColor3 = Color3.new(1, 1, 1)
 end)
 MiniBtn.MouseLeave:Connect(function()
-    TweenService:Create(MiniBtn, TweenInfo.new(0.15), {
-        BackgroundColor3 = Theme.Panel
-    }):Play()
-    TweenService:Create(MiniBtn, TweenInfo.new(0.15), {
-        TextColor3 = Theme.Accent
-    }):Play()
+    MiniBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+    MiniBtn.TextColor3 = Theme.Accent
 end)
 
 --=========================================================
--- ТОПБАР (3 кнопки: скрыть, свернуть, выгрузить)
+-- ТОПБАР
 --=========================================================
 local TopBar = Instance.new("Frame")
 TopBar.Size = UDim2.new(1, 0, 0, 38)
 TopBar.BackgroundColor3 = Theme.Panel
 TopBar.BorderSizePixel = 0
 TopBar.Parent = Menu
-Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 10)
-
-local TopBarCover = Instance.new("Frame")
-TopBarCover.Size = UDim2.new(1, 0, 0, 10)
-TopBarCover.Position = UDim2.new(0, 0, 1, -10)
-TopBarCover.BackgroundColor3 = Theme.Panel
-TopBarCover.BorderSizePixel = 0
-TopBarCover.Parent = TopBar
 
 local Dot = Instance.new("Frame")
 Dot.Size = UDim2.new(0, 8, 0, 8)
@@ -179,31 +155,15 @@ local Logo = Instance.new("TextLabel")
 Logo.Size = UDim2.new(0, 160, 1, 0)
 Logo.Position = UDim2.new(0, 28, 0, 0)
 Logo.BackgroundTransparency = 1
-Logo.Text = "FerClient v2.7"
+Logo.Text = "FerClient v2.8"
 Logo.TextColor3 = Theme.Text
 Logo.Font = Theme.FontBold
 Logo.TextSize = 13
 Logo.TextXAlignment = Enum.TextXAlignment.Left
 Logo.Parent = TopBar
 
--- Общая функция для ховера иконок-кнопок
-local function SetupIconBtn(btn, hoverColor)
-    btn.MouseEnter:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.15), {
-            BackgroundColor3 = hoverColor
-        }):Play()
-    end)
-    btn.MouseLeave:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.15), {
-            BackgroundColor3 = btn.BackgroundColor3 == Theme.Danger and Theme.Danger
-                or (btn.Name == "HideBtn" and Theme.Accent or Theme.Element)
-        }):Play()
-    end)
-end
-
--- Кнопка HIDE (скрыть меню в иконку) — 👁
+-- Кнопка HIDE (скрыть меню в иконку FC)
 local HideBtn = Instance.new("TextButton")
-HideBtn.Name = "HideBtn"
 HideBtn.Size = UDim2.new(0, 22, 0, 22)
 HideBtn.Position = UDim2.new(1, -88, 0, 8)
 HideBtn.BackgroundColor3 = Theme.Accent
@@ -214,12 +174,16 @@ HideBtn.Font = Theme.FontBold
 HideBtn.TextSize = 12
 HideBtn.AutoButtonColor = false
 HideBtn.Parent = TopBar
-Instance.new("UICorner", HideBtn).CornerRadius = UDim.new(0, 5)
-SetupIconBtn(HideBtn, Color3.fromRGB(120, 180, 255))
 
--- Кнопка MINIMIZE (свернуть в топбар) — —
+HideBtn.MouseEnter:Connect(function()
+    HideBtn.BackgroundColor3 = Color3.fromRGB(120, 180, 255)
+end)
+HideBtn.MouseLeave:Connect(function()
+    HideBtn.BackgroundColor3 = Theme.Accent
+end)
+
+-- Кнопка MINIMIZE
 local MinimizeBtn = Instance.new("TextButton")
-MinimizeBtn.Name = "MinBtn"
 MinimizeBtn.Size = UDim2.new(0, 22, 0, 22)
 MinimizeBtn.Position = UDim2.new(1, -60, 0, 8)
 MinimizeBtn.BackgroundColor3 = Theme.Element
@@ -230,12 +194,16 @@ MinimizeBtn.Font = Theme.FontBold
 MinimizeBtn.TextSize = 13
 MinimizeBtn.AutoButtonColor = false
 MinimizeBtn.Parent = TopBar
-Instance.new("UICorner", MinimizeBtn).CornerRadius = UDim.new(0, 5)
-SetupIconBtn(MinimizeBtn, Theme.Hover)
 
--- Кнопка UNLOAD (закрыть скрипт) — ✕
+MinimizeBtn.MouseEnter:Connect(function()
+    MinimizeBtn.BackgroundColor3 = Theme.Hover
+end)
+MinimizeBtn.MouseLeave:Connect(function()
+    MinimizeBtn.BackgroundColor3 = Theme.Element
+end)
+
+-- Кнопка UNLOAD
 local UnloadBtn = Instance.new("TextButton")
-UnloadBtn.Name = "UnloadBtn"
 UnloadBtn.Size = UDim2.new(0, 22, 0, 22)
 UnloadBtn.Position = UDim2.new(1, -32, 0, 8)
 UnloadBtn.BackgroundColor3 = Theme.Danger
@@ -246,8 +214,13 @@ UnloadBtn.Font = Theme.FontBold
 UnloadBtn.TextSize = 13
 UnloadBtn.AutoButtonColor = false
 UnloadBtn.Parent = TopBar
-Instance.new("UICorner", UnloadBtn).CornerRadius = UDim.new(0, 5)
-SetupIconBtn(UnloadBtn, Color3.fromRGB(255, 130, 130))
+
+UnloadBtn.MouseEnter:Connect(function()
+    UnloadBtn.BackgroundColor3 = Color3.fromRGB(255, 120, 120)
+end)
+UnloadBtn.MouseLeave:Connect(function()
+    UnloadBtn.BackgroundColor3 = Theme.Danger
+end)
 
 --=========================================================
 -- ВКЛАДКИ
@@ -258,7 +231,6 @@ TabBar.Position = UDim2.new(0, 8, 0, 46)
 TabBar.BackgroundColor3 = Theme.Tab
 TabBar.BorderSizePixel = 0
 TabBar.Parent = Menu
-Instance.new("UICorner", TabBar).CornerRadius = UDim.new(0, 6)
 
 local TabLayout = Instance.new("UIListLayout", TabBar)
 TabLayout.FillDirection = Enum.FillDirection.Horizontal
@@ -314,18 +286,14 @@ local function CreateTab(name, scroller)
     btn.TextSize = 12
     btn.AutoButtonColor = false
     btn.Parent = TabBar
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
 
     local tab = { Btn = btn, Scroller = scroller, Name = name }
-
     local function activate()
         if activeTab == tab then return end
         activeTab = tab
         for _, t in ipairs(tabs) do
             local isActive = (t == tab)
-            TweenService:Create(t.Btn, TweenInfo.new(0.2), {
-                BackgroundColor3 = isActive and Theme.TabActive or Theme.Tab,
-            }):Play()
+            t.Btn.BackgroundColor3 = isActive and Theme.TabActive or Theme.Tab
             t.Btn.TextColor3 = isActive and Theme.Text or Theme.TextDim
             t.Scroller.Visible = isActive
         end
@@ -339,29 +307,29 @@ local AimTab = CreateTab("AIM", AimScroller)
 local VisualTab = CreateTab("VISUAL", VisualScroller)
 
 --=========================================================
--- КНОПКА (ФИКС цвета)
+-- КНОПКА (фикс: цветной квадрат слева показывает состояние)
 --=========================================================
 local function MakeButton(parent, text, defaultOn, callback)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, 0, 0, 40)
-    btn.BackgroundColor3 = Theme.ElementOff
+    btn.BackgroundColor3 = Theme.Element
     btn.BorderSizePixel = 0
     btn.Text = ""
     btn.AutoButtonColor = false
     btn.Parent = parent
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
     local stroke = Instance.new("UIStroke", btn)
-    stroke.Color = Theme.Danger
-    stroke.Thickness = 1.5
+    stroke.Color = Theme.Border
+    stroke.Thickness = 1
 
+    -- Цветной индикатор состояния (квадрат слева) — главный визуал
     local indicator = Instance.new("Frame")
-    indicator.Size = UDim2.new(0, 12, 0, 12)
-    indicator.Position = UDim2.new(0, 12, 0.5, -6)
+    indicator.Size = UDim2.new(0, 14, 0, 14)
+    indicator.Position = UDim2.new(0, 10, 0.5, -7)
     indicator.BackgroundColor3 = Theme.Danger
     indicator.BorderSizePixel = 0
     indicator.Parent = btn
-    Instance.new("UICorner", indicator).CornerRadius = UDim.new(0, 3)
+    Instance.new("UICorner", indicator).CornerRadius = UDim.new(0, 2)
 
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Size = UDim2.new(1, -110, 1, 0)
@@ -384,30 +352,29 @@ local function MakeButton(parent, text, defaultOn, callback)
     statusLabel.TextSize = 12
     statusLabel.Parent = btn
 
-    -- Функция смены состояния
+    -- Функция смены состояния (меняем НАПРЯМУЮ, без tween)
     local function setState(isOn)
         btn:SetAttribute("On", isOn)
-        statusLabel.Text = isOn and "ON" or "OFF"
-        statusLabel.TextColor3 = isOn and Theme.Success or Theme.Danger
 
-        -- Меняем цвета НАПРЯМУЮ (без Tween, чтобы гарантированно сработало)
+        -- Меняем ВСЁ: фон, обводку, индикатор, текст
         btn.BackgroundColor3 = isOn and Theme.ElementOn or Theme.ElementOff
         stroke.Color = isOn and Theme.Success or Theme.Danger
+        stroke.Thickness = isOn and 2 or 1
         indicator.BackgroundColor3 = isOn and Theme.Success or Theme.Danger
+
+        statusLabel.Text = isOn and "ON" or "OFF"
+        statusLabel.TextColor3 = isOn and Theme.Success or Theme.Danger
     end
 
-    -- Hover (не работает если ON)
+    -- Hover — только подсветка текста, без ломания цвета фона
     btn.MouseEnter:Connect(function()
-        if not btn:GetAttribute("On") then
-            btn.BackgroundColor3 = Theme.Hover
-        end
+        nameLabel.TextColor3 = Theme.Accent
     end)
     btn.MouseLeave:Connect(function()
-        local on = btn:GetAttribute("On")
-        btn.BackgroundColor3 = on and Theme.ElementOn or Theme.ElementOff
+        nameLabel.TextColor3 = Theme.Text
     end)
 
-    -- Клик (только MouseButton1Click — без Activated, чтобы не было двойного)
+    -- Клик
     local lastClick = 0
     btn.MouseButton1Click:Connect(function()
         local now = tick()
@@ -433,7 +400,6 @@ local function MakeSlider(parent, text, min, max, default, callback)
     frame.BackgroundColor3 = Theme.Element
     frame.BorderSizePixel = 0
     frame.Parent = parent
-    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
 
     local stroke = Instance.new("UIStroke", frame)
     stroke.Color = Theme.Border
@@ -463,17 +429,15 @@ local function MakeSlider(parent, text, min, max, default, callback)
     local track = Instance.new("Frame")
     track.Size = UDim2.new(1, -24, 0, 8)
     track.Position = UDim2.new(0, 12, 1, -20)
-    track.BackgroundColor3 = Theme.Background
+    track.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
     track.BorderSizePixel = 0
     track.Parent = frame
-    Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
 
     local fill = Instance.new("Frame")
     fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
     fill.BackgroundColor3 = Theme.Accent
     fill.BorderSizePixel = 0
     fill.Parent = track
-    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
 
     local knob = Instance.new("Frame")
     knob.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -538,7 +502,6 @@ local function MakeDropdown(parent, text, options, default, callback)
     frame.BackgroundColor3 = Theme.Element
     frame.BorderSizePixel = 0
     frame.Parent = parent
-    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
 
     local stroke = Instance.new("UIStroke", frame)
     stroke.Color = Theme.Border
@@ -566,7 +529,6 @@ local function MakeDropdown(parent, text, options, default, callback)
     valueBtn.TextSize = 11
     valueBtn.AutoButtonColor = false
     valueBtn.Parent = frame
-    Instance.new("UICorner", valueBtn).CornerRadius = UDim.new(0, 4)
 
     local idx = 1
     for i, v in ipairs(options) do if v == default then idx = i break end end
@@ -681,7 +643,6 @@ TriggerBtn.Font = Theme.FontBold
 TriggerBtn.TextSize = 13
 TriggerBtn.AutoButtonColor = false
 TriggerBtn.Parent = Menu
-Instance.new("UICorner", TriggerBtn).CornerRadius = UDim.new(0, 6)
 
 local TrigStroke = Instance.new("UIStroke", TriggerBtn)
 TrigStroke.Color = Theme.Border
@@ -703,13 +664,13 @@ end)
 TriggerBtn.MouseLeave:Connect(function() setTrig(false) end)
 
 --=========================================================
--- СВОРАЧИВАНИЕ (Minimize — только топбар)
+-- СВОРАЧИВАНИЕ (Minimize)
 --=========================================================
 local isMinimized = false
 local function toggleMinimize()
     isMinimized = not isMinimized
     local targetSize = isMinimized and UDim2.new(0, 280, 0, 38) or UDim2.new(0, 280, 0, 460)
-    TweenService:Create(Menu, TweenInfo.new(0.25, Enum.EasingStyle.Quad), { Size = targetSize }):Play()
+    Menu.Size = targetSize
     TabBar.Visible = not isMinimized
     Content.Visible = not isMinimized
     TriggerBtn.Visible = not isMinimized
@@ -724,37 +685,30 @@ MinimizeBtn.MouseButton1Click:Connect(function()
 end)
 
 --=========================================================
--- СКРЫТИЕ (Hide — в иконку FC)
+-- СКРЫТИЕ (Hide) — ФИКС через перемещение за экран
 --=========================================================
 local isHidden = false
-
-local function showMenuFromMini()
-    -- Показываем меню, прячем иконку
-    Menu.Visible = true
-    MiniBtn.Visible = false
-    isHidden = false
-    -- Анимация появления
-    Menu.Size = UDim2.new(0, 0, 0, 0)
-    TweenService:Create(Menu, TweenInfo.new(0.25, Enum.EasingStyle.Back), {
-        Size = isMinimized and UDim2.new(0, 280, 0, 38) or UDim2.new(0, 280, 0, 460)
-    }):Play()
-end
+local savedPosition = UDim2.new(0, 20, 0, 80)
 
 local function hideMenuToMini()
-    -- Прячем меню, показываем иконку
-    MiniBtn.Position = Menu.Position
-    MiniBtn.Visible = true
+    -- Запоминаем позицию
+    savedPosition = Menu.Position
     isHidden = true
-    -- Анимация исчезновения
-    local startSize = Menu.Size
-    TweenService:Create(Menu, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
-        Size = UDim2.new(0, 0, 0, 0)
-    }):Play()
-    task.delay(0.2, function()
-        if isHidden then
-            Menu.Visible = false
-        end
-    end)
+
+    -- Мини-кнопка появляется на позиции меню
+    MiniBtn.Position = savedPosition
+    MiniBtn.Visible = true
+
+    -- Меню УЕЗЖАЕТ за экран (по X на -500) — но остаётся Visible
+    Menu.Position = UDim2.new(0, -500, 0, Menu.Position.Y.Offset)
+end
+
+local function showMenuFromMini()
+    isHidden = false
+    MiniBtn.Visible = false
+
+    -- Меню возвращается на своё место
+    Menu.Position = savedPosition
 end
 
 local lastHideClick = 0
@@ -1053,7 +1007,7 @@ TrackConn(Players.PlayerRemoving:Connect(RemoveESP))
 for _, plr in ipairs(Players:GetPlayers()) do CreateESP(plr) end
 
 --=========================================================
--- ХОТКЕИ (ПК)
+-- ХОТКЕИ
 --=========================================================
 TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     if gpe then return end
@@ -1080,6 +1034,5 @@ AimTab.Btn.TextColor3 = Theme.Text
 AimTab.Scroller.Visible = true
 activeTab = AimTab
 
-print("[FerClient] v2.7 загружен")
+print("[FerClient] v2.8 — чёрный фон, прямоугольное меню")
 print("Кнопки: 👁 скрыть | — свернуть | ✕ выгрузить")
-print("Хоткеи: F1=ESP F2=Aim F3=AutoAim H=Скрыть Del=Unload")
