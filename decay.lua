@@ -1,6 +1,5 @@
 --[[
-    FerClient | Decay Edition v1.0
-    Universal cheat for Decay [HALF WALLS]
+    FerClient | Decay v2 | Null-wave Style
 ]]
 
 if getgenv().FerClient_Decay_Loaded then
@@ -15,6 +14,7 @@ local HUI = (gethui and gethui()) or game:GetService("CoreGui")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 local Lighting = game:GetService("Lighting")
 local StarterGui = game:GetService("StarterGui")
@@ -22,19 +22,19 @@ local Camera = Workspace.CurrentCamera
 local LP = Players.LocalPlayer
 
 --=========================================================
--- ТЕМА
+-- ТЕМА (Null-wave фиолетовый)
 --=========================================================
 local Theme = {
-    Background = Color3.fromRGB(10, 10, 10),
-    Panel      = Color3.fromRGB(15, 15, 15),
-    Element    = Color3.fromRGB(22, 22, 22),
-    Accent     = Color3.fromRGB(90, 160, 255),
-    Success    = Color3.fromRGB(50, 255, 100),
-    Danger     = Color3.fromRGB(255, 60, 60),
-    Text       = Color3.fromRGB(240, 245, 255),
-    TextDim    = Color3.fromRGB(140, 150, 170),
-    Border     = Color3.fromRGB(50, 50, 55),
-    Font       = Enum.Font.GothamMedium,
+    Background = Color3.fromRGB(15, 15, 25),
+    Panel      = Color3.fromRGB(20, 20, 35),
+    Element    = Color3.fromRGB(28, 28, 45),
+    Accent     = Color3.fromRGB(150, 120, 240),
+    On         = Color3.fromRGB(150, 120, 240),
+    Off        = Color3.fromRGB(50, 50, 70),
+    Text       = Color3.fromRGB(230, 230, 240),
+    TextDim    = Color3.fromRGB(120, 120, 140),
+    Border     = Color3.fromRGB(40, 40, 60),
+    Font       = Enum.Font.Gotham,
     FontBold   = Enum.Font.GothamBold,
 }
 
@@ -45,13 +45,13 @@ local Config = {
     ESP = {
         Enabled = true,
         Box = true, Name = true, Distance = true, Health = true,
-        MaxDistance = 1500,
+        MaxDistance = 1500, Color = Theme.Accent,
     },
     Aimbot = {
         Enabled = false, AutoAim = false, FOV = 200, Smoothness = 0.5,
-        MaxDistance = 600, TargetPart = "Head",
-        Visible = false, TeamCheck = true, ShowFOV = true,
-        TriggerActive = false, Prediction = true, PredictionX = 0.15,
+        MaxDistance = 600, TargetPart = "Head", Visible = false,
+        TeamCheck = true, ShowFOV = true, TriggerActive = false,
+        Prediction = true, PredictionX = 0.15,
     },
     Player = {
         NoFallDamage = false,
@@ -59,9 +59,7 @@ local Config = {
         Noclip = false,
     },
     Visual = {
-        Fullbright = false,
-        XRay = false,
-        FPSBoost = false,
+        Fullbright = false, XRay = false, FPSBoost = false,
     },
     Misc = {
         InfiniteJump = false,
@@ -89,7 +87,7 @@ local function chatMessage(text, color)
 end
 
 --=========================================================
--- GUI
+-- ГЛАВНЫЙ GUI
 --=========================================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "FerClient_Decay"
@@ -99,101 +97,156 @@ ScreenGui.DisplayOrder = 100
 pcall(function() ScreenGui.Parent = HUI end)
 if not ScreenGui.Parent then ScreenGui.Parent = LP:WaitForChild("PlayerGui") end
 
+-- Меню 450x280
 local Menu = Instance.new("Frame")
 Menu.Name = "FerClient_Main"
-Menu.Size = UDim2.new(0, 300, 0, 420)
-Menu.Position = UDim2.new(0, 20, 0, 60)
+Menu.Size = UDim2.new(0, 450, 0, 280)
+Menu.Position = UDim2.new(0.5, -225, 0.5, -140)
 Menu.BackgroundColor3 = Theme.Background
 Menu.BorderSizePixel = 0
 Menu.Active = true
 Menu.Draggable = true
 Menu.Visible = false
 Menu.Parent = ScreenGui
+
 Instance.new("UIStroke", Menu).Color = Theme.Border
 Instance.new("UIStroke", Menu).Thickness = 1
 
--- Топбар
+--=========================================================
+-- СНЕЖИНКИ
+--=========================================================
+local SnowContainer = Instance.new("Frame")
+SnowContainer.Size = UDim2.new(1, 0, 1, 0)
+SnowContainer.BackgroundTransparency = 1
+SnowContainer.ClipsDescendants = true
+SnowContainer.ZIndex = 2
+SnowContainer.Parent = Menu
+
+local SNOW_COUNT = 20
+local SNOW_SYMBOLS = { "❄", "❅", "❆", "•", "*" }
+local snowflakes = {}
+
+local function createSnowflake()
+    local flake = Instance.new("TextLabel")
+    flake.BackgroundTransparency = 1
+    flake.Text = SNOW_SYMBOLS[math.random(1, #SNOW_SYMBOLS)]
+    flake.TextColor3 = Color3.fromRGB(180, 160, 240)
+    flake.Font = Enum.Font.GothamBold
+    flake.TextSize = math.random(4, 10)
+    flake.TextTransparency = math.random(50, 85) / 100
+    flake.Size = UDim2.new(0, 20, 0, 20)
+    flake.AnchorPoint = Vector2.new(0.5, 0.5)
+    flake.ZIndex = 2
+    flake.Parent = SnowContainer
+    local startX = math.random(0, 100)
+    flake.Position = UDim2.new(startX / 100, 0, -0.05, 0)
+    snowflakes[#snowflakes + 1] = {
+        label = flake, xRatio = startX / 100,
+        speed = math.random(15, 35),
+        swayAmp = math.random(10, 25) / 1000,
+        swayFreq = math.random(15, 40) / 10,
+        rotation = math.random(0, 360),
+        rotSpeed = (math.random(-60, 60)) / 10,
+        phase = math.random(0, 100) / 10,
+    }
+end
+
+for i = 1, SNOW_COUNT do createSnowflake() end
+
+TrackConn(RunService.RenderStepped:Connect(function(dt)
+    if not SnowContainer.Parent then return end
+    for _, data in ipairs(snowflakes) do
+        local f = data.label
+        if f and f.Parent then
+            local currentY = f.Position.Y.Scale
+            local currentX = data.xRatio
+            currentY = currentY + (data.speed / math.max(Menu.AbsoluteSize.Y, 1)) * dt
+            data.phase = data.phase + dt * data.swayFreq
+            local swayX = math.sin(data.phase) * data.swayAmp
+            data.rotation = data.rotation + data.rotSpeed * dt * 60
+            if currentY > 1.05 then
+                currentY = -0.05
+                data.xRatio = math.random(0, 100) / 100
+                data.speed = math.random(15, 35)
+                data.label.Text = SNOW_SYMBOLS[math.random(1, #SNOW_SYMBOLS)]
+                data.label.TextSize = math.random(4, 10)
+                data.label.TextTransparency = math.random(50, 85) / 100
+            end
+            f.Position = UDim2.new(currentX + swayX, 0, currentY, 0)
+            f.Rotation = data.rotation
+        end
+    end
+end))
+
+--=========================================================
+-- ЗАГОЛОВОК
+--=========================================================
 local TopBar = Instance.new("Frame")
-TopBar.Size = UDim2.new(1, 0, 0, 38)
-TopBar.BackgroundColor3 = Theme.Panel
+TopBar.Size = UDim2.new(1, 0, 0, 26)
+TopBar.BackgroundColor3 = Theme.Background
 TopBar.BorderSizePixel = 0
+TopBar.ZIndex = 3
 TopBar.Parent = Menu
 
-local Dot = Instance.new("Frame")
-Dot.Size = UDim2.new(0, 8, 0, 8)
-Dot.Position = UDim2.new(0, 12, 0.5, -4)
-Dot.BackgroundColor3 = Theme.Success
-Dot.BorderSizePixel = 0
-Dot.Parent = TopBar
-Instance.new("UICorner", Dot).CornerRadius = UDim.new(1, 0)
-
 local Logo = Instance.new("TextLabel")
-Logo.Size = UDim2.new(0, 200, 1, 0)
-Logo.Position = UDim2.new(0, 28, 0, 0)
+Logo.Size = UDim2.new(1, -70, 1, 0)
+Logo.Position = UDim2.new(0, 10, 0, 0)
 Logo.BackgroundTransparency = 1
-Logo.Text = "FerClient | Decay"
+Logo.Text = "FerClient.lua"
 Logo.TextColor3 = Theme.Text
 Logo.Font = Theme.FontBold
-Logo.TextSize = 13
+Logo.TextSize = 12
 Logo.TextXAlignment = Enum.TextXAlignment.Left
+Logo.ZIndex = 4
 Logo.Parent = TopBar
 
 local MinimizeBtn = Instance.new("TextButton")
-MinimizeBtn.Size = UDim2.new(0, 22, 0, 22)
-MinimizeBtn.Position = UDim2.new(1, -60, 0, 8)
-MinimizeBtn.BackgroundColor3 = Theme.Element
-MinimizeBtn.BorderSizePixel = 0
+MinimizeBtn.Size = UDim2.new(0, 18, 0, 18)
+MinimizeBtn.Position = UDim2.new(1, -46, 0, 4)
+MinimizeBtn.BackgroundTransparency = 1
 MinimizeBtn.Text = "—"
-MinimizeBtn.TextColor3 = Theme.Text
+MinimizeBtn.TextColor3 = Theme.TextDim
 MinimizeBtn.Font = Theme.FontBold
-MinimizeBtn.TextSize = 13
+MinimizeBtn.TextSize = 12
 MinimizeBtn.AutoButtonColor = false
+MinimizeBtn.ZIndex = 4
 MinimizeBtn.Parent = TopBar
 
 local UnloadBtn = Instance.new("TextButton")
-UnloadBtn.Size = UDim2.new(0, 22, 0, 22)
-UnloadBtn.Position = UDim2.new(1, -32, 0, 8)
-UnloadBtn.BackgroundColor3 = Theme.Danger
-UnloadBtn.BorderSizePixel = 0
+UnloadBtn.Size = UDim2.new(0, 18, 0, 18)
+UnloadBtn.Position = UDim2.new(1, -24, 0, 4)
+UnloadBtn.BackgroundTransparency = 1
 UnloadBtn.Text = "✕"
-UnloadBtn.TextColor3 = Theme.Text
+UnloadBtn.TextColor3 = Theme.TextDim
 UnloadBtn.Font = Theme.FontBold
-UnloadBtn.TextSize = 13
+UnloadBtn.TextSize = 11
 UnloadBtn.AutoButtonColor = false
+UnloadBtn.ZIndex = 4
 UnloadBtn.Parent = TopBar
 
--- Вкладки
-local TabBar = Instance.new("Frame")
-TabBar.Size = UDim2.new(1, -16, 0, 34)
-TabBar.Position = UDim2.new(0, 8, 0, 46)
-TabBar.BackgroundColor3 = Theme.Element
-TabBar.BorderSizePixel = 0
-TabBar.Parent = Menu
-
-local TabLayout = Instance.new("UIListLayout", TabBar)
-TabLayout.FillDirection = Enum.FillDirection.Horizontal
-TabLayout.SortOrder = Enum.SortOrder.LayoutOrder
-TabLayout.Padding = UDim.new(0, 4)
-TabLayout.Parent = TabBar
-
+--=========================================================
+-- КОНТЕНТ (5 вкладок)
+--=========================================================
 local Content = Instance.new("Frame")
-Content.Size = UDim2.new(1, -16, 1, -140)
-Content.Position = UDim2.new(0, 8, 0, 88)
+Content.Size = UDim2.new(1, -20, 1, -54)
+Content.Position = UDim2.new(0, 10, 0, 30)
 Content.BackgroundTransparency = 1
+Content.ZIndex = 3
 Content.Parent = Menu
 
-local function MakeScroller()
+local function MakeTabContent()
     local sf = Instance.new("ScrollingFrame")
     sf.Size = UDim2.new(1, 0, 1, 0)
     sf.BackgroundTransparency = 1
     sf.BorderSizePixel = 0
-    sf.ScrollBarThickness = 3
+    sf.ScrollBarThickness = 2
     sf.ScrollBarImageColor3 = Theme.Accent
     sf.CanvasSize = UDim2.new(0, 0, 0, 0)
     sf.Visible = false
+    sf.ZIndex = 3
     sf.Parent = Content
     local layout = Instance.new("UIListLayout", sf)
-    layout.Padding = UDim.new(0, 6)
+    layout.Padding = UDim.new(0, 4)
     layout.SortOrder = Enum.SortOrder.LayoutOrder
     layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
         sf.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
@@ -201,104 +254,133 @@ local function MakeScroller()
     return sf, layout
 end
 
-local AimScroller = MakeScroller()
-local VisualScroller = MakeScroller()
-local PlayerScroller = MakeScroller()
-local MiscScroller = MakeScroller()
+local CombatContent = MakeTabContent()
+local VisualContent = MakeTabContent()
+local MovementContent = MakeTabContent()
+local MiscContent = MakeTabContent()
+local SettingsContent = MakeTabContent()
+
+--=========================================================
+-- НИЖНИЕ ВКЛАДКИ
+--=========================================================
+local BottomTabs = Instance.new("Frame")
+BottomTabs.Size = UDim2.new(1, 0, 0, 22)
+BottomTabs.Position = UDim2.new(0, 0, 1, -24)
+BottomTabs.BackgroundColor3 = Theme.Background
+BottomTabs.BorderSizePixel = 0
+BottomTabs.ZIndex = 3
+BottomTabs.Parent = Menu
+
+local BottomLayout = Instance.new("UIListLayout", BottomTabs)
+BottomLayout.FillDirection = Enum.FillDirection.Horizontal
+BottomLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+BottomLayout.SortOrder = Enum.SortOrder.LayoutOrder
+BottomLayout.Padding = UDim.new(0, 15)
+BottomLayout.Parent = BottomTabs
 
 local tabs = {}
-local activeTab = nil
 
-local function CreateTab(name, scroller, ratio)
+local function CreateBottomTab(name, contentFrame)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(ratio, -3, 1, 0)
-    btn.BackgroundColor3 = Theme.Background
-    btn.BorderSizePixel = 0
+    btn.Size = UDim2.new(0, 60, 1, 0)
+    btn.BackgroundTransparency = 1
     btn.Text = name
     btn.TextColor3 = Theme.TextDim
-    btn.Font = Theme.FontBold
+    btn.Font = Theme.Font
     btn.TextSize = 10
     btn.AutoButtonColor = false
-    btn.Parent = TabBar
+    btn.ZIndex = 4
+    btn.Parent = BottomTabs
 
-    local tab = { Btn = btn, Scroller = scroller }
+    local tab = { Btn = btn, Name = name, Content = contentFrame }
     btn.MouseButton1Click:Connect(function()
-        if activeTab == tab then return end
-        activeTab = tab
         for _, t in ipairs(tabs) do
-            local isActive = (t == tab)
-            t.Btn.BackgroundColor3 = isActive and Theme.Accent or Theme.Background
-            t.Btn.TextColor3 = isActive and Color3.new(1,1,1) or Theme.TextDim
-            t.Scroller.Visible = isActive
+            t.Btn.TextColor3 = Theme.TextDim
+            t.Btn.Font = Theme.Font
+            if t.Content then t.Content.Visible = false end
         end
+        btn.TextColor3 = Theme.Accent
+        btn.Font = Theme.FontBold
+        if contentFrame then contentFrame.Visible = true end
     end)
     tabs[#tabs + 1] = tab
     return tab
 end
 
-local AimTab = CreateTab("AIM", AimScroller, 0.25)
-local VisualTab = CreateTab("VIS", VisualScroller, 0.25)
-local PlayerTab = CreateTab("PLR", PlayerScroller, 0.25)
-local MiscTab = CreateTab("MISC", MiscScroller, 0.25)
+local CombatTab = CreateBottomTab("Combat", CombatContent)
+local VisualTab = CreateBottomTab("Visual", VisualContent)
+local MovementTab = CreateBottomTab("Movement", MovementContent)
+local MiscTab = CreateBottomTab("Misc", MiscContent)
+local SettingsTab = CreateBottomTab("Settings", SettingsContent)
 
--- Функция кнопки
-local function MakeButton(parent, text, defaultOn, callback)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 38)
-    btn.BackgroundColor3 = Color3.fromRGB(90, 15, 15)
-    btn.BorderSizePixel = 0
-    btn.Text = ""
-    btn.AutoButtonColor = false
-    btn.Parent = parent
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+CombatTab.Btn.TextColor3 = Theme.Accent
+CombatTab.Btn.Font = Theme.FontBold
+CombatContent.Visible = true
 
-    local stroke = Instance.new("UIStroke", btn)
-    stroke.Color = Color3.fromRGB(255, 60, 60)
-    stroke.Thickness = 1.5
+--=========================================================
+-- ТУМБЛЕР
+--=========================================================
+local function MakeToggle(parent, text, defaultOn, callback)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 22)
+    frame.BackgroundTransparency = 1
+    frame.ZIndex = 3
+    frame.Parent = parent
 
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(1, -70, 1, 0)
-    nameLabel.Position = UDim2.new(0, 14, 0, 0)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = text
-    nameLabel.TextColor3 = Theme.Text
-    nameLabel.Font = Theme.Font
-    nameLabel.TextSize = 12
-    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-    nameLabel.Parent = btn
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -45, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Theme.Text
+    label.Font = Theme.Font
+    label.TextSize = 11
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.ZIndex = 4
+    label.Parent = frame
 
-    local statusLabel = Instance.new("TextLabel")
-    statusLabel.Size = UDim2.new(0, 50, 1, 0)
-    statusLabel.Position = UDim2.new(1, -54, 0, 0)
-    statusLabel.BackgroundTransparency = 1
-    statusLabel.Text = "OFF"
-    statusLabel.TextColor3 = Theme.Danger
-    statusLabel.Font = Theme.FontBold
-    statusLabel.TextSize = 11
-    statusLabel.Parent = btn
+    local track = Instance.new("Frame")
+    track.Size = UDim2.new(0, 28, 0, 14)
+    track.Position = UDim2.new(1, -30, 0.5, -7)
+    track.BackgroundColor3 = Theme.Off
+    track.BorderSizePixel = 0
+    track.ZIndex = 4
+    track.Parent = frame
+    Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
+
+    local knob = Instance.new("Frame")
+    knob.AnchorPoint = Vector2.new(0, 0.5)
+    knob.Size = UDim2.new(0, 10, 0, 10)
+    knob.Position = UDim2.new(0, 2, 0.5, 0)
+    knob.BackgroundColor3 = Color3.fromRGB(220, 220, 220)
+    knob.BorderSizePixel = 0
+    knob.ZIndex = 5
+    knob.Parent = track
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
 
     local isOn = false
     local function applyState()
         if isOn then
-            btn.BackgroundColor3 = Color3.fromRGB(0, 80, 40)
-            stroke.Color = Theme.Success
-            stroke.Thickness = 2
-            statusLabel.Text = "ON"
-            statusLabel.TextColor3 = Theme.Success
+            track.BackgroundColor3 = Theme.On
+            TweenService:Create(knob, TweenInfo.new(0.15), { Position = UDim2.new(1, -12, 0.5, 0) }):Play()
         else
-            btn.BackgroundColor3 = Color3.fromRGB(90, 15, 15)
-            stroke.Color = Theme.Danger
-            stroke.Thickness = 1.5
-            statusLabel.Text = "OFF"
-            statusLabel.TextColor3 = Theme.Danger
+            track.BackgroundColor3 = Theme.Off
+            TweenService:Create(knob, TweenInfo.new(0.15), { Position = UDim2.new(0, 2, 0.5, 0) }):Play()
         end
     end
 
     isOn = defaultOn or false
     applyState()
 
+    local click = Instance.new("TextButton")
+    click.Size = UDim2.new(1, 0, 1, 0)
+    click.BackgroundTransparency = 1
+    click.Text = ""
+    click.AutoButtonColor = false
+    click.ZIndex = 6
+    click.Parent = frame
+
     local lastClick = 0
-    btn.MouseButton1Click:Connect(function()
+    click.MouseButton1Click:Connect(function()
         local now = tick()
         if now - lastClick < 0.25 then return end
         lastClick = now
@@ -307,239 +389,290 @@ local function MakeButton(parent, text, defaultOn, callback)
         applyState()
     end)
 
-    return { Button = btn, SetOn = function(v) isOn = v; applyState() end }
+    return {
+        Frame = frame,
+        SetOn = function(v) isOn = v and true or false; applyState() end
+    }
 end
 
--- Функция слайдера
+--=========================================================
+-- СЛАЙДЕР
+--=========================================================
 local function MakeSlider(parent, text, min, max, default, callback)
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, 0, 0, 50)
-    frame.BackgroundColor3 = Theme.Element
-    frame.BorderSizePixel = 0
+    frame.Size = UDim2.new(1, 0, 0, 26)
+    frame.BackgroundTransparency = 1
+    frame.ZIndex = 3
     frame.Parent = parent
-    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
 
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(1, -60, 0, 22)
-    nameLabel.Position = UDim2.new(0, 12, 0, 4)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = text
-    nameLabel.TextColor3 = Theme.Text
-    nameLabel.Font = Theme.Font
-    nameLabel.TextSize = 12
-    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-    nameLabel.Parent = frame
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.5, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Theme.Text
+    label.Font = Theme.Font
+    label.TextSize = 10
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.ZIndex = 4
+    label.Parent = frame
 
     local valueLabel = Instance.new("TextLabel")
-    valueLabel.Size = UDim2.new(0, 50, 0, 22)
-    valueLabel.Position = UDim2.new(1, -55, 0, 4)
+    valueLabel.Size = UDim2.new(0, 35, 1, 0)
+    valueLabel.Position = UDim2.new(1, -35, 0, 0)
     valueLabel.BackgroundTransparency = 1
     valueLabel.Text = tostring(default)
     valueLabel.TextColor3 = Theme.Accent
     valueLabel.Font = Theme.FontBold
-    valueLabel.TextSize = 12
+    valueLabel.TextSize = 10
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valueLabel.ZIndex = 4
     valueLabel.Parent = frame
 
     local track = Instance.new("Frame")
-    track.Size = UDim2.new(1, -24, 0, 8)
-    track.Position = UDim2.new(0, 12, 1, -18)
-    track.BackgroundColor3 = Theme.Background
+    track.Size = UDim2.new(1, -95, 0, 3)
+    track.Position = UDim2.new(0, 55, 0.5, -1)
+    track.BackgroundColor3 = Theme.Element
     track.BorderSizePixel = 0
+    track.ZIndex = 4
     track.Parent = frame
     Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
 
     local fill = Instance.new("Frame")
-    fill.Size = UDim2.new((default-min)/(max-min), 0, 1, 0)
+    fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
     fill.BackgroundColor3 = Theme.Accent
     fill.BorderSizePixel = 0
+    fill.ZIndex = 5
     fill.Parent = track
     Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
 
+    local knob = Instance.new("Frame")
+    knob.AnchorPoint = Vector2.new(0.5, 0.5)
+    knob.Size = UDim2.new(0, 9, 0, 9)
+    knob.Position = UDim2.new((default - min) / (max - min), 0, 0.5, 0)
+    knob.BackgroundColor3 = Theme.Text
+    knob.BorderSizePixel = 0
+    knob.ZIndex = 6
+    knob.Parent = track
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
     local dragging = false
-    local function update(x)
+    local function updateFromX(x)
         local relX = math.clamp(x - track.AbsolutePosition.X, 0, track.AbsoluteSize.X)
         local ratio = relX / math.max(track.AbsoluteSize.X, 1)
-        local val = math.floor(min + (max-min) * ratio + 0.5)
+        local value = math.floor(min + (max - min) * ratio + 0.5)
         fill.Size = UDim2.new(ratio, 0, 1, 0)
-        valueLabel.Text = tostring(val)
-        pcall(callback, val)
+        knob.Position = UDim2.new(ratio, 0, 0.5, 0)
+        valueLabel.Text = tostring(value)
+        pcall(callback, value)
     end
 
     track.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
-            update(input.Position.X)
+            updateFromX(input.Position.X)
+        end
+    end)
+    knob.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
         end
     end)
     UIS.InputChanged:Connect(function(input)
         if not dragging then return end
-        if input.UserInputType == Enum.UserInputType.MouseMovement
-            or input.UserInputType == Enum.UserInputType.Touch then
-            update(input.Position.X)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            updateFromX(input.Position.X)
         end
     end)
     UIS.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = false
         end
     end)
+
     return { Frame = frame }
 end
 
 --=========================================================
--- AIM ВКЛАДКА
+-- ЗАГОЛОВОК СЕКЦИИ
 --=========================================================
-local AimBtn = MakeButton(AimScroller, "Aimbot", false, function()
+local function MakeSectionTitle(parent, text)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, 0, 0, 16)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text
+    lbl.TextColor3 = Theme.TextDim
+    lbl.Font = Theme.FontBold
+    lbl.TextSize = 9
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.ZIndex = 3
+    lbl.Parent = parent
+end
+
+--=========================================================
+-- COMBAT (Aimbot)
+--=========================================================
+MakeSectionTitle(CombatContent, "AIMBOT")
+
+MakeToggle(CombatContent, "Aimbot", false, function()
     Config.Aimbot.Enabled = not Config.Aimbot.Enabled
 end)
 
-local AutoAimBtn = MakeButton(AimScroller, "Auto Aim", false, function()
+MakeToggle(CombatContent, "Auto Aim", false, function()
     Config.Aimbot.AutoAim = not Config.Aimbot.AutoAim
 end)
 
-local FovBtn = MakeButton(AimScroller, "FOV Circle", true, function()
+MakeToggle(CombatContent, "FOV Circle", true, function()
     Config.Aimbot.ShowFOV = not Config.Aimbot.ShowFOV
 end)
 
-local PredictBtn = MakeButton(AimScroller, "Prediction", true, function()
+MakeToggle(CombatContent, "Prediction", true, function()
     Config.Aimbot.Prediction = not Config.Aimbot.Prediction
 end)
 
-local VisibleBtn = MakeButton(AimScroller, "Visible Check", false, function()
+MakeToggle(CombatContent, "Visible Check", false, function()
     Config.Aimbot.Visible = not Config.Aimbot.Visible
 end)
 
-local TeamBtn = MakeButton(AimScroller, "Team Check", true, function()
+MakeToggle(CombatContent, "Team Check", true, function()
     Config.Aimbot.TeamCheck = not Config.Aimbot.TeamCheck
 end)
 
-MakeSlider(AimScroller, "FOV Radius", 30, 600, Config.Aimbot.FOV, function(v)
+MakeSlider(CombatContent, "FOV Radius", 30, 600, Config.Aimbot.FOV, function(v)
     Config.Aimbot.FOV = v
     FovCircle.Size = UDim2.new(0, v * 2, 0, v * 2)
 end)
 
-MakeSlider(AimScroller, "Smoothness x100", 10, 100, 50, function(v)
+MakeSlider(CombatContent, "Smoothness", 10, 100, 50, function(v)
     Config.Aimbot.Smoothness = v / 100
 end)
 
-MakeSlider(AimScroller, "Max Distance", 100, 2000, Config.Aimbot.MaxDistance, function(v)
+MakeSlider(CombatContent, "Max Distance", 100, 2000, Config.Aimbot.MaxDistance, function(v)
     Config.Aimbot.MaxDistance = v
 end)
 
 --=========================================================
--- VIS ВКЛАДКА
+-- VISUAL (ESP)
 --=========================================================
-local ESPBtn = MakeButton(VisualScroller, "ESP", true, function()
+MakeSectionTitle(VisualContent, "PLAYER ESP")
+
+MakeToggle(VisualContent, "ESP Enabled", true, function()
     Config.ESP.Enabled = not Config.ESP.Enabled
 end)
 
-local BoxBtn = MakeButton(VisualScroller, "Boxes", true, function()
+MakeToggle(VisualContent, "Boxes", true, function()
     Config.ESP.Box = not Config.ESP.Box
 end)
 
-local NameBtn = MakeButton(VisualScroller, "Names", true, function()
+MakeToggle(VisualContent, "Names", true, function()
     Config.ESP.Name = not Config.ESP.Name
 end)
 
-local DistBtn = MakeButton(VisualScroller, "Distance", true, function()
+MakeToggle(VisualContent, "Distance", true, function()
     Config.ESP.Distance = not Config.ESP.Distance
 end)
 
-local HealthBtn = MakeButton(VisualScroller, "Health Bar", true, function()
+MakeToggle(VisualContent, "Health Bar", true, function()
     Config.ESP.Health = not Config.ESP.Health
 end)
 
-local FullbrightBtn = MakeButton(VisualScroller, "Fullbright", false, function()
-    Config.Visual.Fullbright = not Config.Visual.Fullbright
-end)
-
-local XRayBtn = MakeButton(VisualScroller, "X-Ray", false, function()
-    Config.Visual.XRay = not Config.Visual.XRay
-end)
-
-local FPSBoostBtn = MakeButton(VisualScroller, "FPS Boost", false, function()
-    Config.Visual.FPSBoost = not Config.Visual.FPSBoost
-end)
-
-MakeSlider(VisualScroller, "ESP Max Distance", 200, 3000, Config.ESP.MaxDistance, function(v)
+MakeSlider(VisualContent, "ESP Distance", 200, 3000, Config.ESP.MaxDistance, function(v)
     Config.ESP.MaxDistance = v
 end)
 
+MakeSectionTitle(VisualContent, "VISUAL")
+
+MakeToggle(VisualContent, "Fullbright", false, function()
+    Config.Visual.Fullbright = not Config.Visual.Fullbright
+end)
+
+MakeToggle(VisualContent, "X-Ray", false, function()
+    Config.Visual.XRay = not Config.Visual.XRay
+end)
+
+MakeToggle(VisualContent, "FPS Boost", false, function()
+    Config.Visual.FPSBoost = not Config.Visual.FPSBoost
+end)
+
 --=========================================================
--- PLR ВКЛАДКА
+-- MOVEMENT
 --=========================================================
-local SpeedBtn = MakeButton(PlayerScroller, "Speed Hack", false, function()
+MakeSectionTitle(MovementContent, "MOVEMENT")
+
+MakeToggle(MovementContent, "Speed Hack", false, function()
     Config.Player.SpeedEnabled = not Config.Player.SpeedEnabled
 end)
 
-MakeSlider(PlayerScroller, "Speed (10-100)", 10, 100, 30, function(v)
+MakeSlider(MovementContent, "Speed (10-100)", 10, 100, 30, function(v)
     Config.Player.SpeedValue = v
 end)
 
-local NoclipBtn = MakeButton(PlayerScroller, "Noclip", false, function()
+MakeToggle(MovementContent, "Noclip", false, function()
     Config.Player.Noclip = not Config.Player.Noclip
 end)
 
-local NoFallBtn = MakeButton(PlayerScroller, "No Fall Damage", false, function()
+MakeToggle(MovementContent, "No Fall Damage", false, function()
     Config.Player.NoFallDamage = not Config.Player.NoFallDamage
 end)
 
---=========================================================
--- MISC ВКЛАДКА
---=========================================================
-local InfJumpBtn = MakeButton(MiscScroller, "Infinite Jump", false, function()
+MakeToggle(MovementContent, "Infinite Jump", false, function()
     Config.Misc.InfiniteJump = not Config.Misc.InfiniteJump
 end)
+
+--=========================================================
+-- MISC
+--=========================================================
+MakeSectionTitle(MiscContent, "MISC")
+
+MakeToggle(MiscContent, "Infinite Jump", false, function()
+    Config.Misc.InfiniteJump = not Config.Misc.InfiniteJump
+end)
+
+--=========================================================
+-- SETTINGS
+--=========================================================
+MakeSectionTitle(SettingsContent, "SETTINGS")
 
 local infoLbl = Instance.new("TextLabel")
 infoLbl.Size = UDim2.new(1, 0, 0, 60)
 infoLbl.BackgroundTransparency = 1
-infoLbl.Text = "FerClient | Decay Edition\n\nХоткеи:\nF1=ESP | F2=Aimbot | F3=AutoAim"
+infoLbl.Text = "FerClient Decay v2\nF1=ESP F2=Aim F3=AutoAim F4=InfJump\nRightShift=Menu  Del=Unload"
 infoLbl.TextColor3 = Theme.TextDim
 infoLbl.Font = Theme.Font
 infoLbl.TextSize = 10
 infoLbl.TextWrapped = true
 infoLbl.TextXAlignment = Enum.TextXAlignment.Left
-infoLbl.Parent = MiscScroller
+infoLbl.ZIndex = 3
+infoLbl.Parent = SettingsContent
 
+--=========================================================
 -- HOLD TO AIM
+--=========================================================
 local TriggerBtn = Instance.new("TextButton")
-TriggerBtn.Size = UDim2.new(1, -16, 0, 42)
-TriggerBtn.Position = UDim2.new(0, 8, 1, -50)
+TriggerBtn.Size = UDim2.new(0, 100, 0, 18)
+TriggerBtn.Position = UDim2.new(0.5, -50, 1, -24)
 TriggerBtn.BackgroundColor3 = Theme.Accent
 TriggerBtn.BorderSizePixel = 0
 TriggerBtn.Text = "HOLD TO AIM"
 TriggerBtn.TextColor3 = Color3.new(1, 1, 1)
 TriggerBtn.Font = Theme.FontBold
-TriggerBtn.TextSize = 13
+TriggerBtn.TextSize = 9
 TriggerBtn.AutoButtonColor = false
+TriggerBtn.ZIndex = 6
 TriggerBtn.Parent = Menu
-Instance.new("UICorner", TriggerBtn).CornerRadius = UDim.new(0, 6)
+Instance.new("UICorner", TriggerBtn).CornerRadius = UDim.new(0, 4)
 
 local function setTrig(a)
     Config.Aimbot.TriggerActive = a
-    TriggerBtn.BackgroundColor3 = a and Color3.fromRGB(120, 180, 255) or Theme.Accent
+    TriggerBtn.BackgroundColor3 = a and Color3.fromRGB(180, 150, 255) or Theme.Accent
 end
 TriggerBtn.MouseButton1Down:Connect(function() setTrig(true) end)
 TriggerBtn.MouseButton1Up:Connect(function() setTrig(false) end)
 TriggerBtn.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.Touch then setTrig(true) end end)
 TriggerBtn.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.Touch then setTrig(false) end end)
-TriggerBtn.MouseLeave:Connect(function() setTrig(false) end)
 
--- Сворачивание
-local isMin = false
-local function toggleMin()
-    isMin = not isMin
-    Menu.Size = isMin and UDim2.new(0, 300, 0, 38) or UDim2.new(0, 300, 0, 420)
-    TabBar.Visible = not isMin
-    Content.Visible = not isMin
-    TriggerBtn.Visible = not isMin
-end
-MinimizeBtn.MouseButton1Click:Connect(toggleMin)
-
--- FC кнопка
+--=========================================================
+-- FC КНОПКА
+--=========================================================
 local FCBtn = Instance.new("TextButton")
 FCBtn.Size = UDim2.new(0, 50, 0, 28)
 FCBtn.Position = UDim2.new(0, 10, 0.5, -14)
@@ -550,10 +683,20 @@ FCBtn.TextColor3 = Theme.Accent
 FCBtn.Font = Theme.FontBold
 FCBtn.TextSize = 14
 FCBtn.AutoButtonColor = false
+FCBtn.Active = true
 FCBtn.Draggable = true
 FCBtn.Parent = ScreenGui
 Instance.new("UIStroke", FCBtn).Color = Theme.Accent
 Instance.new("UIStroke", FCBtn).Thickness = 1.5
+
+FCBtn.MouseEnter:Connect(function()
+    FCBtn.BackgroundColor3 = Theme.Accent
+    FCBtn.TextColor3 = Color3.new(1, 1, 1)
+end)
+FCBtn.MouseLeave:Connect(function()
+    FCBtn.BackgroundColor3 = Theme.Background
+    FCBtn.TextColor3 = Theme.Accent
+end)
 
 local lastToggle = 0
 FCBtn.MouseButton1Click:Connect(function()
@@ -564,19 +707,36 @@ FCBtn.MouseButton1Click:Connect(function()
 end)
 
 --=========================================================
+-- СВОРАЧИВАНИЕ / UNLOAD
+--=========================================================
+local isMin = false
+local function toggleMin()
+    isMin = not isMin
+    Menu.Size = isMin and UDim2.new(0, 450, 0, 26) or UDim2.new(0, 450, 0, 280)
+    Content.Visible = not isMin
+    BottomTabs.Visible = not isMin
+    TriggerBtn.Visible = not isMin
+end
+MinimizeBtn.MouseButton1Click:Connect(toggleMin)
+
+--=========================================================
 -- UNLOAD
 --=========================================================
 local ESPCache = {}
 
 local function Unload()
+    if getgenv().FerClient_Decay_Unloading then return end
+    getgenv().FerClient_Decay_Unloading = true
     pcall(function() RunService:UnbindFromRenderStep("Decay_Aimbot") end)
     for _, d in pairs(ESPCache) do
         for _, o in pairs(d) do pcall(function() o:Remove() end) end
     end
     for _, c in ipairs(Connections) do pcall(function() c:Disconnect() end) end
+    Connections = {}
     pcall(function() ScreenGui:Destroy() end)
     getgenv().FerClient_Decay_Loaded = false
-    print("[FerClient] Decay — Выгружен.")
+    getgenv().FerClient_Decay_Unloading = false
+    print("[FerClient] Decay v2 — Выгружен.")
 end
 
 UnloadBtn.MouseButton1Click:Connect(Unload)
@@ -635,7 +795,7 @@ local function RemoveESP(plr)
 end
 
 --=========================================================
--- AIMBOT ЛОГИКА
+-- AIMBOT LOGIC
 --=========================================================
 local function IsTeammate(plr)
     if not Config.Aimbot.TeamCheck then return false end
@@ -713,10 +873,10 @@ end
 RunService:BindToRenderStep("Decay_Aimbot", AIM_PRIORITY, AimStep)
 
 --=========================================================
--- ОСНОВНОЙ ЦИКЛ
+-- MAIN LOOP
 --=========================================================
 TrackConn(RunService.RenderStepped:Connect(function()
-    -- FOV круг
+    -- FOV
     if Config.Aimbot.ShowFOV and Config.Aimbot.Enabled then
         FovCircle.Visible = true
         FovCircle.Size = UDim2.new(0, Config.Aimbot.FOV * 2, 0, Config.Aimbot.FOV * 2)
@@ -790,7 +950,7 @@ TrackConn(Players.PlayerRemoving:Connect(RemoveESP))
 for _, plr in ipairs(Players:GetPlayers()) do CreateESP(plr) end
 
 --=========================================================
--- SPEED / NOCLIP / NO FALL / INF JUMP
+-- SPEED / NOCLIP / NO FALL / FULLBRIGHT / XRAY / FPSBOOST
 --=========================================================
 local savedWalkSpeed = 16
 
@@ -823,7 +983,6 @@ TrackConn(LP.CharacterAdded:Connect(function(char)
     if hum then savedWalkSpeed = hum.WalkSpeed end
 end))
 
--- No Fall damage velocity check
 TrackConn(RunService.Heartbeat:Connect(function()
     if not Config.Player.NoFallDamage then return end
     local char = LP.Character
@@ -834,7 +993,6 @@ TrackConn(RunService.Heartbeat:Connect(function()
     end
 end))
 
--- Fullbright
 TrackConn(RunService.Heartbeat:Connect(function()
     if not Config.Visual.Fullbright then return end
     pcall(function()
@@ -843,11 +1001,9 @@ TrackConn(RunService.Heartbeat:Connect(function()
         Lighting.FogEnd = 100000
         Lighting.GlobalShadows = false
         Lighting.Ambient = Color3.fromRGB(200, 200, 200)
-        Lighting.OutdoorAmbient = Color3.fromRGB(200, 200, 200)
     end)
 end))
 
--- X-Ray
 TrackConn(RunService.Heartbeat:Connect(function()
     if not Config.Visual.XRay then return end
     pcall(function()
@@ -859,7 +1015,6 @@ TrackConn(RunService.Heartbeat:Connect(function()
     end)
 end))
 
--- FPS Boost
 local fpsApplied = false
 TrackConn(RunService.Heartbeat:Connect(function()
     if Config.Visual.FPSBoost and not fpsApplied then
@@ -878,7 +1033,9 @@ TrackConn(RunService.Heartbeat:Connect(function()
     end
 end))
 
--- Infinite Jump
+--=========================================================
+-- INFINITE JUMP
+--=========================================================
 TrackConn(UIS.JumpRequest:Connect(function()
     if not Config.Misc.InfiniteJump then return end
     local char = LP.Character
@@ -895,16 +1052,12 @@ TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == Enum.KeyCode.F1 then
         Config.ESP.Enabled = not Config.ESP.Enabled
-        ESPBtn.SetOn(Config.ESP.Enabled)
     elseif input.KeyCode == Enum.KeyCode.F2 then
         Config.Aimbot.Enabled = not Config.Aimbot.Enabled
-        AimBtn.SetOn(Config.Aimbot.Enabled)
     elseif input.KeyCode == Enum.KeyCode.F3 then
         Config.Aimbot.AutoAim = not Config.Aimbot.AutoAim
-        AutoAimBtn.SetOn(Config.Aimbot.AutoAim)
     elseif input.KeyCode == Enum.KeyCode.F4 then
         Config.Misc.InfiniteJump = not Config.Misc.InfiniteJump
-        InfJumpBtn.SetOn(Config.Misc.InfiniteJump)
     elseif input.KeyCode == Enum.KeyCode.RightShift then
         Menu.Visible = not Menu.Visible
     elseif input.KeyCode == Enum.KeyCode.Delete then
@@ -912,10 +1065,5 @@ TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     end
 end))
 
-AimTab.Btn.BackgroundColor3 = Theme.Accent
-AimTab.Btn.TextColor3 = Color3.new(1,1,1)
-AimScroller.Visible = true
-activeTab = AimTab
-
-chatMessage("[FerClient] Decay Edition загружен", Theme.Accent)
-print("[FerClient] Decay — загружен")
+chatMessage("[FerClient] Decay v2 загружен", Theme.Accent)
+print("[FerClient] Decay v2 — Null-wave style")
