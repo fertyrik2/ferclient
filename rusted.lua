@@ -1,6 +1,6 @@
 --[[
-    FerClient v5 | Null-wave Style
-    Rusted — Silent Aim + ESP + All Features
+    FerClient v5.2 | Null-wave Style
+    Rusted — рабочие вкладки + все функции
 ]]
 
 if getgenv().FerClient_Rusted_Loaded then
@@ -23,22 +23,22 @@ local Camera = Workspace.CurrentCamera
 local LP = Players.LocalPlayer
 
 --=========================================================
--- ТЕМА (Null-wave стиль)
+-- ТЕМА (Null-wave фиолетовый)
 --=========================================================
 local Theme = {
-    Background   = Color3.fromRGB(15, 15, 20),
-    Panel        = Color3.fromRGB(18, 18, 25),
-    Tab          = Color3.fromRGB(22, 22, 30),
+    Background   = Color3.fromRGB(15, 15, 25),
+    Panel        = Color3.fromRGB(20, 20, 35),
+    Tab          = Color3.fromRGB(25, 25, 40),
     TabActive    = Color3.fromRGB(130, 100, 220),
-    Element      = Color3.fromRGB(25, 25, 35),
-    Hover        = Color3.fromRGB(35, 35, 50),
-    Accent       = Color3.fromRGB(130, 100, 220),   -- фиолетовый
+    Element      = Color3.fromRGB(28, 28, 45),
+    Hover        = Color3.fromRGB(40, 40, 60),
+    Accent       = Color3.fromRGB(150, 120, 240),
     AccentDim    = Color3.fromRGB(90, 70, 160),
-    Success      = Color3.fromRGB(130, 100, 220),   -- фиолетовый для ON
-    Danger       = Color3.fromRGB(80, 80, 100),     -- серый для OFF
+    On           = Color3.fromRGB(150, 120, 240),
+    Off          = Color3.fromRGB(50, 50, 70),
     Text         = Color3.fromRGB(230, 230, 240),
     TextDim      = Color3.fromRGB(120, 120, 140),
-    Border       = Color3.fromRGB(40, 40, 55),
+    Border       = Color3.fromRGB(40, 40, 60),
     Font         = Enum.Font.Gotham,
     FontBold     = Enum.Font.GothamBold,
 }
@@ -51,7 +51,7 @@ local Config = {
         Enabled = true,
         Box = true, Name = true, Distance = true, Health = true, Tracer = true,
         Skeleton = false, Weapon = false,
-        MaxDistance = 1500, Radius = 915,
+        MaxDistance = 1500,
         Color = Theme.Accent,
     },
     Aimbot = {
@@ -74,8 +74,6 @@ local Config = {
     Visual = {
         Fullbright = false, XRay = false, XRayTransparency = 0.5,
         FPSBoost = false,
-        ArmChams = false, GunChams = false,
-        Ambient = false,
     },
     Misc = {
         InfiniteJump = false, HitLogs = true,
@@ -164,7 +162,7 @@ ScreenGui.DisplayOrder = 100
 pcall(function() ScreenGui.Parent = HUI end)
 if not ScreenGui.Parent then ScreenGui.Parent = LP:WaitForChild("PlayerGui") end
 
--- Меню — по размеру как на скрине (450x280)
+-- Меню 450x280
 local Menu = Instance.new("Frame")
 Menu.Name = "FerClient_Main"
 Menu.Size = UDim2.new(0, 450, 0, 280)
@@ -181,167 +179,250 @@ local MenuStroke = Instance.new("UIStroke", Menu)
 MenuStroke.Color = Theme.Border
 MenuStroke.Thickness = 1
 
--- Верхний заголовок (как "Null-wave.lua")
+--=========================================================
+-- СНЕЖИНКИ
+--=========================================================
+local SnowContainer = Instance.new("Frame")
+SnowContainer.Size = UDim2.new(1, 0, 1, 0)
+SnowContainer.BackgroundTransparency = 1
+SnowContainer.ClipsDescendants = true
+SnowContainer.ZIndex = 2
+SnowContainer.Parent = Menu
+
+local SNOW_COUNT = 20
+local SNOW_SYMBOLS = { "❄", "❅", "❆", "•", "*" }
+local snowflakes = {}
+
+local function createSnowflake()
+    local flake = Instance.new("TextLabel")
+    flake.BackgroundTransparency = 1
+    flake.Text = SNOW_SYMBOLS[math.random(1, #SNOW_SYMBOLS)]
+    flake.TextColor3 = Color3.fromRGB(180, 160, 240)
+    flake.Font = Enum.Font.GothamBold
+    flake.TextSize = math.random(4, 10)
+    flake.TextTransparency = math.random(50, 85) / 100
+    flake.Size = UDim2.new(0, 20, 0, 20)
+    flake.AnchorPoint = Vector2.new(0.5, 0.5)
+    flake.ZIndex = 2
+    flake.Parent = SnowContainer
+    local startX = math.random(0, 100)
+    flake.Position = UDim2.new(startX / 100, 0, -0.05, 0)
+    snowflakes[#snowflakes + 1] = {
+        label = flake, xRatio = startX / 100,
+        speed = math.random(15, 35),
+        swayAmp = math.random(10, 25) / 1000,
+        swayFreq = math.random(15, 40) / 10,
+        rotation = math.random(0, 360),
+        rotSpeed = (math.random(-60, 60)) / 10,
+        phase = math.random(0, 100) / 10,
+    }
+end
+
+for i = 1, SNOW_COUNT do createSnowflake() end
+
+TrackConn(RunService.RenderStepped:Connect(function(dt)
+    if not SnowContainer.Parent then return end
+    for _, data in ipairs(snowflakes) do
+        local f = data.label
+        if f and f.Parent then
+            local currentY = f.Position.Y.Scale
+            local currentX = data.xRatio
+            currentY = currentY + (data.speed / math.max(Menu.AbsoluteSize.Y, 1)) * dt
+            data.phase = data.phase + dt * data.swayFreq
+            local swayX = math.sin(data.phase) * data.swayAmp
+            data.rotation = data.rotation + data.rotSpeed * dt * 60
+            if currentY > 1.05 then
+                currentY = -0.05
+                data.xRatio = math.random(0, 100) / 100
+                data.speed = math.random(15, 35)
+                data.label.Text = SNOW_SYMBOLS[math.random(1, #SNOW_SYMBOLS)]
+                data.label.TextSize = math.random(4, 10)
+                data.label.TextTransparency = math.random(50, 85) / 100
+            end
+            f.Position = UDim2.new(currentX + swayX, 0, currentY, 0)
+            f.Rotation = data.rotation
+        end
+    end
+end))
+
+--=========================================================
+-- ЗАГОЛОВОК
+--=========================================================
 local TopBar = Instance.new("Frame")
-TopBar.Size = UDim2.new(1, 0, 0, 28)
+TopBar.Size = UDim2.new(1, 0, 0, 26)
 TopBar.BackgroundColor3 = Theme.Background
 TopBar.BorderSizePixel = 0
+TopBar.ZIndex = 3
 TopBar.Parent = Menu
 
 local Logo = Instance.new("TextLabel")
-Logo.Size = UDim2.new(1, -80, 1, 0)
-Logo.Position = UDim2.new(0, 12, 0, 0)
+Logo.Size = UDim2.new(1, -70, 1, 0)
+Logo.Position = UDim2.new(0, 10, 0, 0)
 Logo.BackgroundTransparency = 1
 Logo.Text = "FerClient.lua"
 Logo.TextColor3 = Theme.Text
 Logo.Font = Theme.FontBold
-Logo.TextSize = 13
+Logo.TextSize = 12
 Logo.TextXAlignment = Enum.TextXAlignment.Left
+Logo.ZIndex = 4
 Logo.Parent = TopBar
 
--- Кнопки закрытия/сворачивания справа
 local MinimizeBtn = Instance.new("TextButton")
 MinimizeBtn.Size = UDim2.new(0, 18, 0, 18)
-MinimizeBtn.Position = UDim2.new(1, -48, 0, 5)
+MinimizeBtn.Position = UDim2.new(1, -46, 0, 4)
 MinimizeBtn.BackgroundTransparency = 1
 MinimizeBtn.Text = "—"
 MinimizeBtn.TextColor3 = Theme.TextDim
 MinimizeBtn.Font = Theme.FontBold
 MinimizeBtn.TextSize = 12
 MinimizeBtn.AutoButtonColor = false
+MinimizeBtn.ZIndex = 4
 MinimizeBtn.Parent = TopBar
 
 local UnloadBtn = Instance.new("TextButton")
 UnloadBtn.Size = UDim2.new(0, 18, 0, 18)
-UnloadBtn.Position = UDim2.new(1, -25, 0, 5)
+UnloadBtn.Position = UDim2.new(1, -24, 0, 4)
 UnloadBtn.BackgroundTransparency = 1
 UnloadBtn.Text = "✕"
 UnloadBtn.TextColor3 = Theme.TextDim
 UnloadBtn.Font = Theme.FontBold
 UnloadBtn.TextSize = 11
 UnloadBtn.AutoButtonColor = false
+UnloadBtn.ZIndex = 4
 UnloadBtn.Parent = TopBar
 
 --=========================================================
--- КОНТЕНТ (2 колонки)
+-- КОНТЕНТ (5 вкладок, каждая со своим скроллом)
 --=========================================================
 local Content = Instance.new("Frame")
-Content.Size = UDim2.new(1, -20, 1, -56)
-Content.Position = UDim2.new(0, 10, 0, 32)
+Content.Size = UDim2.new(1, -20, 1, -54)
+Content.Position = UDim2.new(0, 10, 0, 30)
 Content.BackgroundTransparency = 1
+Content.ZIndex = 3
 Content.Parent = Menu
 
--- Левая колонка
-local LeftColumn = Instance.new("Frame")
-LeftColumn.Size = UDim2.new(0.5, -5, 1, 0)
-LeftColumn.Position = UDim2.new(0, 0, 0, 0)
-LeftColumn.BackgroundTransparency = 1
-LeftColumn.Parent = Content
+local function MakeTabContent()
+    local sf = Instance.new("ScrollingFrame")
+    sf.Size = UDim2.new(1, 0, 1, 0)
+    sf.BackgroundTransparency = 1
+    sf.BorderSizePixel = 0
+    sf.ScrollBarThickness = 2
+    sf.ScrollBarImageColor3 = Theme.Accent
+    sf.CanvasSize = UDim2.new(0, 0, 0, 0)
+    sf.Visible = false
+    sf.ZIndex = 3
+    sf.Parent = Content
 
-local LeftLayout = Instance.new("UIListLayout", LeftColumn)
-LeftLayout.Padding = UDim.new(0, 4)
-LeftLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    local layout = Instance.new("UIListLayout", sf)
+    layout.Padding = UDim.new(0, 4)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        sf.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
+    end)
 
--- Правая колонка
-local RightColumn = Instance.new("Frame")
-RightColumn.Size = UDim2.new(0.5, -5, 1, 0)
-RightColumn.Position = UDim2.new(0.5, 5, 0, 0)
-RightColumn.BackgroundTransparency = 1
-RightColumn.Parent = Content
+    return sf, layout
+end
 
-local RightLayout = Instance.new("UIListLayout", RightColumn)
-RightLayout.Padding = UDim.new(0, 4)
-RightLayout.SortOrder = Enum.SortOrder.LayoutOrder
+local CombatContent = MakeTabContent()
+local VisualContent = MakeTabContent()
+local MovementContent = MakeTabContent()
+local MiscContent = MakeTabContent()
+local SettingsContent = MakeTabContent()
 
 --=========================================================
 -- НИЖНИЕ ВКЛАДКИ
 --=========================================================
 local BottomTabs = Instance.new("Frame")
 BottomTabs.Size = UDim2.new(1, 0, 0, 22)
-BottomTabs.Position = UDim2.new(0, 0, 1, -26)
+BottomTabs.Position = UDim2.new(0, 0, 1, -24)
 BottomTabs.BackgroundColor3 = Theme.Background
 BottomTabs.BorderSizePixel = 0
+BottomTabs.ZIndex = 3
 BottomTabs.Parent = Menu
 
 local BottomLayout = Instance.new("UIListLayout", BottomTabs)
 BottomLayout.FillDirection = Enum.FillDirection.Horizontal
 BottomLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 BottomLayout.SortOrder = Enum.SortOrder.LayoutOrder
-BottomLayout.Padding = UDim.new(0, 20)
+BottomLayout.Padding = UDim.new(0, 15)
 BottomLayout.Parent = BottomTabs
 
 local tabs = {}
-local activeTabName = "Combat"
 
-local function CreateBottomTab(name)
+local function CreateBottomTab(name, contentFrame)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, 60, 1, 0)
     btn.BackgroundTransparency = 1
     btn.Text = name
     btn.TextColor3 = Theme.TextDim
     btn.Font = Theme.Font
-    btn.TextSize = 11
+    btn.TextSize = 10
     btn.AutoButtonColor = false
+    btn.ZIndex = 4
     btn.Parent = BottomTabs
 
-    local tab = { Btn = btn, Name = name }
+    local tab = { Btn = btn, Name = name, Content = contentFrame }
     btn.MouseButton1Click:Connect(function()
-        activeTabName = name
         for _, t in ipairs(tabs) do
-            local isActive = (t.Name == name)
-            t.Btn.TextColor3 = isActive and Theme.Text or Theme.TextDim
-            t.Btn.Font = isActive and Theme.FontBold or Theme.Font
+            t.Btn.TextColor3 = Theme.TextDim
+            t.Btn.Font = Theme.Font
+            if t.Content then t.Content.Visible = false end
         end
+        btn.TextColor3 = Theme.Accent
+        btn.Font = Theme.FontBold
+        if contentFrame then contentFrame.Visible = true end
     end)
     tabs[#tabs + 1] = tab
     return tab
 end
 
-local CombatTab = CreateBottomTab("Combat")
-local VisualTab = CreateBottomTab("Visual")
-local MovementTab = CreateBottomTab("Movement")
-local MiscTab = CreateBottomTab("Misc")
-local SettingsTab = CreateBottomTab("Settings")
+local CombatTab = CreateBottomTab("Combat", CombatContent)
+local VisualTab = CreateBottomTab("Visual", VisualContent)
+local MovementTab = CreateBottomTab("Movement", MovementContent)
+local MiscTab = CreateBottomTab("Misc", MiscContent)
+local SettingsTab = CreateBottomTab("Settings", SettingsContent)
 
--- Активная по умолчанию
-CombatTab.Btn.TextColor3 = Theme.Text
+CombatTab.Btn.TextColor3 = Theme.Accent
 CombatTab.Btn.Font = Theme.FontBold
+CombatContent.Visible = true
 
 --=========================================================
--- ТУМБЛЕР (переключатель в стиле Null-wave)
+-- ТУМБЛЕР
 --=========================================================
 local function MakeToggle(parent, text, defaultOn, callback)
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, 0, 0, 24)
+    frame.Size = UDim2.new(1, 0, 0, 22)
     frame.BackgroundTransparency = 1
+    frame.ZIndex = 3
     frame.Parent = parent
 
     local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -50, 1, 0)
-    label.Position = UDim2.new(0, 0, 0, 0)
+    label.Size = UDim2.new(1, -45, 1, 0)
     label.BackgroundTransparency = 1
     label.Text = text
     label.TextColor3 = Theme.Text
     label.Font = Theme.Font
-    label.TextSize = 12
+    label.TextSize = 11
     label.TextXAlignment = Enum.TextXAlignment.Left
+    label.ZIndex = 4
     label.Parent = frame
 
-    -- Тумблер
     local track = Instance.new("Frame")
-    track.Size = UDim2.new(0, 30, 0, 16)
-    track.Position = UDim2.new(1, -32, 0.5, -8)
-    track.BackgroundColor3 = Theme.Danger
+    track.Size = UDim2.new(0, 28, 0, 14)
+    track.Position = UDim2.new(1, -30, 0.5, -7)
+    track.BackgroundColor3 = Theme.Off
     track.BorderSizePixel = 0
+    track.ZIndex = 4
     track.Parent = frame
     Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
 
     local knob = Instance.new("Frame")
     knob.AnchorPoint = Vector2.new(0, 0.5)
-    knob.Size = UDim2.new(0, 12, 0, 12)
+    knob.Size = UDim2.new(0, 10, 0, 10)
     knob.Position = UDim2.new(0, 2, 0.5, 0)
     knob.BackgroundColor3 = Color3.fromRGB(220, 220, 220)
     knob.BorderSizePixel = 0
+    knob.ZIndex = 5
     knob.Parent = track
     Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
 
@@ -349,12 +430,12 @@ local function MakeToggle(parent, text, defaultOn, callback)
 
     local function applyState()
         if isOn then
-            track.BackgroundColor3 = Theme.Success
+            track.BackgroundColor3 = Theme.On
             TweenService:Create(knob, TweenInfo.new(0.15), {
-                Position = UDim2.new(1, -14, 0.5, 0)
+                Position = UDim2.new(1, -12, 0.5, 0)
             }):Play()
         else
-            track.BackgroundColor3 = Theme.Danger
+            track.BackgroundColor3 = Theme.Off
             TweenService:Create(knob, TweenInfo.new(0.15), {
                 Position = UDim2.new(0, 2, 0.5, 0)
             }):Play()
@@ -369,6 +450,7 @@ local function MakeToggle(parent, text, defaultOn, callback)
     click.BackgroundTransparency = 1
     click.Text = ""
     click.AutoButtonColor = false
+    click.ZIndex = 6
     click.Parent = frame
 
     local lastClick = 0
@@ -391,12 +473,13 @@ local function MakeToggle(parent, text, defaultOn, callback)
 end
 
 --=========================================================
--- СЛАЙДЕР (компактный)
+-- СЛАЙДЕР
 --=========================================================
 local function MakeSlider(parent, text, min, max, default, callback)
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, 0, 0, 28)
+    frame.Size = UDim2.new(1, 0, 0, 26)
     frame.BackgroundTransparency = 1
+    frame.ZIndex = 3
     frame.Parent = parent
 
     local label = Instance.new("TextLabel")
@@ -405,26 +488,29 @@ local function MakeSlider(parent, text, min, max, default, callback)
     label.Text = text
     label.TextColor3 = Theme.Text
     label.Font = Theme.Font
-    label.TextSize = 11
+    label.TextSize = 10
     label.TextXAlignment = Enum.TextXAlignment.Left
+    label.ZIndex = 4
     label.Parent = frame
 
     local valueLabel = Instance.new("TextLabel")
-    valueLabel.Size = UDim2.new(0, 40, 1, 0)
-    valueLabel.Position = UDim2.new(1, -40, 0, 0)
+    valueLabel.Size = UDim2.new(0, 35, 1, 0)
+    valueLabel.Position = UDim2.new(1, -35, 0, 0)
     valueLabel.BackgroundTransparency = 1
     valueLabel.Text = tostring(default)
     valueLabel.TextColor3 = Theme.Accent
     valueLabel.Font = Theme.FontBold
-    valueLabel.TextSize = 11
+    valueLabel.TextSize = 10
     valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valueLabel.ZIndex = 4
     valueLabel.Parent = frame
 
     local track = Instance.new("Frame")
-    track.Size = UDim2.new(1, -90, 0, 4)
-    track.Position = UDim2.new(0, 45, 0.5, -2)
+    track.Size = UDim2.new(1, -95, 0, 3)
+    track.Position = UDim2.new(0, 55, 0.5, -1)
     track.BackgroundColor3 = Theme.Element
     track.BorderSizePixel = 0
+    track.ZIndex = 4
     track.Parent = frame
     Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
 
@@ -432,15 +518,17 @@ local function MakeSlider(parent, text, min, max, default, callback)
     fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
     fill.BackgroundColor3 = Theme.Accent
     fill.BorderSizePixel = 0
+    fill.ZIndex = 5
     fill.Parent = track
     Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
 
     local knob = Instance.new("Frame")
     knob.AnchorPoint = Vector2.new(0.5, 0.5)
-    knob.Size = UDim2.new(0, 10, 0, 10)
+    knob.Size = UDim2.new(0, 9, 0, 9)
     knob.Position = UDim2.new((default - min) / (max - min), 0, 0.5, 0)
     knob.BackgroundColor3 = Theme.Text
     knob.BorderSizePixel = 0
+    knob.ZIndex = 6
     knob.Parent = track
     Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
 
@@ -486,103 +574,230 @@ local function MakeSlider(parent, text, min, max, default, callback)
 end
 
 --=========================================================
--- ЗАГОЛОВОК СЕКЦИИ (как "Player ESP" слева)
+-- ЗАГОЛОВОК СЕКЦИИ
 --=========================================================
 local function MakeSectionTitle(parent, text)
     local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(1, 0, 0, 18)
+    lbl.Size = UDim2.new(1, 0, 0, 16)
     lbl.BackgroundTransparency = 1
     lbl.Text = text
     lbl.TextColor3 = Theme.TextDim
     lbl.Font = Theme.FontBold
-    lbl.TextSize = 10
+    lbl.TextSize = 9
     lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.ZIndex = 3
     lbl.Parent = parent
     return lbl
 end
 
 --=========================================================
--- ЛЕВАЯ КОЛОНКА: Player ESP
+-- ВКЛАДКА COMBAT
 --=========================================================
-MakeSectionTitle(LeftColumn, "Player ESP")
+MakeSectionTitle(CombatContent, "AIMBOT")
 
-MakeToggle(LeftColumn, "Box ESP", true, function()
-    Config.ESP.Box = not Config.ESP.Box
+MakeToggle(CombatContent, "Aimbot", false, function()
+    Config.Aimbot.Enabled = not Config.Aimbot.Enabled
 end)
 
-MakeToggle(LeftColumn, "Tracers", true, function()
-    Config.ESP.Tracer = not Config.ESP.Tracer
+MakeToggle(CombatContent, "Auto Aim", false, function()
+    Config.Aimbot.AutoAim = not Config.Aimbot.AutoAim
 end)
 
-MakeToggle(LeftColumn, "Names", true, function()
-    Config.ESP.Name = not Config.ESP.Name
+MakeToggle(CombatContent, "Silent Aim", false, function()
+    Config.Silent.Enabled = not Config.Silent.Enabled
 end)
 
-MakeToggle(LeftColumn, "HP Bar", true, function()
-    Config.ESP.Health = not Config.ESP.Health
-end)
-
-MakeToggle(LeftColumn, "Distance", true, function()
-    Config.ESP.Distance = not Config.ESP.Distance
-end)
-
-MakeToggle(LeftColumn, "Weapon", false, function()
-    Config.ESP.Weapon = not Config.ESP.Weapon
-end)
-
-MakeToggle(LeftColumn, "Skeleton", false, function()
-    Config.ESP.Skeleton = not Config.ESP.Skeleton
-end)
-
-MakeSlider(LeftColumn, "Radius", 100, 2000, Config.ESP.Radius, function(v)
-    Config.ESP.Radius = v
-    Config.ESP.MaxDistance = v
-end)
-
---=========================================================
--- ПРАВАЯ КОЛОНКА: Customisation
---=========================================================
-MakeSectionTitle(RightColumn, "Customisation")
-
-MakeToggle(RightColumn, "Custom FOV", false, function()
-    -- FOV circle show
+MakeToggle(CombatContent, "FOV Circle", true, function()
     Config.Aimbot.ShowFOV = not Config.Aimbot.ShowFOV
 end)
 
-MakeSlider(RightColumn, "FOV Value", 30, 600, Config.Aimbot.FOV, function(v)
+MakeToggle(CombatContent, "Prediction", true, function()
+    Config.Aimbot.Prediction = not Config.Aimbot.Prediction
+    Config.Silent.Prediction = Config.Aimbot.Prediction
+end)
+
+MakeToggle(CombatContent, "Visible Check", false, function()
+    Config.Aimbot.Visible = not Config.Aimbot.Visible
+    Config.Silent.Visible = Config.Aimbot.Visible
+end)
+
+MakeToggle(CombatContent, "Team Check", true, function()
+    Config.Aimbot.TeamCheck = not Config.Aimbot.TeamCheck
+    Config.Silent.TeamCheck = Config.Aimbot.TeamCheck
+end)
+
+MakeToggle(CombatContent, "Silent Debug (Chat)", false, function()
+    Config.Silent.DebugChat = not Config.Silent.DebugChat
+end)
+
+MakeSlider(CombatContent, "FOV Radius", 30, 600, Config.Aimbot.FOV, function(v)
     Config.Aimbot.FOV = v
     Config.Silent.FOV = v
     if FovCircle then FovCircle.Size = UDim2.new(0, v * 2, 0, v * 2) end
 end)
 
-MakeToggle(RightColumn, "Zoom", false, function()
-    -- Zoom is just placeholder for now
+MakeSlider(CombatContent, "Smoothness", 10, 100, math.floor(Config.Aimbot.Smoothness * 100), function(v)
+    Config.Aimbot.Smoothness = v / 100
 end)
 
-MakeToggle(RightColumn, "Arm Chams", false, function()
-    Config.Visual.ArmChams = not Config.Visual.ArmChams
-end)
-
-MakeToggle(RightColumn, "Gun Chams", false, function()
-    Config.Visual.GunChams = not Config.Visual.GunChams
-end)
-
-MakeToggle(RightColumn, "World Particle", false, function()
-    -- placeholder
-end)
-
-MakeToggle(RightColumn, "Ambience", false, function()
-    Config.Visual.Ambient = not Config.Visual.Ambient
+MakeSlider(CombatContent, "Max Distance", 100, 2000, Config.Aimbot.MaxDistance, function(v)
+    Config.Aimbot.MaxDistance = v
+    Config.Silent.MaxDistance = v
 end)
 
 --=========================================================
--- ТОЛЬКО ОСНОВНЫЕ ЭЛЕМЕНТЫ ВИДНЫ (как на скрине)
--- Дополнительные функции в других вкладках (не видны)
--- но работают через хоткеи
+-- ВКЛАДКА VISUAL
 --=========================================================
+MakeSectionTitle(VisualContent, "PLAYER ESP")
+
+MakeToggle(VisualContent, "ESP Enabled", true, function()
+    Config.ESP.Enabled = not Config.ESP.Enabled
+end)
+
+MakeToggle(VisualContent, "Boxes", true, function()
+    Config.ESP.Box = not Config.ESP.Box
+end)
+
+MakeToggle(VisualContent, "Names", true, function()
+    Config.ESP.Name = not Config.ESP.Name
+end)
+
+MakeToggle(VisualContent, "Distance", true, function()
+    Config.ESP.Distance = not Config.ESP.Distance
+end)
+
+MakeToggle(VisualContent, "Tracers", true, function()
+    Config.ESP.Tracer = not Config.ESP.Tracer
+end)
+
+MakeToggle(VisualContent, "Health Bar", true, function()
+    Config.ESP.Health = not Config.ESP.Health
+end)
+
+MakeToggle(VisualContent, "Skeleton", false, function()
+    Config.ESP.Skeleton = not Config.ESP.Skeleton
+end)
+
+MakeToggle(VisualContent, "Weapon", false, function()
+    Config.ESP.Weapon = not Config.ESP.Weapon
+end)
+
+MakeSlider(VisualContent, "ESP Distance", 200, 3000, Config.ESP.MaxDistance, function(v)
+    Config.ESP.MaxDistance = v
+end)
+
+MakeSectionTitle(VisualContent, "VISUAL")
+
+MakeToggle(VisualContent, "Fullbright", false, function()
+    Config.Visual.Fullbright = not Config.Visual.Fullbright
+end)
+
+MakeToggle(VisualContent, "X-Ray", false, function()
+    Config.Visual.XRay = not Config.Visual.XRay
+end)
+
+MakeToggle(VisualContent, "FPS Boost", false, function()
+    Config.Visual.FPSBoost = not Config.Visual.FPSBoost
+end)
+
+MakeToggle(VisualContent, "Hit Logs", true, function()
+    Config.Misc.HitLogs = not Config.Misc.HitLogs
+end)
 
 --=========================================================
--- КНОПКА FC (открыть/закрыть)
+-- ВКЛАДКА MOVEMENT
+--=========================================================
+MakeSectionTitle(MovementContent, "MOVEMENT")
+
+MakeToggle(MovementContent, "Speed Hack", false, function()
+    Config.Player.SpeedEnabled = not Config.Player.SpeedEnabled
+end)
+
+MakeSlider(MovementContent, "Speed (10-100)", 10, 100, Config.Player.SpeedValue, function(v)
+    Config.Player.SpeedValue = v
+end)
+
+MakeToggle(MovementContent, "Noclip", false, function()
+    Config.Player.Noclip = not Config.Player.Noclip
+end)
+
+MakeToggle(MovementContent, "No Fall Damage", false, function()
+    Config.Player.NoFallDamage = not Config.Player.NoFallDamage
+end)
+
+MakeToggle(MovementContent, "Infinite Jump", false, function()
+    Config.Misc.InfiniteJump = not Config.Misc.InfiniteJump
+end)
+
+--=========================================================
+-- ВКЛАДКА MISC
+--=========================================================
+MakeSectionTitle(MiscContent, "MISC")
+
+MakeToggle(MiscContent, "Infinite Jump", false, function()
+    Config.Misc.InfiniteJump = not Config.Misc.InfiniteJump
+end)
+
+MakeToggle(MiscContent, "Hit Logs", true, function()
+    Config.Misc.HitLogs = not Config.Misc.HitLogs
+end)
+
+MakeToggle(MiscContent, "Silent Debug (Chat)", false, function()
+    Config.Silent.DebugChat = not Config.Silent.DebugChat
+end)
+
+--=========================================================
+-- ВКЛАДКА SETTINGS
+--=========================================================
+MakeSectionTitle(SettingsContent, "SETTINGS")
+
+local infoLabel = Instance.new("TextLabel")
+infoLabel.Size = UDim2.new(1, 0, 0, 80)
+infoLabel.BackgroundTransparency = 1
+infoLabel.Text = "FerClient v5.2 | Null-wave Style\n\nHotkeys:\nF1=ESP  F2=Aim  F3=AutoAim  F4=InfJump\nF5=Silent  F6=Debug  F7=Speed  F8=Noclip\nRightShift=Menu  Delete=Unload"
+infoLabel.TextColor3 = Theme.TextDim
+infoLabel.Font = Theme.Font
+infoLabel.TextSize = 10
+infoLabel.TextWrapped = true
+infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+infoLabel.TextYAlignment = Enum.TextYAlignment.Top
+infoLabel.ZIndex = 3
+infoLabel.Parent = SettingsContent
+
+--=========================================================
+-- КНОПКА HOLD TO AIM
+--=========================================================
+local TriggerBtn = Instance.new("TextButton")
+TriggerBtn.Size = UDim2.new(0, 100, 0, 18)
+TriggerBtn.Position = UDim2.new(0.5, -50, 1, -24)
+TriggerBtn.BackgroundColor3 = Theme.Accent
+TriggerBtn.BorderSizePixel = 0
+TriggerBtn.Text = "HOLD TO AIM"
+TriggerBtn.TextColor3 = Color3.new(1, 1, 1)
+TriggerBtn.Font = Theme.FontBold
+TriggerBtn.TextSize = 9
+TriggerBtn.AutoButtonColor = false
+TriggerBtn.ZIndex = 6
+TriggerBtn.Parent = Menu
+Instance.new("UICorner", TriggerBtn).CornerRadius = UDim.new(0, 4)
+
+local function setTrig(active)
+    Config.Aimbot.TriggerActive = active
+    TriggerBtn.BackgroundColor3 = active and Color3.fromRGB(180, 150, 255) or Theme.Accent
+end
+
+TriggerBtn.MouseButton1Down:Connect(function() setTrig(true) end)
+TriggerBtn.MouseButton1Up:Connect(function() setTrig(false) end)
+TriggerBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch then setTrig(true) end
+end)
+TriggerBtn.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch then setTrig(false) end
+end)
+TriggerBtn.MouseLeave:Connect(function() setTrig(false) end)
+
+--=========================================================
+-- КНОПКА FC
 --=========================================================
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(0, 50, 0, 28)
@@ -625,9 +840,10 @@ end)
 local isMinimized = false
 local function toggleMinimize()
     isMinimized = not isMinimized
-    Menu.Size = isMinimized and UDim2.new(0, 450, 0, 28) or UDim2.new(0, 450, 0, 280)
+    Menu.Size = isMinimized and UDim2.new(0, 450, 0, 26) or UDim2.new(0, 450, 0, 280)
     Content.Visible = not isMinimized
     BottomTabs.Visible = not isMinimized
+    TriggerBtn.Visible = not isMinimized
 end
 
 local lastMinClick = 0
@@ -673,7 +889,7 @@ local function Unload()
 
     getgenv().FerClient_Rusted_Loaded = false
     getgenv().FerClient_Rusted_Unloading = false
-    print("[FerClient] v5 — Выгружен.")
+    print("[FerClient] v5.2 — Выгружен.")
 end
 
 local lastUnloadClick = 0
@@ -705,7 +921,7 @@ FovStroke.Thickness = 2
 FovStroke.Transparency = 0.2
 
 --=========================================================
--- ESP СИСТЕМА
+-- ESP
 --=========================================================
 local function CreateESP(player)
     if player == LP or ESPCache[player] then return end
@@ -856,7 +1072,7 @@ end
 RunService:BindToRenderStep("FerClient_Rusted_Aimbot", AIM_PRIORITY, AimStep)
 
 --=========================================================
--- SILENT AIM HOOKS
+-- SILENT AIM HOOK
 --=========================================================
 pcall(function()
     if not (hookmetamethod and newcclosure) then return end
@@ -1048,7 +1264,7 @@ TrackConn(RunService.RenderStepped:Connect(function()
         FovCircle.Size = UDim2.new(0, Config.Aimbot.FOV * 2, 0, Config.Aimbot.FOV * 2)
         FovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
         if Config.Silent.Enabled and silentTarget then
-            FovStroke.Color = Theme.Success
+            FovStroke.Color = Color3.fromRGB(180, 255, 180)
         else
             FovStroke.Color = Theme.Accent
         end
@@ -1137,7 +1353,7 @@ TrackConn(Players.PlayerRemoving:Connect(RemoveESP))
 for _, plr in ipairs(Players:GetPlayers()) do CreateESP(plr) end
 
 --=========================================================
--- ХОТКЕИ (работают все функции, даже невидимые в меню)
+-- ХОТКЕИ
 --=========================================================
 TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     if gpe then return end
@@ -1164,5 +1380,5 @@ TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     end
 end))
 
-chatMessage("[FerClient] v5 Null-wave загружен", Theme.Accent)
-print("[FerClient] v5 загружен")
+chatMessage("[FerClient] v5.2 загружен — вкладки работают", Theme.Accent)
+print("[FerClient] v5.2 загружен")
