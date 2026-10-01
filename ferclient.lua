@@ -1,11 +1,14 @@
 --[[
-    FerClient v2.5 | Rost Alpha
-    AIM (рабочий) + Auto Aim + VISUAL
+    FerClient v2.6 | Rost Alpha
+    AIM + Auto Aim + VISUAL + Unload
 ]]
 
 if getgenv().FerClient_Loaded then
-    warn("[FerClient] Уже загружен!")
-    return
+    -- Если уже загружен — выгружаем старую версию
+    if getgenv().FerClient_Unload then
+        pcall(getgenv().FerClient_Unload)
+    end
+    task.wait(0.2)
 end
 getgenv().FerClient_Loaded = true
 
@@ -21,7 +24,7 @@ local Camera = Workspace.CurrentCamera
 local LP = Players.LocalPlayer
 
 --=========================================================
--- ТЕМА (синий)
+-- ТЕМА
 --=========================================================
 local Theme = {
     Background = Color3.fromRGB(20, 38, 78),
@@ -29,10 +32,12 @@ local Theme = {
     Tab        = Color3.fromRGB(25, 45, 90),
     TabActive  = Color3.fromRGB(60, 110, 200),
     Element    = Color3.fromRGB(42, 72, 135),
+    ElementOn  = Color3.fromRGB(35, 100, 60),
+    ElementOff = Color3.fromRGB(120, 45, 45),
     Hover      = Color3.fromRGB(58, 95, 175),
     Accent     = Color3.fromRGB(90, 160, 255),
-    Success    = Color3.fromRGB(80, 220, 120),
-    Danger     = Color3.fromRGB(255, 90, 90),
+    Success    = Color3.fromRGB(80, 230, 130),
+    Danger     = Color3.fromRGB(255, 80, 90),
     Text       = Color3.fromRGB(240, 245, 255),
     TextDim    = Color3.fromRGB(160, 185, 220),
     Border     = Color3.fromRGB(60, 100, 175),
@@ -51,13 +56,13 @@ local Config = {
     },
     Aimbot = {
         Enabled = false,
-        AutoAim = false,           -- НОВОЕ: авто-наведение без удержания
+        AutoAim = false,
         FOV = 200,
         Smoothness = 0.5,
         MaxDistance = 600,
         TargetPart = "Head",
         Visible = false,
-        TeamCheck = true,          -- НОВОЕ: не наводиться на тиммейтов
+        TeamCheck = true,
         ShowFOV = true,
         TriggerActive = false,
     }
@@ -67,6 +72,14 @@ local hasDrawing = pcall(function()
     local t = Drawing.new("Square")
     t:Remove()
 end)
+
+-- Список всего что нужно выгрузить
+local CleanupList = {}
+local Connections = {}
+local function TrackConn(conn)
+    Connections[#Connections + 1] = conn
+    return conn
+end
 
 --=========================================================
 -- МЕНЮ
@@ -80,7 +93,8 @@ pcall(function() ScreenGui.Parent = HUI end)
 if not ScreenGui.Parent then ScreenGui.Parent = LP:WaitForChild("PlayerGui") end
 
 local Menu = Instance.new("Frame")
-Menu.Size = UDim2.new(0, 270, 0, 440)
+Menu.Name = "FerClient_Main"
+Menu.Size = UDim2.new(0, 280, 0, 460)
 Menu.Position = UDim2.new(0, 20, 0, 80)
 Menu.BackgroundColor3 = Theme.Background
 Menu.BorderSizePixel = 0
@@ -94,10 +108,10 @@ MenuStroke.Color = Theme.Border
 MenuStroke.Thickness = 1.5
 
 --=========================================================
--- ТОПБАР
+-- ТОПБАР + 3 КНОПКИ УПРАВЛЕНИЯ
 --=========================================================
 local TopBar = Instance.new("Frame")
-TopBar.Size = UDim2.new(1, 0, 0, 36)
+TopBar.Size = UDim2.new(1, 0, 0, 38)
 TopBar.BackgroundColor3 = Theme.Panel
 TopBar.BorderSizePixel = 0
 TopBar.Parent = Menu
@@ -110,44 +124,82 @@ TopBarCover.BackgroundColor3 = Theme.Panel
 TopBarCover.BorderSizePixel = 0
 TopBarCover.Parent = TopBar
 
+-- Индикатор активности (маленький кружок)
 local Dot = Instance.new("Frame")
 Dot.Size = UDim2.new(0, 8, 0, 8)
 Dot.Position = UDim2.new(0, 12, 0.5, -4)
-Dot.BackgroundColor3 = Theme.Accent
+Dot.BackgroundColor3 = Theme.Success
 Dot.BorderSizePixel = 0
 Dot.Parent = TopBar
 Instance.new("UICorner", Dot).CornerRadius = UDim.new(1, 0)
 
 local Logo = Instance.new("TextLabel")
-Logo.Size = UDim2.new(0, 150, 1, 0)
+Logo.Size = UDim2.new(0, 160, 1, 0)
 Logo.Position = UDim2.new(0, 28, 0, 0)
 Logo.BackgroundTransparency = 1
-Logo.Text = "FerClient v2.5"
+Logo.Text = "FerClient v2.6"
 Logo.TextColor3 = Theme.Text
 Logo.Font = Theme.FontBold
-Logo.TextSize = 14
+Logo.TextSize = 13
 Logo.TextXAlignment = Enum.TextXAlignment.Left
 Logo.Parent = TopBar
 
+-- Кнопка UNLOAD (✕) — полностью закрывает скрипт
+local UnloadBtn = Instance.new("TextButton")
+UnloadBtn.Size = UDim2.new(0, 22, 0, 22)
+UnloadBtn.Position = UDim2.new(1, -32, 0, 8)
+UnloadBtn.BackgroundColor3 = Theme.Danger
+UnloadBtn.BorderSizePixel = 0
+UnloadBtn.Text = "✕"
+UnloadBtn.TextColor3 = Theme.Text
+UnloadBtn.Font = Theme.FontBold
+UnloadBtn.TextSize = 13
+UnloadBtn.AutoButtonColor = false
+UnloadBtn.Parent = TopBar
+Instance.new("UICorner", UnloadBtn).CornerRadius = UDim.new(0, 5)
+
+UnloadBtn.MouseEnter:Connect(function()
+    TweenService:Create(UnloadBtn, TweenInfo.new(0.15), {
+        BackgroundColor3 = Color3.fromRGB(255, 120, 120)
+    }):Play()
+end)
+UnloadBtn.MouseLeave:Connect(function()
+    TweenService:Create(UnloadBtn, TweenInfo.new(0.15), {
+        BackgroundColor3 = Theme.Danger
+    }):Play()
+end)
+
+-- Кнопка Minimize (—) — сворачивает меню
 local MinimizeBtn = Instance.new("TextButton")
-MinimizeBtn.Size = UDim2.new(0, 20, 0, 20)
-MinimizeBtn.Position = UDim2.new(1, -28, 0, 8)
+MinimizeBtn.Size = UDim2.new(0, 22, 0, 22)
+MinimizeBtn.Position = UDim2.new(1, -60, 0, 8)
 MinimizeBtn.BackgroundColor3 = Theme.Element
 MinimizeBtn.BorderSizePixel = 0
 MinimizeBtn.Text = "—"
 MinimizeBtn.TextColor3 = Theme.Text
 MinimizeBtn.Font = Theme.FontBold
-MinimizeBtn.TextSize = 12
+MinimizeBtn.TextSize = 13
 MinimizeBtn.AutoButtonColor = false
 MinimizeBtn.Parent = TopBar
-Instance.new("UICorner", MinimizeBtn).CornerRadius = UDim.new(0, 4)
+Instance.new("UICorner", MinimizeBtn).CornerRadius = UDim.new(0, 5)
+
+MinimizeBtn.MouseEnter:Connect(function()
+    TweenService:Create(MinimizeBtn, TweenInfo.new(0.15), {
+        BackgroundColor3 = Theme.Hover
+    }):Play()
+end)
+MinimizeBtn.MouseLeave:Connect(function()
+    TweenService:Create(MinimizeBtn, TweenInfo.new(0.15), {
+        BackgroundColor3 = Theme.Element
+    }):Play()
+end)
 
 --=========================================================
 -- ВКЛАДКИ
 --=========================================================
 local TabBar = Instance.new("Frame")
 TabBar.Size = UDim2.new(1, -16, 0, 34)
-TabBar.Position = UDim2.new(0, 8, 0, 44)
+TabBar.Position = UDim2.new(0, 8, 0, 46)
 TabBar.BackgroundColor3 = Theme.Tab
 TabBar.BorderSizePixel = 0
 TabBar.Parent = Menu
@@ -166,8 +218,8 @@ TabPadding.PaddingRight = UDim.new(0, 4)
 TabPadding.PaddingBottom = UDim.new(0, 4)
 
 local Content = Instance.new("Frame")
-Content.Size = UDim2.new(1, -16, 1, -128)
-Content.Position = UDim2.new(0, 8, 0, 86)
+Content.Size = UDim2.new(1, -16, 1, -140)
+Content.Position = UDim2.new(0, 8, 0, 88)
 Content.BackgroundTransparency = 1
 Content.Parent = Menu
 
@@ -232,12 +284,12 @@ local AimTab = CreateTab("AIM", AimScroller)
 local VisualTab = CreateTab("VISUAL", VisualScroller)
 
 --=========================================================
--- КНОПКА
+-- КНОПКА (с чётким индикатором ON/OFF)
 --=========================================================
-local function MakeButton(parent, text, callback)
+local function MakeButton(parent, text, defaultOn, callback)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 38)
-    btn.BackgroundColor3 = Theme.Element
+    btn.Size = UDim2.new(1, 0, 0, 40)
+    btn.BackgroundColor3 = Theme.ElementOff   -- стартовый — OFF (красноватый)
     btn.BorderSizePixel = 0
     btn.Text = ""
     btn.AutoButtonColor = false
@@ -245,12 +297,26 @@ local function MakeButton(parent, text, callback)
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
     local stroke = Instance.new("UIStroke", btn)
-    stroke.Color = Theme.Border
-    stroke.Thickness = 1
+    stroke.Color = Theme.Danger
+    stroke.Thickness = 1.5
+
+    -- Индикатор слева (квадратик)
+    local indicator = Instance.new("Frame")
+    indicator.Size = UDim2.new(0, 12, 0, 12)
+    indicator.Position = UDim2.new(0, 12, 0.5, -6)
+    indicator.BackgroundColor3 = Theme.Danger
+    indicator.BorderSizePixel = 0
+    indicator.Parent = btn
+    Instance.new("UICorner", indicator).CornerRadius = UDim.new(0, 3)
+
+    local indicatorStroke = Instance.new("UIStroke", indicator)
+    indicatorStroke.Color = Color3.new(0, 0, 0)
+    indicatorStroke.Thickness = 1
+    indicatorStroke.Transparency = 0.5
 
     local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(1, -70, 1, 0)
-    nameLabel.Position = UDim2.new(0, 14, 0, 0)
+    nameLabel.Size = UDim2.new(1, -110, 1, 0)
+    nameLabel.Position = UDim2.new(0, 32, 0, 0)
     nameLabel.BackgroundTransparency = 1
     nameLabel.Text = text
     nameLabel.TextColor3 = Theme.Text
@@ -260,49 +326,63 @@ local function MakeButton(parent, text, callback)
     nameLabel.Parent = btn
 
     local statusLabel = Instance.new("TextLabel")
-    statusLabel.Size = UDim2.new(0, 45, 1, 0)
-    statusLabel.Position = UDim2.new(1, -50, 0, 0)
+    statusLabel.Size = UDim2.new(0, 50, 1, 0)
+    statusLabel.Position = UDim2.new(1, -54, 0, 0)
     statusLabel.BackgroundTransparency = 1
     statusLabel.Text = "OFF"
     statusLabel.TextColor3 = Theme.Danger
     statusLabel.Font = Theme.FontBold
-    statusLabel.TextSize = 11
+    statusLabel.TextSize = 12
     statusLabel.Parent = btn
 
+    -- Hover (без изменений если ON)
     btn.MouseEnter:Connect(function()
         if not btn:GetAttribute("On") then
-            TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = Theme.Hover }):Play()
+            TweenService:Create(btn, TweenInfo.new(0.15), {
+                BackgroundColor3 = Theme.Hover
+            }):Play()
         end
     end)
     btn.MouseLeave:Connect(function()
-        if not btn:GetAttribute("On") then
-            TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = Theme.Element }):Play()
-        end
+        local on = btn:GetAttribute("On")
+        TweenService:Create(btn, TweenInfo.new(0.15), {
+            BackgroundColor3 = on and Theme.ElementOn or Theme.ElementOff
+        }):Play()
     end)
 
-    local cd = false
+    -- Клик с защитой от двойного срабатывания
+    local clickCd = false
     local function handleClick()
-        if cd then return end
-        cd = true
-        task.delay(0.15, function() cd = false end)
+        if clickCd then return end
+        clickCd = true
+        task.delay(0.2, function() clickCd = false end)
         pcall(callback)
     end
     btn.MouseButton1Click:Connect(handleClick)
     btn.Activated:Connect(handleClick)
 
+    -- Функция смены состояния
+    local function setState(isOn)
+        btn:SetAttribute("On", isOn)
+        statusLabel.Text = isOn and "ON" or "OFF"
+        statusLabel.TextColor3 = isOn and Theme.Success or Theme.Danger
+
+        TweenService:Create(btn, TweenInfo.new(0.2), {
+            BackgroundColor3 = isOn and Theme.ElementOn or Theme.ElementOff
+        }):Play()
+        TweenService:Create(stroke, TweenInfo.new(0.2), {
+            Color = isOn and Theme.Success or Theme.Danger
+        }):Play()
+        TweenService:Create(indicator, TweenInfo.new(0.2), {
+            BackgroundColor3 = isOn and Theme.Success or Theme.Danger
+        }):Play()
+    end
+
+    setState(defaultOn or false)
+
     return {
         Button = btn,
-        SetOn = function(isOn)
-            btn:SetAttribute("On", isOn)
-            statusLabel.Text = isOn and "ON" or "OFF"
-            statusLabel.TextColor3 = isOn and Theme.Success or Theme.Danger
-            TweenService:Create(btn, TweenInfo.new(0.2), {
-                BackgroundColor3 = isOn and Color3.fromRGB(40, 90, 60) or Theme.Element,
-            }):Play()
-            TweenService:Create(stroke, TweenInfo.new(0.2), {
-                Color = isOn and Theme.Success or Theme.Border,
-            }):Play()
-        end
+        SetOn = setState,
     }
 end
 
@@ -412,11 +492,11 @@ local function MakeSlider(parent, text, min, max, default, callback)
 end
 
 --=========================================================
--- ДРОПДАУН (выбор кости)
+-- ДРОПДАУН
 --=========================================================
 local function MakeDropdown(parent, text, options, default, callback)
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, 0, 0, 38)
+    frame.Size = UDim2.new(1, 0, 0, 40)
     frame.BackgroundColor3 = Theme.Element
     frame.BorderSizePixel = 0
     frame.Parent = parent
@@ -427,7 +507,7 @@ local function MakeDropdown(parent, text, options, default, callback)
     stroke.Thickness = 1
 
     local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(1, -100, 1, 0)
+    nameLabel.Size = UDim2.new(1, -110, 1, 0)
     nameLabel.Position = UDim2.new(0, 14, 0, 0)
     nameLabel.BackgroundTransparency = 1
     nameLabel.Text = text
@@ -438,8 +518,8 @@ local function MakeDropdown(parent, text, options, default, callback)
     nameLabel.Parent = frame
 
     local valueBtn = Instance.new("TextButton")
-    valueBtn.Size = UDim2.new(0, 80, 0, 26)
-    valueBtn.Position = UDim2.new(1, -88, 0.5, -13)
+    valueBtn.Size = UDim2.new(0, 90, 0, 28)
+    valueBtn.Position = UDim2.new(1, -98, 0.5, -14)
     valueBtn.BackgroundColor3 = Theme.Accent
     valueBtn.BorderSizePixel = 0
     valueBtn.Text = default
@@ -468,35 +548,30 @@ end
 --=========================================================
 -- ВКЛАДКА AIM
 --=========================================================
-local AimButton = MakeButton(AimScroller, "Aimbot", function()
+local AimButton = MakeButton(AimScroller, "Aimbot", false, function()
     Config.Aimbot.Enabled = not Config.Aimbot.Enabled
     AimButton.SetOn(Config.Aimbot.Enabled)
 end)
-AimButton.SetOn(Config.Aimbot.Enabled)
 
-local AutoAimBtn = MakeButton(AimScroller, "Auto Aim (без кнопки)", function()
+local AutoAimBtn = MakeButton(AimScroller, "Auto Aim", false, function()
     Config.Aimbot.AutoAim = not Config.Aimbot.AutoAim
     AutoAimBtn.SetOn(Config.Aimbot.AutoAim)
 end)
-AutoAimBtn.SetOn(Config.Aimbot.AutoAim)
 
-local FovButton = MakeButton(AimScroller, "FOV Circle", function()
+local FovButton = MakeButton(AimScroller, "FOV Circle", true, function()
     Config.Aimbot.ShowFOV = not Config.Aimbot.ShowFOV
     FovButton.SetOn(Config.Aimbot.ShowFOV)
 end)
-FovButton.SetOn(Config.Aimbot.ShowFOV)
 
-local VisibleBtn = MakeButton(AimScroller, "Visible Check", function()
+local VisibleBtn = MakeButton(AimScroller, "Visible Check", false, function()
     Config.Aimbot.Visible = not Config.Aimbot.Visible
     VisibleBtn.SetOn(Config.Aimbot.Visible)
 end)
-VisibleBtn.SetOn(Config.Aimbot.Visible)
 
-local TeamBtn = MakeButton(AimScroller, "Team Check", function()
+local TeamBtn = MakeButton(AimScroller, "Team Check", true, function()
     Config.Aimbot.TeamCheck = not Config.Aimbot.TeamCheck
     TeamBtn.SetOn(Config.Aimbot.TeamCheck)
 end)
-TeamBtn.SetOn(Config.Aimbot.TeamCheck)
 
 MakeDropdown(AimScroller, "Target Part", { "Head", "HumanoidRootPart", "Torso" }, Config.Aimbot.TargetPart, function(v)
     Config.Aimbot.TargetPart = v
@@ -518,41 +593,35 @@ end)
 --=========================================================
 -- ВКЛАДКА VISUAL
 --=========================================================
-local ESPButton = MakeButton(VisualScroller, "ESP", function()
+local ESPButton = MakeButton(VisualScroller, "ESP", true, function()
     Config.ESP.Enabled = not Config.ESP.Enabled
     ESPButton.SetOn(Config.ESP.Enabled)
 end)
-ESPButton.SetOn(Config.ESP.Enabled)
 
-local BoxButton = MakeButton(VisualScroller, "Boxes", function()
+local BoxButton = MakeButton(VisualScroller, "Boxes", true, function()
     Config.ESP.Box = not Config.ESP.Box
     BoxButton.SetOn(Config.ESP.Box)
 end)
-BoxButton.SetOn(Config.ESP.Box)
 
-local NameButton = MakeButton(VisualScroller, "Names", function()
+local NameButton = MakeButton(VisualScroller, "Names", true, function()
     Config.ESP.Name = not Config.ESP.Name
     NameButton.SetOn(Config.ESP.Name)
 end)
-NameButton.SetOn(Config.ESP.Name)
 
-local DistButton = MakeButton(VisualScroller, "Distance", function()
+local DistButton = MakeButton(VisualScroller, "Distance", true, function()
     Config.ESP.Distance = not Config.ESP.Distance
     DistButton.SetOn(Config.ESP.Distance)
 end)
-DistButton.SetOn(Config.ESP.Distance)
 
-local TracerButton = MakeButton(VisualScroller, "Tracers", function()
+local TracerButton = MakeButton(VisualScroller, "Tracers", true, function()
     Config.ESP.Tracer = not Config.ESP.Tracer
     TracerButton.SetOn(Config.ESP.Tracer)
 end)
-TracerButton.SetOn(Config.ESP.Tracer)
 
-local HealthButton = MakeButton(VisualScroller, "Health Bar", function()
+local HealthButton = MakeButton(VisualScroller, "Health Bar", true, function()
     Config.ESP.Health = not Config.ESP.Health
     HealthButton.SetOn(Config.ESP.Health)
 end)
-HealthButton.SetOn(Config.ESP.Health)
 
 MakeSlider(VisualScroller, "ESP Max Distance", 200, 3000, Config.ESP.MaxDistance, function(v)
     Config.ESP.MaxDistance = v
@@ -596,12 +665,12 @@ end)
 TriggerBtn.MouseLeave:Connect(function() setTrig(false) end)
 
 --=========================================================
--- СВОРАЧИВАНИЕ
+-- СВОРАЧИВАНИЕ (Minimize)
 --=========================================================
 local isMinimized = false
 local function toggleMinimize()
     isMinimized = not isMinimized
-    local targetSize = isMinimized and UDim2.new(0, 270, 0, 36) or UDim2.new(0, 270, 0, 440)
+    local targetSize = isMinimized and UDim2.new(0, 280, 0, 38) or UDim2.new(0, 280, 0, 460)
     TweenService:Create(Menu, TweenInfo.new(0.25, Enum.EasingStyle.Quad), { Size = targetSize }):Play()
     TabBar.Visible = not isMinimized
     Content.Visible = not isMinimized
@@ -610,6 +679,49 @@ end
 
 MinimizeBtn.MouseButton1Click:Connect(toggleMinimize)
 MinimizeBtn.Activated:Connect(toggleMinimize)
+
+--=========================================================
+-- UNLOAD (полное закрытие)
+--=========================================================
+local function Unload()
+    if getgenv().FerClient_Unloading then return end
+    getgenv().FerClient_Unloading = true
+
+    -- 1. Убираем аим из рендера
+    pcall(function()
+        RunService:UnbindFromRenderStep("FerClient_Aimbot")
+    end)
+
+    -- 2. Убираем все Drawing объекты
+    if ESPCache then
+        for _, d in pairs(ESPCache) do
+            for _, o in pairs(d) do
+                pcall(function() o:Remove() end)
+            end
+        end
+    end
+
+    -- 3. Отключаем все подключения
+    for _, c in ipairs(Connections) do
+        pcall(function() c:Disconnect() end)
+    end
+    Connections = {}
+
+    -- 4. Удаляем GUI
+    pcall(function() ScreenGui:Destroy() end)
+
+    -- 5. Сброс флагов
+    getgenv().FerClient_Loaded = false
+    getgenv().FerClient_Unloading = false
+
+    print("[FerClient] Выгружен.")
+end
+
+UnloadBtn.MouseButton1Click:Connect(Unload)
+UnloadBtn.Activated:Connect(Unload)
+
+-- Сохраняем функцию для повторной загрузки
+getgenv().FerClient_Unload = Unload
 
 --=========================================================
 -- FOV КРУГ
@@ -682,12 +794,11 @@ local function RemoveESP(player)
 end
 
 --=========================================================
--- AIMBOT ЛОГИКА (переработано)
+-- AIMBOT
 --=========================================================
 local function IsTeammate(plr)
     if not Config.Aimbot.TeamCheck then return false end
-    if not plr.Team then return false end
-    if not LP.Team then return false end
+    if not plr.Team or not LP.Team then return false end
     return plr.Team == LP.Team
 end
 
@@ -701,8 +812,6 @@ local function IsVisible(part, character)
     if not result then return true end
     return result.Instance and result.Instance:IsDescendantOf(character)
 end
-
-local currentTarget = nil
 
 local function GetClosestTarget()
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
@@ -735,32 +844,25 @@ local function GetClosestTarget()
     return closest
 end
 
--- Прямое наведение через BindToRenderStep (работает поверх игры)
 local AIM_PRIORITY = Enum.RenderPriority.Camera.Value + 10
 
 local function AimStep()
-    -- Определяем нужно ли наводиться
     local shouldAim = false
     if Config.Aimbot.Enabled then
         if Config.Aimbot.AutoAim then
-            shouldAim = true  -- авто: всегда наводится
+            shouldAim = true
         elseif Config.Aimbot.TriggerActive then
-            shouldAim = true  -- по кнопке
+            shouldAim = true
         elseif UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-            shouldAim = true  -- по ПКМ (ПК)
+            shouldAim = true
         end
     end
-
     if not shouldAim then return end
 
     local target = GetClosestTarget()
     if target then
-        currentTarget = target
-        -- Прямая установка CFrame с Lerp
         local targetCF = CFrame.new(Camera.CFrame.Position, target.Position)
         Camera.CFrame = Camera.CFrame:Lerp(targetCF, Config.Aimbot.Smoothness)
-    else
-        currentTarget = nil
     end
 end
 
@@ -769,7 +871,7 @@ RunService:BindToRenderStep("FerClient_Aimbot", AIM_PRIORITY, AimStep)
 --=========================================================
 -- ESP ЦИКЛ
 --=========================================================
-RunService.RenderStepped:Connect(function()
+TrackConn(RunService.RenderStepped:Connect(function()
     if Config.Aimbot.ShowFOV and Config.Aimbot.Enabled then
         FovCircle.Visible = true
         FovCircle.Size = UDim2.new(0, Config.Aimbot.FOV * 2, 0, Config.Aimbot.FOV * 2)
@@ -852,16 +954,16 @@ RunService.RenderStepped:Connect(function()
             end
         end
     end
-end)
+end))
 
-Players.PlayerAdded:Connect(CreateESP)
-Players.PlayerRemoving:Connect(RemoveESP)
+TrackConn(Players.PlayerAdded:Connect(CreateESP))
+TrackConn(Players.PlayerRemoving:Connect(RemoveESP))
 for _, plr in ipairs(Players:GetPlayers()) do CreateESP(plr) end
 
 --=========================================================
--- ХОТКЕИ (ПК)
+-- ХОТКЕИ
 --=========================================================
-UIS.InputBegan:Connect(function(input, gpe)
+TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == Enum.KeyCode.F1 then
         Config.ESP.Enabled = not Config.ESP.Enabled
@@ -874,13 +976,15 @@ UIS.InputBegan:Connect(function(input, gpe)
         AutoAimBtn.SetOn(Config.Aimbot.AutoAim)
     elseif input.KeyCode == Enum.KeyCode.RightShift then
         toggleMinimize()
+    elseif input.KeyCode == Enum.KeyCode.Delete then
+        Unload()
     end
-end)
+end))
 
 AimTab.Btn.BackgroundColor3 = Theme.TabActive
 AimTab.Btn.TextColor3 = Theme.Text
 AimTab.Scroller.Visible = true
 activeTab = AimTab
 
-print("[FerClient] v2.5 — Aimbot переработан + Auto Aim")
-print("[FerClient] F1=ESP | F2=Aimbot | F3=AutoAim | RightShift=Свернуть")
+print("[FerClient] v2.6 загружен")
+print("[FerClient] F1=ESP | F2=Aimbot | F3=AutoAim | Del=Unload") 
