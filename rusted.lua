@@ -1,7 +1,6 @@
 --[[
-    FerClient | Rusted Version v2
-    Battle Projects - Rusted
-    ESP + Aimbot + Silent Aim (FOV-based) + Speed + Noclip + FPS Boost
+    FerClient | Rusted Version v3
+    Silent Aim — универсальный перехват ремоутов
 ]]
 
 if getgenv().FerClient_Rusted_Loaded then
@@ -56,7 +55,6 @@ local Config = {
         MaxDistance = 600, TargetPart = "Head", Visible = false,
         TeamCheck = true, ShowFOV = true, TriggerActive = false,
         Prediction = true, PredictionX = 0.15,
-        AutoFire = false, AutoFireDelay = 0.05, LastFire = 0,
     },
     Silent = {
         Enabled = false,
@@ -67,10 +65,7 @@ local Config = {
         MaxDistance = 800,
         Prediction = true,
         PredictionX = 0.15,
-        AutoShoot = true,
-        AutoShootDelay = 0.08,
-        LastShoot = 0,
-        OnlyInCircle = true,
+        DebugMode = false,  -- показывать какой ремоут ловится
     },
     Player = {
         NoFallDamage = false,
@@ -294,7 +289,7 @@ local Logo = Instance.new("TextLabel")
 Logo.Size = UDim2.new(0, 180, 1, 0)
 Logo.Position = UDim2.new(0, 28, 0, 0)
 Logo.BackgroundTransparency = 1
-Logo.Text = "FerClient | Rusted v2"
+Logo.Text = "FerClient | Rusted v3"
 Logo.TextColor3 = Theme.Text
 Logo.Font = Theme.FontBold
 Logo.TextSize = 13
@@ -329,7 +324,7 @@ UnloadBtn.ZIndex = 4
 UnloadBtn.Parent = TopBar
 
 --=========================================================
--- ВКЛАДКИ (4 штуки — убрал GUN)
+-- ВКЛАДКИ
 --=========================================================
 local TabBar = Instance.new("Frame")
 TabBar.Size = UDim2.new(1, -16, 0, 34)
@@ -676,7 +671,7 @@ local function MakeDropdown(parent, text, options, default, callback)
 end
 
 --=========================================================
--- AIM ВКЛАДКА (без Aim Assist)
+-- AIM ВКЛАДКА
 --=========================================================
 local AimButton = MakeButton(AimScroller, "Aimbot", false, function()
     Config.Aimbot.Enabled = not Config.Aimbot.Enabled
@@ -690,8 +685,13 @@ local SilentBtn = MakeButton(AimScroller, "Silent Aim", false, function()
     Config.Silent.Enabled = not Config.Silent.Enabled
 end)
 
-local SilentAutoShootBtn = MakeButton(AimScroller, "Silent Auto Shoot", true, function()
-    Config.Silent.AutoShoot = not Config.Silent.AutoShoot
+local SilentDebugBtn = MakeButton(AimScroller, "Silent Debug", false, function()
+    Config.Silent.DebugMode = not Config.Silent.DebugMode
+    if Config.Silent.DebugMode then
+        showHitLog("Debug ON — смотри консоль Delta", Color3.fromRGB(90, 160, 255))
+    else
+        showHitLog("Debug OFF", Color3.fromRGB(255, 100, 100))
+    end
 end)
 
 local PredictBtn = MakeButton(AimScroller, "Prediction", true, function()
@@ -701,7 +701,6 @@ end)
 
 local FovButton = MakeButton(AimScroller, "FOV Circle", true, function()
     Config.Aimbot.ShowFOV = not Config.Aimbot.ShowFOV
-    Config.Silent.ShowCircle = Config.Aimbot.ShowFOV
 end)
 
 local VisibleBtn = MakeButton(AimScroller, "Visible Check", false, function()
@@ -771,10 +770,6 @@ end)
 
 MakeSlider(VisualScroller, "ESP Max Distance", 200, 3000, Config.ESP.MaxDistance, function(v)
     Config.ESP.MaxDistance = v
-end)
-
-MakeSlider(VisualScroller, "X-Ray x100", 10, 90, math.floor(Config.Visual.XRayTransparency * 100), function(v)
-    Config.Visual.XRayTransparency = v / 100
 end)
 
 --=========================================================
@@ -909,7 +904,7 @@ local function Unload()
 
     getgenv().FerClient_Rusted_Loaded = false
     getgenv().FerClient_Rusted_Unloading = false
-    print("[FerClient] Rusted v2 — Выгружен.")
+    print("[FerClient] Rusted v3 — Выгружен.")
 end
 
 local lastUnloadClick = 0
@@ -923,7 +918,7 @@ end)
 getgenv().FerClient_Rusted_Unload = Unload
 
 --=========================================================
--- FOV КРУГ (главная фишка — круг для Silent Aim)
+-- FOV КРУГ
 --=========================================================
 local FovCircle = Instance.new("Frame")
 FovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -991,7 +986,7 @@ local function RemoveESP(player)
 end
 
 --=========================================================
--- AIMBOT / SILENT LOGIC
+-- AIMBOT / SILENT
 --=========================================================
 local function IsTeammate(plr)
     if not plr.Team or not LP.Team then return false end
@@ -1015,67 +1010,28 @@ local function GetPredictedPosition(part, predTime)
     return part.Position + velocity * predTime
 end
 
-local function GetClosestTarget(fovRange, maxRange)
+local function GetClosestTarget(fovRange, maxRange, partName, visibleCheck, teamCheck)
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     local closest, closestDist, closestPos = nil, fovRange, nil
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LP then
-            if not (Config.Aimbot.TeamCheck and IsTeammate(plr)) then
+            if not (teamCheck and IsTeammate(plr)) then
                 local char = plr.Character
                 local hum = char and char:FindFirstChildOfClass("Humanoid")
                 if hum and hum.Health > 0 then
-                    local part = char:FindFirstChild(Config.Aimbot.TargetPart)
+                    local part = char:FindFirstChild(partName)
                     if part then
-                        local predPos = Config.Aimbot.Prediction and GetPredictedPosition(part, Config.Aimbot.PredictionX) or part.Position
+                        local predPos = Config.Aimbot.Prediction
+                            and GetPredictedPosition(part, Config.Aimbot.PredictionX)
+                            or part.Position
                         local sp, onScreen = Camera:WorldToViewportPoint(predPos)
                         if onScreen then
                             local d3 = (Camera.CFrame.Position - predPos).Magnitude
                             if d3 <= maxRange then
                                 local sd = (Vector2.new(sp.X, sp.Y) - center).Magnitude
                                 if sd < closestDist then
-                                    if not Config.Aimbot.Visible or IsVisible(part, char) then
+                                    if not visibleCheck or IsVisible(part, char) then
                                         closestDist = sd
-                                        closest = part
-                                        closestPos = predPos
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-    return closest, closestPos
-end
-
--- SILENT AIM — только цели в FOV-кружке
-local function GetSilentTarget()
-    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    local closest, closestPos, closestDist = nil, nil, Config.Silent.FOV
-
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LP then
-            if not (Config.Silent.TeamCheck and IsTeammate(plr)) then
-                local char = plr.Character
-                local hum = char and char:FindFirstChildOfClass("Humanoid")
-                if hum and hum.Health > 0 then
-                    local part = char:FindFirstChild(Config.Silent.TargetPart)
-                    if part then
-                        local predPos = Config.Silent.Prediction
-                            and GetPredictedPosition(part, Config.Silent.PredictionX)
-                            or part.Position
-
-                        local sp, onScreen = Camera:WorldToViewportPoint(predPos)
-                        if onScreen then
-                            local screenDist = (Vector2.new(sp.X, sp.Y) - center).Magnitude
-                            local worldDist = (Camera.CFrame.Position - predPos).Magnitude
-
-                            -- Жёсткая проверка: цель ВНУТРИ кружка FOV
-                            if screenDist <= Config.Silent.FOV and worldDist <= Config.Silent.MaxDistance then
-                                if not Config.Silent.Visible or IsVisible(part, char) then
-                                    if screenDist < closestDist then
-                                        closestDist = screenDist
                                         closest = part
                                         closestPos = predPos
                                     end
@@ -1096,7 +1052,7 @@ local silentTargetPos = nil
 local AIM_PRIORITY = Enum.RenderPriority.Camera.Value + 10
 
 local function AimStep()
-    -- Обычный Aimbot
+    -- Aimbot
     local shouldAim = false
     if Config.Aimbot.Enabled then
         if Config.Aimbot.AutoAim then shouldAim = true
@@ -1106,45 +1062,24 @@ local function AimStep()
     end
 
     if shouldAim then
-        local target, predPos = GetClosestTarget(Config.Aimbot.FOV, Config.Aimbot.MaxDistance)
+        local target, predPos = GetClosestTarget(
+            Config.Aimbot.FOV, Config.Aimbot.MaxDistance,
+            Config.Aimbot.TargetPart, Config.Aimbot.Visible, Config.Aimbot.TeamCheck
+        )
         if target and predPos then
             local targetCF = CFrame.new(Camera.CFrame.Position, predPos)
             Camera.CFrame = Camera.CFrame:Lerp(targetCF, Config.Aimbot.Smoothness)
-
-            if Config.Aimbot.AutoFire then
-                local now = tick()
-                if now - Config.Aimbot.LastFire >= Config.Aimbot.AutoFireDelay then
-                    Config.Aimbot.LastFire = now
-                    pcall(function()
-                        local vim = game:GetService("VirtualInputManager")
-                        vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-                        task.wait(0.02)
-                        vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
-                    end)
-                end
-            end
         end
     end
 
-    -- SILENT AIM (главное)
+    -- Silent Aim
     if Config.Silent.Enabled then
-        local st, sp = GetSilentTarget()
+        local st, sp = GetClosestTarget(
+            Config.Silent.FOV, Config.Silent.MaxDistance,
+            Config.Silent.TargetPart, Config.Silent.Visible, Config.Silent.TeamCheck
+        )
         silentTarget = st
         silentTargetPos = sp
-
-        -- Auto Shoot когда цель в кружке
-        if Config.Silent.AutoShoot and st and sp then
-            local now = tick()
-            if now - Config.Silent.LastShoot >= Config.Silent.AutoShootDelay then
-                Config.Silent.LastShoot = now
-                pcall(function()
-                    local vim = game:GetService("VirtualInputManager")
-                    vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-                    task.wait(0.02)
-                    vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
-                end)
-            end
-        end
     else
         silentTarget = nil
         silentTargetPos = nil
@@ -1153,30 +1088,60 @@ end
 
 RunService:BindToRenderStep("FerClient_Rusted_Aimbot", AIM_PRIORITY, AimStep)
 
--- SILENT AIM HOOK — подмена координат выстрела
+--=========================================================
+-- SILENT AIM — УНИВЕРСАЛЬНЫЙ ХУК
+-- (перехватывает ВСЕ ремоуты и подменяет Vector3/CFrame)
+--=========================================================
 pcall(function()
-    if hookmetamethod and newcclosure then
-        local oldNC
-        oldNC = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-            local method = getnamecallmethod()
-            if (method == "FireServer" or method == "InvokeServer")
-                and Config.Silent.Enabled and silentTargetPos then
-                local args = {...}
+    if not (hookmetamethod and newcclosure) then return end
+
+    local OldNC
+    OldNC = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+
+        -- Ловим все FireServer / InvokeServer
+        if (method == "FireServer" or method == "InvokeServer") and typeof(self) == "Instance" then
+            local args = table.pack(...)
+
+            -- DEBUG: показываем что вызвано
+            if Config.Silent.DebugMode then
+                local argsStr = ""
+                for i = 1, args.n do
+                    argsStr = argsStr .. i .. ":" .. typeof(args[i]) .. " "
+                end
+                print("[FerClient DEBUG] Remote: " .. self:GetFullName() .. " | Args: " .. argsStr)
+            end
+
+            -- Если Silent Aim включён и есть цель — подменяем координаты
+            if Config.Silent.Enabled and silentTargetPos then
                 local newArgs = {}
-                for i, v in ipairs(args) do
+                local replaced = false
+
+                for i = 1, args.n do
+                    local v = args[i]
                     if typeof(v) == "Vector3" then
+                        -- Подменяем Vector3 на позицию цели
                         newArgs[i] = silentTargetPos
+                        replaced = true
                     elseif typeof(v) == "CFrame" then
+                        -- Подменяем CFrame на позицию цели
                         newArgs[i] = CFrame.new(silentTargetPos)
+                        replaced = true
                     else
                         newArgs[i] = v
                     end
                 end
-                return oldNC(self, table.unpack(newArgs))
+
+                if replaced then
+                    return OldNC(self, table.unpack(newArgs, 1, args.n))
+                end
             end
-            return oldNC(self, ...)
-        end))
-    end
+        end
+
+        return OldNC(self, ...)
+    end))
+
+    print("[FerClient] Silent Aim hook установлен")
 end)
 
 --=========================================================
@@ -1214,22 +1179,6 @@ end))
 --=========================================================
 local originalStates = {}
 
-local function enableNoclip()
-    local char = LP.Character
-    if not char then return end
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            originalStates[part] = part.CanCollide
-            part.CanCollide = false
-        end
-    end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if hum then
-        hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-    end
-end
-
 TrackConn(RunService.Heartbeat:Connect(function()
     if Config.Player.Noclip then
         local char = LP.Character
@@ -1247,11 +1196,6 @@ end))
 
 TrackConn(LP.CharacterRemoving:Connect(function()
     originalStates = {}
-end))
-
-TrackConn(LP.CharacterAdded:Connect(function()
-    task.wait(0.5)
-    if Config.Player.Noclip then enableNoclip() end
 end))
 
 --=========================================================
@@ -1361,19 +1305,16 @@ TrackConn(UIS.JumpRequest:Connect(function()
 end))
 
 --=========================================================
--- ESP ЦИКЛ + FOV КРУГ
+-- ESP ЦИКЛ
 --=========================================================
 TrackConn(RunService.RenderStepped:Connect(function()
-    -- FOV круг — показывается если включен Aimbot ИЛИ Silent Aim
+    -- FOV круг
     if Config.Aimbot.ShowFOV and (Config.Aimbot.Enabled or Config.Silent.Enabled) then
         FovCircle.Visible = true
         FovCircle.Size = UDim2.new(0, Config.Aimbot.FOV * 2, 0, Config.Aimbot.FOV * 2)
         FovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
-        -- Если Silent Aim — меняем цвет круга на зелёный (индикатор что цель внутри)
         if Config.Silent.Enabled and silentTarget then
-            FovStroke.Color = Theme.Success
-        elseif Config.Silent.Enabled then
-            FovStroke.Color = Theme.Accent
+            FovStroke.Color = Theme.Success  -- зелёный = цель в кружке
         else
             FovStroke.Color = Theme.Accent
         end
@@ -1381,6 +1322,7 @@ TrackConn(RunService.RenderStepped:Connect(function()
         FovCircle.Visible = false
     end
 
+    -- ESP
     if hasDrawing then
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LP then
@@ -1499,6 +1441,6 @@ AimTab.Btn.TextColor3 = Theme.Text
 AimScroller.Visible = true
 activeTab = AimTab
 
-print("[FerClient] Rusted v2 загружен")
-print("Silent Aim работает через FOV кружок")
-print("F1=ESP F2=Aim F3=AutoAim F4=InfJump F5=Silent F7=Speed F8=Noclip")
+print("[FerClient] Rusted v3 загружен")
+print("Silent Aim — универсальный перехват ремоутов")
+print("Включи 'Silent Debug' чтобы увидеть какие ремоуты ловятся")
