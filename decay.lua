@@ -1,7 +1,7 @@
 --[[
-    FerClient | Decay v5.0 | FINAL
+    FerClient | Decay v5.1 | FINAL
     Silent Aim + ESP + Aimbot + Speed + Noclip + FPS Boost
-    Ремоут: ReplicatedStorage.ToolSystem.RemoteEvent.Swing (направление)
+    ФИКС: баг залипания после 1 удара
 ]]
 
 if getgenv().FerClient_Decay_Loaded then
@@ -58,10 +58,12 @@ local Config = {
     Silent = {
         Enabled = true,
         FOV = 300,
-        MaxDistance = 800,
+        MaxDistance = 50,
         TargetPart = "Head",
         TeamCheck = true,
         Debug = true,
+        LastReplace = 0,
+        Cooldown = 0.15,
     },
     Player = {
         NoFallDamage = false,
@@ -548,7 +550,6 @@ end)
 
 MakeSlider(CombatContent, "FOV Radius", 30, 600, Config.Aimbot.FOV, function(v)
     Config.Aimbot.FOV = v
-    Config.Silent.FOV = v
     FovCircle.Size = UDim2.new(0, v * 2, 0, v * 2)
 end)
 
@@ -556,9 +557,8 @@ MakeSlider(CombatContent, "Smoothness", 10, 100, 50, function(v)
     Config.Aimbot.Smoothness = v / 100
 end)
 
-MakeSlider(CombatContent, "Max Distance", 100, 2000, Config.Aimbot.MaxDistance, function(v)
+MakeSlider(CombatContent, "Aimbot Max Dist", 100, 2000, Config.Aimbot.MaxDistance, function(v)
     Config.Aimbot.MaxDistance = v
-    Config.Silent.MaxDistance = v
 end)
 
 MakeSectionTitle(CombatContent, "SILENT AIM")
@@ -573,6 +573,10 @@ end)
 
 MakeToggle(CombatContent, "Silent Debug", true, function()
     Config.Silent.Debug = not Config.Silent.Debug
+end)
+
+MakeSlider(CombatContent, "Silent Max Dist (≤50)", 5, 50, Config.Silent.MaxDistance, function(v)
+    Config.Silent.MaxDistance = v
 end)
 
 --=========================================================
@@ -666,9 +670,9 @@ end)
 MakeSectionTitle(SettingsContent, "SETTINGS")
 
 local infoLbl = Instance.new("TextLabel")
-infoLbl.Size = UDim2.new(1, 0, 0, 80)
+infoLbl.Size = UDim2.new(1, 0, 0, 100)
 infoLbl.BackgroundTransparency = 1
-infoLbl.Text = "FerClient Decay v5.0 FINAL\n\nHotkeys:\nF1=ESP  F2=Aim  F3=AutoAim  F4=InfJump\nF5=Silent Aim  RightShift=Menu  Delete=Unload\n\nSilent Aim ON по умолчанию"
+infoLbl.Text = "FerClient Decay v5.1 FINAL\nФИКС: баг залипания\n\nHotkeys:\nF1=ESP  F2=Aim  F3=AutoAim  F4=InfJump\nF5=Silent Aim  RightShift=Menu  Delete=Unload\n\nSilent Aim ON по умолчанию"
 infoLbl.TextColor3 = Theme.TextDim
 infoLbl.Font = Theme.Font
 infoLbl.TextSize = 10
@@ -847,7 +851,7 @@ local function RemoveESP(player)
 end
 
 --=========================================================
--- AIMBOT + SILENT AIM ЛОГИКА
+-- AIMBOT ЛОГИКА
 --=========================================================
 local function IsTeammate(plr, check)
     if not check then return false end
@@ -916,6 +920,7 @@ local silentTargetPos = nil
 
 TrackConn(RunService.RenderStepped:Connect(function()
     if Config.Silent.Enabled then
+        -- Ищем цель ТОЛЬКО когда враг близко (не 1000 studs)
         local t, p = GetClosestTarget(
             Config.Silent.FOV, Config.Silent.MaxDistance,
             Config.Silent.TargetPart, Config.Silent.TeamCheck, false
@@ -929,7 +934,7 @@ TrackConn(RunService.RenderStepped:Connect(function()
 end))
 
 --=========================================================
--- SILENT AIM HOOK — рабочий ремоут Swing
+-- SILENT AIM HOOK — ФИКС ЗАЛИПАНИЯ
 --=========================================================
 pcall(function()
     if not (hookmetamethod and newcclosure) then
@@ -942,22 +947,42 @@ pcall(function()
         local method = getnamecallmethod()
 
         if method == "FireServer" and typeof(self) == "Instance" then
-            if Config.Silent.Enabled and silentTargetPos then
+            if Config.Silent.Enabled then
                 local args = table.pack(...)
 
-                -- Основной ремоут Decay — Swing (1:Vector3 направление, 2:string оружие)
+                -- Основной ремоут Decay — Swing
                 if self.Name == "Swing" then
-                    if typeof(args[1]) == "Vector3" then
-                        local myPos = Camera.CFrame.Position
-                        local direction = (silentTargetPos - myPos).Unit
+                    local now = tick()
+                    
+                    -- ⚠️ ФИКС: проверка таймаута (0.15 сек между подменами)
+                    if (now - Config.Silent.LastReplace) < Config.Silent.Cooldown then
+                        return oldNC(self, ...)
+                    end
+
+                    -- ⚠️ ФИКС: проверка что цель есть и валидна
+                    if silentTargetPos and typeof(args[1]) == "Vector3" then
                         
-                        args[1] = direction
+                        -- ⚠️ ФИКС: цель жива?
+                        local targetChar = silentTarget and silentTarget.Parent
+                        local targetHum = targetChar and targetChar:FindFirstChildOfClass("Humanoid")
+                        
+                        if targetHum and targetHum.Health > 0 then
+                            
+                            -- ⚠️ ФИКС: не слишком далеко?
+                            local dist = (silentTargetPos - Camera.CFrame.Position).Magnitude
+                            if dist <= Config.Silent.MaxDistance then
+                                
+                                Config.Silent.LastReplace = now
+                                local direction = (silentTargetPos - Camera.CFrame.Position).Unit
+                                args[1] = direction
 
-                        if Config.Silent.Debug then
-                            notify("SilentAim", "→ " .. (silentTarget and silentTarget.Parent.Name or "?"))
+                                if Config.Silent.Debug then
+                                    notify("SilentAim", "→ " .. targetChar.Name .. " (" .. math.floor(dist) .. "m)")
+                                end
+
+                                return oldNC(self, table.unpack(args, 1, args.n))
+                            end
                         end
-
-                        return oldNC(self, table.unpack(args, 1, args.n))
                     end
                 end
             end
@@ -966,7 +991,7 @@ pcall(function()
         return oldNC(self, ...)
     end))
 
-    print("[FerClient] Silent Aim hook установлен (Swing)")
+    print("[FerClient] Silent Aim hook v5.1 (с anti-stuck fix)")
 end)
 
 --=========================================================
@@ -1214,5 +1239,5 @@ TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     end
 end))
 
-notify("FerClient", "Decay v5.0 FINAL загружен")
-print("[FerClient] Decay v5.0 — Silent Aim ON по умолчанию")
+notify("FerClient v5.1", "Decay FINAL загружен")
+print("[FerClient] Decay v5.1 — Silent Aim + anti-stuck fix")
