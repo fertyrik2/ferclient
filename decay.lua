@@ -1,7 +1,7 @@
 --[[
-    FerClient | Decay v4.0
+    FerClient | Decay v5.0 | FINAL
     Silent Aim + ESP + Aimbot + Speed + Noclip + FPS Boost
-    Ремоут Silent Aim: ToolSystem.RemoteEvent.Swing (направление)
+    Ремоут: ReplicatedStorage.ToolSystem.RemoteEvent.Swing (направление)
 ]]
 
 if getgenv().FerClient_Decay_Loaded then
@@ -56,12 +56,12 @@ local Config = {
         Prediction = true, PredictionX = 0.15,
     },
     Silent = {
-        Enabled = false,
+        Enabled = true,
         FOV = 300,
         MaxDistance = 800,
         TargetPart = "Head",
         TeamCheck = true,
-        Debug = false,
+        Debug = true,
     },
     Player = {
         NoFallDamage = false,
@@ -86,23 +86,12 @@ local function TrackConn(conn)
     return conn
 end
 
--- Уведомления (без чата)
 local function notify(title, text)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
-            Title = title,
-            Text = text,
+            Title = title or "FerClient",
+            Text = text or "",
             Duration = 2,
-        })
-    end)
-end
-
-local function chatMessage(text, color)
-    pcall(function()
-        StarterGui:SetCore("ChatMakeSystemMessage", {
-            Text = text,
-            Color = color or Theme.Accent,
-            Font = Enum.Font.GothamBold,
         })
     end)
 end
@@ -528,7 +517,7 @@ local function MakeSectionTitle(parent, text)
 end
 
 --=========================================================
--- COMBAT — Aimbot + Silent Aim
+-- COMBAT
 --=========================================================
 MakeSectionTitle(CombatContent, "AIMBOT")
 
@@ -574,7 +563,7 @@ end)
 
 MakeSectionTitle(CombatContent, "SILENT AIM")
 
-MakeToggle(CombatContent, "Silent Aim", false, function()
+MakeToggle(CombatContent, "Silent Aim", true, function()
     Config.Silent.Enabled = not Config.Silent.Enabled
 end)
 
@@ -582,12 +571,12 @@ MakeToggle(CombatContent, "Silent Team Check", true, function()
     Config.Silent.TeamCheck = not Config.Silent.TeamCheck
 end)
 
-MakeToggle(CombatContent, "Silent Debug (Notify)", false, function()
+MakeToggle(CombatContent, "Silent Debug", true, function()
     Config.Silent.Debug = not Config.Silent.Debug
 end)
 
 --=========================================================
--- VISUAL — ESP
+-- VISUAL
 --=========================================================
 MakeSectionTitle(VisualContent, "PLAYER ESP")
 
@@ -667,7 +656,7 @@ MakeToggle(MiscContent, "Infinite Jump", false, function()
     Config.Misc.InfiniteJump = not Config.Misc.InfiniteJump
 end)
 
-MakeToggle(MiscContent, "Silent Debug", false, function()
+MakeToggle(MiscContent, "Silent Debug", true, function()
     Config.Silent.Debug = not Config.Silent.Debug
 end)
 
@@ -679,7 +668,7 @@ MakeSectionTitle(SettingsContent, "SETTINGS")
 local infoLbl = Instance.new("TextLabel")
 infoLbl.Size = UDim2.new(1, 0, 0, 80)
 infoLbl.BackgroundTransparency = 1
-infoLbl.Text = "FerClient Decay v4.0\n\nHotkeys:\nF1=ESP  F2=Aim  F3=AutoAim  F4=InfJump\nF5=Silent Aim  RightShift=Menu  Delete=Unload"
+infoLbl.Text = "FerClient Decay v5.0 FINAL\n\nHotkeys:\nF1=ESP  F2=Aim  F3=AutoAim  F4=InfJump\nF5=Silent Aim  RightShift=Menu  Delete=Unload\n\nSilent Aim ON по умолчанию"
 infoLbl.TextColor3 = Theme.TextDim
 infoLbl.Font = Theme.Font
 infoLbl.TextSize = 10
@@ -858,7 +847,7 @@ local function RemoveESP(player)
 end
 
 --=========================================================
--- ПОИСК ЦЕЛИ (общая логика)
+-- AIMBOT + SILENT AIM ЛОГИКА
 --=========================================================
 local function IsTeammate(plr, check)
     if not check then return false end
@@ -940,11 +929,11 @@ TrackConn(RunService.RenderStepped:Connect(function()
 end))
 
 --=========================================================
--- SILENT AIM HOOK — рабочий (направление в Swing)
+-- SILENT AIM HOOK — рабочий ремоут Swing
 --=========================================================
 pcall(function()
     if not (hookmetamethod and newcclosure) then
-        warn("[Silent Aim] hookmetamethod не поддерживается")
+        warn("[FerClient] hookmetamethod не поддерживается")
         return
     end
 
@@ -956,10 +945,9 @@ pcall(function()
             if Config.Silent.Enabled and silentTargetPos then
                 local args = table.pack(...)
 
-                -- Ремоут Swing — главный для Silent Aim в Decay
+                -- Основной ремоут Decay — Swing (1:Vector3 направление, 2:string оружие)
                 if self.Name == "Swing" then
                     if typeof(args[1]) == "Vector3" then
-                        -- Вычисляем НАПРАВЛЕНИЕ от камеры к цели
                         local myPos = Camera.CFrame.Position
                         local direction = (silentTargetPos - myPos).Unit
                         
@@ -1015,7 +1003,6 @@ RunService:BindToRenderStep("Decay_Aimbot", AIM_PRIORITY, AimStep)
 local savedWalkSpeed = 16
 
 TrackConn(RunService.RenderStepped:Connect(function()
-    -- FOV круг
     if Config.Aimbot.ShowFOV and (Config.Aimbot.Enabled or Config.Silent.Enabled) then
         FovCircle.Visible = true
         FovCircle.Size = UDim2.new(0, Config.Aimbot.FOV * 2, 0, Config.Aimbot.FOV * 2)
@@ -1028,7 +1015,6 @@ TrackConn(RunService.RenderStepped:Connect(function()
         FovCircle.Visible = false
     end
 
-    -- ESP
     if hasDrawing then
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LP then
@@ -1104,7 +1090,6 @@ TrackConn(RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- Speed / Noclip / NoFall
     local char = LP.Character
     if char then
         local hum = char:FindFirstChildOfClass("Humanoid")
@@ -1229,6 +1214,5 @@ TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     end
 end))
 
-notify("FerClient", "Decay v4.0 загружен")
-print("[FerClient] Decay v4.0 — Silent Aim + ESP + Aimbot")
-print("Silent Aim ремоут: ToolSystem.RemoteEvent.Swing (направление)")
+notify("FerClient", "Decay v5.0 FINAL загружен")
+print("[FerClient] Decay v5.0 — Silent Aim ON по умолчанию")
