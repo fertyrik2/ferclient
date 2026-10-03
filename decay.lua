@@ -1,7 +1,7 @@
 --[[
-    FerClient | Decay v5.1 | FINAL
-    Silent Aim + ESP + Aimbot + Speed + Noclip + FPS Boost
-    ФИКС: баг залипания после 1 удара
+    FerClient | Decay v5.2 | FINAL
+    Silent Aim + Visible Check + ESP + Aimbot
+    ФИКС: залипание + враг за стеной
 ]]
 
 if getgenv().FerClient_Decay_Loaded then
@@ -64,6 +64,7 @@ local Config = {
         Debug = true,
         LastReplace = 0,
         Cooldown = 0.15,
+        VisibleCheck = true,  -- НОВОЕ: проверка стен
     },
     Player = {
         NoFallDamage = false,
@@ -571,6 +572,10 @@ MakeToggle(CombatContent, "Silent Team Check", true, function()
     Config.Silent.TeamCheck = not Config.Silent.TeamCheck
 end)
 
+MakeToggle(CombatContent, "Silent Visible Check", true, function()
+    Config.Silent.VisibleCheck = not Config.Silent.VisibleCheck
+end)
+
 MakeToggle(CombatContent, "Silent Debug", true, function()
     Config.Silent.Debug = not Config.Silent.Debug
 end)
@@ -672,7 +677,7 @@ MakeSectionTitle(SettingsContent, "SETTINGS")
 local infoLbl = Instance.new("TextLabel")
 infoLbl.Size = UDim2.new(1, 0, 0, 100)
 infoLbl.BackgroundTransparency = 1
-infoLbl.Text = "FerClient Decay v5.1 FINAL\nФИКС: баг залипания\n\nHotkeys:\nF1=ESP  F2=Aim  F3=AutoAim  F4=InfJump\nF5=Silent Aim  RightShift=Menu  Delete=Unload\n\nSilent Aim ON по умолчанию"
+infoLbl.Text = "FerClient Decay v5.2 FINAL\nVisible Check + Anti-Stuck\n\nHotkeys:\nF1=ESP  F2=Aim  F3=AutoAim  F4=InfJump\nF5=Silent Aim  RightShift=Menu  Delete=Unload\n\nSilent Aim ON по умолчанию\nКруг ЗЕЛЁНЫЙ только если врага видно"
 infoLbl.TextColor3 = Theme.TextDim
 infoLbl.Font = Theme.Font
 infoLbl.TextSize = 10
@@ -859,15 +864,34 @@ local function IsTeammate(plr, check)
     return plr.Team == LP.Team
 end
 
+-- ⚠️ ВАЖНО: Visible Check для Silent Aim
+local _visRayParams = nil
 local function IsVisible(part, character)
+    if not part or not character then return false end
+    
+    if not _visRayParams then
+        _visRayParams = RaycastParams.new()
+        _visRayParams.FilterType = Enum.RaycastFilterType.Exclude
+        _visRayParams.IgnoreWater = true
+    end
+    
+    _visRayParams.FilterDescendantsInstances = { LP.Character, Camera, character }
+    
     local origin = Camera.CFrame.Position
-    local params = RaycastParams.new()
-    params.FilterType = Enum.RaycastFilterType.Exclude
-    params.FilterDescendantsInstances = { LP.Character, Camera, character }
-    params.IgnoreWater = true
-    local result = Workspace:Raycast(origin, part.Position - origin, params)
+    local direction = part.Position - origin
+    
+    local result = Workspace:Raycast(origin, direction, _visRayParams)
+    
+    -- Если луч ни во что не попал → значит видно
     if not result then return true end
-    return result.Instance and result.Instance:IsDescendantOf(character)
+    
+    -- Если попал в цель → видно
+    if result.Instance and result.Instance:IsDescendantOf(character) then
+        return true
+    end
+    
+    -- Иначе — стена/препятствие
+    return false
 end
 
 local function GetPredictedPosition(part, predTime)
@@ -896,6 +920,7 @@ local function GetClosestTarget(fovRange, maxRange, partName, teamCheck, visible
                         if d3 <= maxRange then
                             local sd = (Vector2.new(sp.X, sp.Y) - center).Magnitude
                             if sd < closestDist then
+                                -- ⚠️ ВАЖНО: Visible Check
                                 if not visibleCheck or IsVisible(part, char) then
                                     closestDist = sd
                                     closest = part
@@ -913,17 +938,17 @@ local function GetClosestTarget(fovRange, maxRange, partName, teamCheck, visible
 end
 
 --=========================================================
--- SILENT AIM — обновляем цель каждый кадр
+-- SILENT AIM — обновляем цель с VISIBLE CHECK
 --=========================================================
 local silentTarget = nil
 local silentTargetPos = nil
 
 TrackConn(RunService.RenderStepped:Connect(function()
     if Config.Silent.Enabled then
-        -- Ищем цель ТОЛЬКО когда враг близко (не 1000 studs)
         local t, p = GetClosestTarget(
             Config.Silent.FOV, Config.Silent.MaxDistance,
-            Config.Silent.TargetPart, Config.Silent.TeamCheck, false
+            Config.Silent.TargetPart, Config.Silent.TeamCheck,
+            Config.Silent.VisibleCheck  -- ⚠️ передаём visible check
         )
         silentTarget = t
         silentTargetPos = p
@@ -934,7 +959,7 @@ TrackConn(RunService.RenderStepped:Connect(function()
 end))
 
 --=========================================================
--- SILENT AIM HOOK — ФИКС ЗАЛИПАНИЯ
+-- SILENT AIM HOOK — с полным фиксом
 --=========================================================
 pcall(function()
     if not (hookmetamethod and newcclosure) then
@@ -950,37 +975,39 @@ pcall(function()
             if Config.Silent.Enabled then
                 local args = table.pack(...)
 
-                -- Основной ремоут Decay — Swing
                 if self.Name == "Swing" then
                     local now = tick()
                     
-                    -- ⚠️ ФИКС: проверка таймаута (0.15 сек между подменами)
+                    -- ⚠️ Таймаут
                     if (now - Config.Silent.LastReplace) < Config.Silent.Cooldown then
                         return oldNC(self, ...)
                     end
 
-                    -- ⚠️ ФИКС: проверка что цель есть и валидна
                     if silentTargetPos and typeof(args[1]) == "Vector3" then
-                        
-                        -- ⚠️ ФИКС: цель жива?
                         local targetChar = silentTarget and silentTarget.Parent
                         local targetHum = targetChar and targetChar:FindFirstChildOfClass("Humanoid")
                         
                         if targetHum and targetHum.Health > 0 then
-                            
-                            -- ⚠️ ФИКС: не слишком далеко?
                             local dist = (silentTargetPos - Camera.CFrame.Position).Magnitude
+                            
                             if dist <= Config.Silent.MaxDistance then
-                                
-                                Config.Silent.LastReplace = now
-                                local direction = (silentTargetPos - Camera.CFrame.Position).Unit
-                                args[1] = direction
+                                -- ⚠️ ДОПОЛНИТЕЛЬНЫЙ visible check перед подменой
+                                if not Config.Silent.VisibleCheck or IsVisible(silentTarget, targetChar) then
+                                    
+                                    Config.Silent.LastReplace = now
+                                    local direction = (silentTargetPos - Camera.CFrame.Position).Unit
+                                    args[1] = direction
 
-                                if Config.Silent.Debug then
-                                    notify("SilentAim", "→ " .. targetChar.Name .. " (" .. math.floor(dist) .. "m)")
+                                    if Config.Silent.Debug then
+                                        notify("SilentAim ✅", targetChar.Name .. " (" .. math.floor(dist) .. "m)")
+                                    end
+
+                                    return oldNC(self, table.unpack(args, 1, args.n))
+                                else
+                                    if Config.Silent.Debug then
+                                        notify("SilentAim ❌", "Враг за стеной")
+                                    end
                                 end
-
-                                return oldNC(self, table.unpack(args, 1, args.n))
                             end
                         end
                     end
@@ -991,7 +1018,7 @@ pcall(function()
         return oldNC(self, ...)
     end))
 
-    print("[FerClient] Silent Aim hook v5.1 (с anti-stuck fix)")
+    print("[FerClient] Silent Aim v5.2 (Visible Check + Anti-Stuck)")
 end)
 
 --=========================================================
@@ -1028,18 +1055,31 @@ RunService:BindToRenderStep("Decay_Aimbot", AIM_PRIORITY, AimStep)
 local savedWalkSpeed = 16
 
 TrackConn(RunService.RenderStepped:Connect(function()
+    -- FOV круг с индикацией
     if Config.Aimbot.ShowFOV and (Config.Aimbot.Enabled or Config.Silent.Enabled) then
         FovCircle.Visible = true
         FovCircle.Size = UDim2.new(0, Config.Aimbot.FOV * 2, 0, Config.Aimbot.FOV * 2)
-        if Config.Silent.Enabled and silentTarget then
-            FovStroke.Color = Color3.fromRGB(180, 255, 180)
+        
+        -- ⚠️ ВАЖНО: круг ЗЕЛЁНЫЙ только если цель ВИДНА
+        if Config.Silent.Enabled and silentTarget and silentTargetPos then
+            -- Проверяем видимость ещё раз для цвета
+            local targetChar = silentTarget.Parent
+            if targetChar and (not Config.Silent.VisibleCheck or IsVisible(silentTarget, targetChar)) then
+                FovStroke.Color = Color3.fromRGB(0, 255, 100)  -- зелёный = цель видна
+                FovStroke.Transparency = 0.1
+            else
+                FovStroke.Color = Theme.Accent  -- фиолетовый = цель за стеной
+                FovStroke.Transparency = 0.4
+            end
         else
             FovStroke.Color = Theme.Accent
+            FovStroke.Transparency = 0.2
         end
     else
         FovCircle.Visible = false
     end
 
+    -- ESP
     if hasDrawing then
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LP then
@@ -1115,6 +1155,7 @@ TrackConn(RunService.RenderStepped:Connect(function()
         end
     end
 
+    -- Speed / Noclip / NoFall
     local char = LP.Character
     if char then
         local hum = char:FindFirstChildOfClass("Humanoid")
@@ -1149,7 +1190,7 @@ TrackConn(Players.PlayerRemoving:Connect(RemoveESP))
 for _, plr in ipairs(Players:GetPlayers()) do CreateESP(plr) end
 
 --=========================================================
--- FULLBRIGHT
+-- FULLBRIGHT / X-RAY / FPS BOOST / INF JUMP
 --=========================================================
 TrackConn(RunService.Heartbeat:Connect(function()
     if not Config.Visual.Fullbright then return end
@@ -1163,9 +1204,6 @@ TrackConn(RunService.Heartbeat:Connect(function()
     end)
 end))
 
---=========================================================
--- X-RAY
---=========================================================
 TrackConn(RunService.Heartbeat:Connect(function()
     if not Config.Visual.XRay then return end
     pcall(function()
@@ -1177,9 +1215,6 @@ TrackConn(RunService.Heartbeat:Connect(function()
     end)
 end))
 
---=========================================================
--- FPS BOOST
---=========================================================
 local fpsApplied = false
 TrackConn(RunService.Heartbeat:Connect(function()
     if Config.Visual.FPSBoost and not fpsApplied then
@@ -1204,9 +1239,6 @@ TrackConn(RunService.Heartbeat:Connect(function()
     end
 end))
 
---=========================================================
--- INFINITE JUMP
---=========================================================
 TrackConn(UIS.JumpRequest:Connect(function()
     if not Config.Misc.InfiniteJump then return end
     local char = LP.Character
@@ -1239,5 +1271,5 @@ TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     end
 end))
 
-notify("FerClient v5.1", "Decay FINAL загружен")
-print("[FerClient] Decay v5.1 — Silent Aim + anti-stuck fix")
+notify("FerClient v5.2", "Decay FINAL — Visible Check + Anti-Stuck")
+print("[FerClient] Decay v5.2 — Silent Aim + Visible Check + Anti-Stuck")
