@@ -1,7 +1,7 @@
 --[[
-    FerClient | Decay v6.0
-    Silent Aim + ESP + Aimbot + No Recoil + Long Range
-    Модули: SpringModule (отдача), BulletFire (дальность)
+    FerClient | Decay v6.1
+    Silent Aim + ESP + Aimbot (Prediction 2.0) + No Recoil + Long Range
+    Улучшено: точное предсказание для бегущих игроков
 ]]
 
 if getgenv().FerClient_Decay_Loaded then
@@ -54,7 +54,12 @@ local Config = {
         Enabled = false, AutoAim = false, FOV = 200, Smoothness = 0.5,
         MaxDistance = 600, TargetPart = "Head", Visible = false,
         TeamCheck = true, ShowFOV = true, TriggerActive = false,
-        Prediction = true, PredictionX = 0.15,
+        Prediction = true,
+        PredictionX = 0.2,
+        PredictionAuto = true,
+        PredictionMax = 0.5,
+        VelocitySmooth = 5,
+        UseVelocityHistory = true,
     },
     Silent = {
         Enabled = false,
@@ -70,7 +75,7 @@ local Config = {
     Gun = {
         NoRecoil = false,
         LongRange = false,
-        RangeMultiplier = 3,  -- во сколько раз увеличить дальность
+        RangeMultiplier = 3,
     },
     Player = {
         NoFallDamage = false,
@@ -103,56 +108,6 @@ local function notify(title, text)
             Duration = 2,
         })
     end)
-end
-
---=========================================================
--- NO RECOIL — Хук на SpringModule
---=========================================================
-local function SetupNoRecoil()
-    pcall(function()
-        local GunSystem = ReplicatedStorage:FindFirstChild("GunSystem")
-        if not GunSystem then return end
-        
-        local Modules = GunSystem:FindFirstChild("Modules")
-        if not Modules then return end
-        
-        local SpringModule = Modules:FindFirstChild("SpringModule")
-        if not SpringModule then return end
-        
-        -- SpringModule — модуль отдачи
-        local ok, Spring = pcall(require, SpringModule)
-        if not ok or type(Spring) ~= "table" then return end
-        
-        -- Хукаем все функции Spring
-        for name, fn in pairs(Spring) do
-            if type(fn) == "function" and not tostring(name):find("_orig") then
-                if not Spring["_fc_" .. name] then
-                    Spring["_fc_" .. name] = fn
-                end
-                Spring[name] = function(self, ...)
-                    if Config.Gun.NoRecoil then
-                        -- Ничего не делаем — нет отдачи
-                        return
-                    end
-                    return Spring["_fc_" .. name](self, ...)
-                end
-            end
-        end
-        
-        print("[NoRecoil] SpringModule захукан")
-    end)
-end
-
---=========================================================
--- LONG RANGE — Хук на BulletFire
---=========================================================
-local function SetupLongRange()
-    -- Хук на ремоут BulletFire — увеличиваем дальность
-    TrackConn(ReplicatedStorage.DescendantAdded:Connect(function(obj)
-        if obj.Name == "BulletFire" and obj:IsA("RemoteEvent") then
-            print("[LongRange] BulletFire найден")
-        end
-    end))
 end
 
 --=========================================================
@@ -596,6 +551,14 @@ MakeToggle(CombatContent, "Prediction", true, function()
     Config.Aimbot.Prediction = not Config.Aimbot.Prediction
 end)
 
+MakeToggle(CombatContent, "Auto Prediction (по дистанции)", true, function()
+    Config.Aimbot.PredictionAuto = not Config.Aimbot.PredictionAuto
+end)
+
+MakeToggle(CombatContent, "Velocity Smooth", true, function()
+    Config.Aimbot.UseVelocityHistory = not Config.Aimbot.UseVelocityHistory
+end)
+
 MakeToggle(CombatContent, "Visible Check", false, function()
     Config.Aimbot.Visible = not Config.Aimbot.Visible
 end)
@@ -618,6 +581,14 @@ MakeSlider(CombatContent, "Aimbot Max Dist", 100, 2000, Config.Aimbot.MaxDistanc
     Config.Aimbot.MaxDistance = v
 end)
 
+MakeSlider(CombatContent, "Prediction Base x100", 5, 50, math.floor((Config.Aimbot.PredictionX or 0.2) * 100), function(v)
+    Config.Aimbot.PredictionX = v / 100
+end)
+
+MakeSlider(CombatContent, "Prediction Max x100", 20, 100, math.floor((Config.Aimbot.PredictionMax or 0.5) * 100), function(v)
+    Config.Aimbot.PredictionMax = v / 100
+end)
+
 MakeSectionTitle(CombatContent, "SILENT AIM")
 
 MakeToggle(CombatContent, "Silent Aim", false, function()
@@ -636,9 +607,6 @@ MakeToggle(CombatContent, "Silent Debug", true, function()
     Config.Silent.Debug = not Config.Silent.Debug
 end)
 
---=========================================================
--- GUN MODS (НОВОЕ!)
---=========================================================
 MakeSectionTitle(CombatContent, "GUN MODS")
 
 MakeToggle(CombatContent, "No Recoil", false, function()
@@ -744,9 +712,9 @@ end)
 MakeSectionTitle(SettingsContent, "SETTINGS")
 
 local infoLbl = Instance.new("TextLabel")
-infoLbl.Size = UDim2.new(1, 0, 0, 100)
+infoLbl.Size = UDim2.new(1, 0, 0, 120)
 infoLbl.BackgroundTransparency = 1
-infoLbl.Text = "FerClient Decay v6.0 FINAL\nNo Recoil + Long Range\n\nHotkeys:\nF1=ESP  F2=Aim  F3=AutoAim  F4=InfJump\nF5=Silent Aim  F6=No Recoil  F7=Long Range\nRightShift=Menu  Delete=Unload"
+infoLbl.Text = "FerClient Decay v6.1 FINAL\nPrediction 2.0 (для бегущих)\n\nHotkeys:\nF1=ESP  F2=Aim  F3=AutoAim  F4=InfJump\nF5=Silent Aim  F6=No Recoil  F7=Long Range\nRightShift=Menu  Delete=Unload"
 infoLbl.TextColor3 = Theme.TextDim
 infoLbl.Font = Theme.Font
 infoLbl.TextSize = 10
@@ -925,7 +893,7 @@ local function RemoveESP(player)
 end
 
 --=========================================================
--- AIMBOT / SILENT ЛОГИКА
+-- AIMBOT / PREDICTION 2.0
 --=========================================================
 local function IsTeammate(plr, check)
     if not check then return false end
@@ -950,10 +918,98 @@ local function IsVisible(part, character)
     return false
 end
 
+--=========================================================
+-- PREDICTION 2.0
+--=========================================================
+local VelocityHistory = setmetatable({}, { __mode = "k" })
+local LastUpdate = {}
+
+local function GetSmoothedVelocity(part)
+    if not part or not part.Parent then return Vector3.new(0, 0, 0) end
+    local vel = part.AssemblyLinearVelocity
+    if not vel then return Vector3.new(0, 0, 0) end
+    
+    if not Config.Aimbot.UseVelocityHistory then return vel end
+    
+    if not VelocityHistory[part] then
+        VelocityHistory[part] = { vel, vel, vel, vel, vel }
+        LastUpdate[part] = tick()
+        return vel
+    end
+    
+    local now = tick()
+    local lastTime = LastUpdate[part] or 0
+    
+    if now - lastTime > 0.05 then
+        local history = VelocityHistory[part]
+        table.insert(history, 1, vel)
+        if #history > 5 then table.remove(history) end
+        LastUpdate[part] = now
+    end
+    
+    local history = VelocityHistory[part]
+    local sumX, sumY, sumZ, totalWeight = 0, 0, 0, 0
+    
+    for i = 1, #history do
+        local weight = (6 - i) / 5
+        sumX = sumX + history[i].X * weight
+        sumY = sumY + history[i].Y * weight
+        sumZ = sumZ + history[i].Z * weight
+        totalWeight = totalWeight + weight
+    end
+    
+    if totalWeight == 0 then return vel end
+    return Vector3.new(sumX / totalWeight, sumY / totalWeight, sumZ / totalWeight)
+end
+
+local function IsTargetMoving(part)
+    if not part or not part.Parent then return false end
+    local vel = part.AssemblyLinearVelocity
+    if not vel then return false end
+    local horizVel = Vector3.new(vel.X, 0, vel.Z).Magnitude
+    return horizVel > 3
+end
+
+local function CalculatePredictionTime(part, distance)
+    if not Config.Aimbot.Prediction then return 0 end
+    
+    if Config.Aimbot.PredictionAuto then
+        local baseTime = Config.Aimbot.PredictionX or 0.2
+        
+        local distMult = 1.0
+        if distance > 100 then distMult = 1.5 end
+        if distance > 200 then distMult = 2.0 end
+        if distance > 400 then distMult = 2.5 end
+        if distance > 800 then distMult = 3.0 end
+        
+        if IsTargetMoving(part) then distMult = distMult * 1.5 end
+        
+        local predTime = baseTime * distMult
+        return math.min(predTime, Config.Aimbot.PredictionMax or 0.5)
+    else
+        return Config.Aimbot.PredictionX or 0.2
+    end
+end
+
 local function GetPredictedPosition(part, predTime)
-    local velocity = part.AssemblyLinearVelocity
-    if not velocity then return part.Position end
-    return part.Position + velocity * predTime
+    if not part or not part.Parent then return Vector3.new(0, 0, 0) end
+    if not Config.Aimbot.Prediction then return part.Position end
+    
+    local distance = (part.Position - Camera.CFrame.Position).Magnitude
+    local velocity = GetSmoothedVelocity(part)
+    
+    local actualTime = predTime
+    if not actualTime then
+        actualTime = CalculatePredictionTime(part, distance)
+    end
+    
+    local predicted = part.Position + velocity * actualTime
+    
+    if Config.Aimbot.TargetPart == "Head" then
+        predicted = predicted + Vector3.new(0, 0.5, 0)
+    end
+    
+    return predicted
 end
 
 local function GetClosestTarget(fovRange, maxRange, partName, teamCheck, visibleCheck)
@@ -966,9 +1022,12 @@ local function GetClosestTarget(fovRange, maxRange, partName, teamCheck, visible
             if hum and hum.Health > 0 then
                 local part = char:FindFirstChild(partName) or char:FindFirstChild("HumanoidRootPart")
                 if part then
-                    local predPos = Config.Aimbot.Prediction
-                        and GetPredictedPosition(part, Config.Aimbot.PredictionX)
-                        or part.Position
+                    local predPos
+                    if Config.Aimbot.Prediction then
+                        predPos = GetPredictedPosition(part)
+                    else
+                        predPos = part.Position
+                    end
                     local sp, onScreen = Camera:WorldToViewportPoint(predPos)
                     if onScreen then
                         local d3 = (Camera.CFrame.Position - predPos).Magnitude
@@ -1060,12 +1119,9 @@ pcall(function()
         if method == "FireServer" and typeof(self) == "Instance" then
             if Config.Gun.LongRange then
                 local args = table.pack(...)
-                
-                -- BulletFire — 3 или 4 аргумент = дальность/скорость
                 if self.Name == "BulletFire" or self.Name == "Shot" or self.Name == "BowShoot" then
                     for i = 1, args.n do
                         local v = args[i]
-                        -- Ищем number — возможно дальность
                         if typeof(v) == "number" and v > 50 and v < 10000 then
                             local newVal = v * Config.Gun.RangeMultiplier
                             args[i] = newVal
@@ -1286,14 +1342,6 @@ TrackConn(UIS.JumpRequest:Connect(function()
 end))
 
 --=========================================================
--- NO RECOIL — запуск
---=========================================================
-task.spawn(function()
-    task.wait(2)
-    SetupNoRecoil()
-end)
-
---=========================================================
 -- ХОТКЕИ
 --=========================================================
 TrackConn(UIS.InputBegan:Connect(function(input, gpe)
@@ -1322,7 +1370,5 @@ TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     end
 end))
 
-notify("FerClient v6.0", "Decay — No Recoil + Long Range")
-print("[FerClient] Decay v6.0 — No Recoil + Long Range")
-print("No Recoil: хук на SpringModule")
-print("Long Range: хук на BulletFire")
+notify("FerClient v6.1", "Decay — Prediction 2.0 (для бегущих)")
+print("[FerClient] Decay v6.1 — Aimbot Prediction 2.0 + No Recoil + Long Range")
