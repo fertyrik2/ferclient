@@ -1,7 +1,7 @@
 --[[
-    FerClient | Decay v5.2 | FINAL
-    Silent Aim + Visible Check + ESP + Aimbot
-    ФИКС: залипание + враг за стеной
+    FerClient | Decay v6.0
+    Silent Aim + ESP + Aimbot + No Recoil + Long Range
+    Модули: SpringModule (отдача), BulletFire (дальность)
 ]]
 
 if getgenv().FerClient_Decay_Loaded then
@@ -20,6 +20,7 @@ local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 local Lighting = game:GetService("Lighting")
 local StarterGui = game:GetService("StarterGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Camera = Workspace.CurrentCamera
 local LP = Players.LocalPlayer
 
@@ -56,15 +57,20 @@ local Config = {
         Prediction = true, PredictionX = 0.15,
     },
     Silent = {
-        Enabled = true,
+        Enabled = false,
         FOV = 300,
-        MaxDistance = 50,
+        MaxDistance = 20,
         TargetPart = "Head",
         TeamCheck = true,
         Debug = true,
         LastReplace = 0,
-        Cooldown = 0.15,
-        VisibleCheck = true,  -- НОВОЕ: проверка стен
+        Cooldown = 0.3,
+        VisibleCheck = true,
+    },
+    Gun = {
+        NoRecoil = false,
+        LongRange = false,
+        RangeMultiplier = 3,  -- во сколько раз увеличить дальность
     },
     Player = {
         NoFallDamage = false,
@@ -97,6 +103,56 @@ local function notify(title, text)
             Duration = 2,
         })
     end)
+end
+
+--=========================================================
+-- NO RECOIL — Хук на SpringModule
+--=========================================================
+local function SetupNoRecoil()
+    pcall(function()
+        local GunSystem = ReplicatedStorage:FindFirstChild("GunSystem")
+        if not GunSystem then return end
+        
+        local Modules = GunSystem:FindFirstChild("Modules")
+        if not Modules then return end
+        
+        local SpringModule = Modules:FindFirstChild("SpringModule")
+        if not SpringModule then return end
+        
+        -- SpringModule — модуль отдачи
+        local ok, Spring = pcall(require, SpringModule)
+        if not ok or type(Spring) ~= "table" then return end
+        
+        -- Хукаем все функции Spring
+        for name, fn in pairs(Spring) do
+            if type(fn) == "function" and not tostring(name):find("_orig") then
+                if not Spring["_fc_" .. name] then
+                    Spring["_fc_" .. name] = fn
+                end
+                Spring[name] = function(self, ...)
+                    if Config.Gun.NoRecoil then
+                        -- Ничего не делаем — нет отдачи
+                        return
+                    end
+                    return Spring["_fc_" .. name](self, ...)
+                end
+            end
+        end
+        
+        print("[NoRecoil] SpringModule захукан")
+    end)
+end
+
+--=========================================================
+-- LONG RANGE — Хук на BulletFire
+--=========================================================
+local function SetupLongRange()
+    -- Хук на ремоут BulletFire — увеличиваем дальность
+    TrackConn(ReplicatedStorage.DescendantAdded:Connect(function(obj)
+        if obj.Name == "BulletFire" and obj:IsA("RemoteEvent") then
+            print("[LongRange] BulletFire найден")
+        end
+    end))
 end
 
 --=========================================================
@@ -564,7 +620,7 @@ end)
 
 MakeSectionTitle(CombatContent, "SILENT AIM")
 
-MakeToggle(CombatContent, "Silent Aim", true, function()
+MakeToggle(CombatContent, "Silent Aim", false, function()
     Config.Silent.Enabled = not Config.Silent.Enabled
 end)
 
@@ -580,8 +636,21 @@ MakeToggle(CombatContent, "Silent Debug", true, function()
     Config.Silent.Debug = not Config.Silent.Debug
 end)
 
-MakeSlider(CombatContent, "Silent Max Dist (≤50)", 5, 50, Config.Silent.MaxDistance, function(v)
-    Config.Silent.MaxDistance = v
+--=========================================================
+-- GUN MODS (НОВОЕ!)
+--=========================================================
+MakeSectionTitle(CombatContent, "GUN MODS")
+
+MakeToggle(CombatContent, "No Recoil", false, function()
+    Config.Gun.NoRecoil = not Config.Gun.NoRecoil
+end)
+
+MakeToggle(CombatContent, "Long Range Bullets", false, function()
+    Config.Gun.LongRange = not Config.Gun.LongRange
+end)
+
+MakeSlider(CombatContent, "Range Multiplier", 1, 10, Config.Gun.RangeMultiplier, function(v)
+    Config.Gun.RangeMultiplier = v
 end)
 
 --=========================================================
@@ -677,7 +746,7 @@ MakeSectionTitle(SettingsContent, "SETTINGS")
 local infoLbl = Instance.new("TextLabel")
 infoLbl.Size = UDim2.new(1, 0, 0, 100)
 infoLbl.BackgroundTransparency = 1
-infoLbl.Text = "FerClient Decay v5.2 FINAL\nVisible Check + Anti-Stuck\n\nHotkeys:\nF1=ESP  F2=Aim  F3=AutoAim  F4=InfJump\nF5=Silent Aim  RightShift=Menu  Delete=Unload\n\nSilent Aim ON по умолчанию\nКруг ЗЕЛЁНЫЙ только если врага видно"
+infoLbl.Text = "FerClient Decay v6.0 FINAL\nNo Recoil + Long Range\n\nHotkeys:\nF1=ESP  F2=Aim  F3=AutoAim  F4=InfJump\nF5=Silent Aim  F6=No Recoil  F7=Long Range\nRightShift=Menu  Delete=Unload"
 infoLbl.TextColor3 = Theme.TextDim
 infoLbl.Font = Theme.Font
 infoLbl.TextSize = 10
@@ -856,7 +925,7 @@ local function RemoveESP(player)
 end
 
 --=========================================================
--- AIMBOT ЛОГИКА
+-- AIMBOT / SILENT ЛОГИКА
 --=========================================================
 local function IsTeammate(plr, check)
     if not check then return false end
@@ -864,33 +933,20 @@ local function IsTeammate(plr, check)
     return plr.Team == LP.Team
 end
 
--- ⚠️ ВАЖНО: Visible Check для Silent Aim
 local _visRayParams = nil
 local function IsVisible(part, character)
     if not part or not character then return false end
-    
     if not _visRayParams then
         _visRayParams = RaycastParams.new()
         _visRayParams.FilterType = Enum.RaycastFilterType.Exclude
         _visRayParams.IgnoreWater = true
     end
-    
     _visRayParams.FilterDescendantsInstances = { LP.Character, Camera, character }
-    
     local origin = Camera.CFrame.Position
     local direction = part.Position - origin
-    
     local result = Workspace:Raycast(origin, direction, _visRayParams)
-    
-    -- Если луч ни во что не попал → значит видно
     if not result then return true end
-    
-    -- Если попал в цель → видно
-    if result.Instance and result.Instance:IsDescendantOf(character) then
-        return true
-    end
-    
-    -- Иначе — стена/препятствие
+    if result.Instance and result.Instance:IsDescendantOf(character) then return true end
     return false
 end
 
@@ -903,7 +959,6 @@ end
 local function GetClosestTarget(fovRange, maxRange, partName, teamCheck, visibleCheck)
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     local closest, closestDist, closestPos, closestPlayer = nil, fovRange, nil, nil
-
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LP and not IsTeammate(plr, teamCheck) then
             local char = plr.Character
@@ -920,7 +975,6 @@ local function GetClosestTarget(fovRange, maxRange, partName, teamCheck, visible
                         if d3 <= maxRange then
                             local sd = (Vector2.new(sp.X, sp.Y) - center).Magnitude
                             if sd < closestDist then
-                                -- ⚠️ ВАЖНО: Visible Check
                                 if not visibleCheck or IsVisible(part, char) then
                                     closestDist = sd
                                     closest = part
@@ -937,9 +991,6 @@ local function GetClosestTarget(fovRange, maxRange, partName, teamCheck, visible
     return closest, closestPos, closestPlayer
 end
 
---=========================================================
--- SILENT AIM — обновляем цель с VISIBLE CHECK
---=========================================================
 local silentTarget = nil
 local silentTargetPos = nil
 
@@ -948,7 +999,7 @@ TrackConn(RunService.RenderStepped:Connect(function()
         local t, p = GetClosestTarget(
             Config.Silent.FOV, Config.Silent.MaxDistance,
             Config.Silent.TargetPart, Config.Silent.TeamCheck,
-            Config.Silent.VisibleCheck  -- ⚠️ передаём visible check
+            Config.Silent.VisibleCheck
         )
         silentTarget = t
         silentTargetPos = p
@@ -959,54 +1010,34 @@ TrackConn(RunService.RenderStepped:Connect(function()
 end))
 
 --=========================================================
--- SILENT AIM HOOK — с полным фиксом
+-- SILENT AIM HOOK
 --=========================================================
 pcall(function()
-    if not (hookmetamethod and newcclosure) then
-        warn("[FerClient] hookmetamethod не поддерживается")
-        return
-    end
-
+    if not (hookmetamethod and newcclosure) then return end
     local oldNC
     oldNC = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
         local method = getnamecallmethod()
-
         if method == "FireServer" and typeof(self) == "Instance" then
             if Config.Silent.Enabled then
                 local args = table.pack(...)
-
                 if self.Name == "Swing" then
                     local now = tick()
-                    
-                    -- ⚠️ Таймаут
                     if (now - Config.Silent.LastReplace) < Config.Silent.Cooldown then
                         return oldNC(self, ...)
                     end
-
                     if silentTargetPos and typeof(args[1]) == "Vector3" then
                         local targetChar = silentTarget and silentTarget.Parent
                         local targetHum = targetChar and targetChar:FindFirstChildOfClass("Humanoid")
-                        
                         if targetHum and targetHum.Health > 0 then
                             local dist = (silentTargetPos - Camera.CFrame.Position).Magnitude
-                            
                             if dist <= Config.Silent.MaxDistance then
-                                -- ⚠️ ДОПОЛНИТЕЛЬНЫЙ visible check перед подменой
                                 if not Config.Silent.VisibleCheck or IsVisible(silentTarget, targetChar) then
-                                    
                                     Config.Silent.LastReplace = now
-                                    local direction = (silentTargetPos - Camera.CFrame.Position).Unit
-                                    args[1] = direction
-
+                                    args[1] = (silentTargetPos - Camera.CFrame.Position).Unit
                                     if Config.Silent.Debug then
                                         notify("SilentAim ✅", targetChar.Name .. " (" .. math.floor(dist) .. "m)")
                                     end
-
                                     return oldNC(self, table.unpack(args, 1, args.n))
-                                else
-                                    if Config.Silent.Debug then
-                                        notify("SilentAim ❌", "Враг за стеной")
-                                    end
                                 end
                             end
                         end
@@ -1014,18 +1045,47 @@ pcall(function()
                 end
             end
         end
-
         return oldNC(self, ...)
     end))
+end)
 
-    print("[FerClient] Silent Aim v5.2 (Visible Check + Anti-Stuck)")
+--=========================================================
+-- LONG RANGE HOOK
+--=========================================================
+pcall(function()
+    if not (hookmetamethod and newcclosure) then return end
+    local oldNC
+    oldNC = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        if method == "FireServer" and typeof(self) == "Instance" then
+            if Config.Gun.LongRange then
+                local args = table.pack(...)
+                
+                -- BulletFire — 3 или 4 аргумент = дальность/скорость
+                if self.Name == "BulletFire" or self.Name == "Shot" or self.Name == "BowShoot" then
+                    for i = 1, args.n do
+                        local v = args[i]
+                        -- Ищем number — возможно дальность
+                        if typeof(v) == "number" and v > 50 and v < 10000 then
+                            local newVal = v * Config.Gun.RangeMultiplier
+                            args[i] = newVal
+                            if Config.Silent.Debug then
+                                print("[LongRange] " .. tostring(v) .. " → " .. tostring(newVal))
+                            end
+                        end
+                    end
+                    return oldNC(self, table.unpack(args, 1, args.n))
+                end
+            end
+        end
+        return oldNC(self, ...)
+    end))
 end)
 
 --=========================================================
 -- AIMBOT РЕНДЕР
 --=========================================================
 local AIM_PRIORITY = Enum.RenderPriority.Camera.Value + 10
-
 local function AimStep()
     local shouldAim = false
     if Config.Aimbot.Enabled then
@@ -1034,7 +1094,6 @@ local function AimStep()
         elseif UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then shouldAim = true
         end
     end
-
     if shouldAim then
         local target, predPos = GetClosestTarget(
             Config.Aimbot.FOV, Config.Aimbot.MaxDistance,
@@ -1046,7 +1105,6 @@ local function AimStep()
         end
     end
 end
-
 RunService:BindToRenderStep("Decay_Aimbot", AIM_PRIORITY, AimStep)
 
 --=========================================================
@@ -1055,20 +1113,16 @@ RunService:BindToRenderStep("Decay_Aimbot", AIM_PRIORITY, AimStep)
 local savedWalkSpeed = 16
 
 TrackConn(RunService.RenderStepped:Connect(function()
-    -- FOV круг с индикацией
     if Config.Aimbot.ShowFOV and (Config.Aimbot.Enabled or Config.Silent.Enabled) then
         FovCircle.Visible = true
         FovCircle.Size = UDim2.new(0, Config.Aimbot.FOV * 2, 0, Config.Aimbot.FOV * 2)
-        
-        -- ⚠️ ВАЖНО: круг ЗЕЛЁНЫЙ только если цель ВИДНА
         if Config.Silent.Enabled and silentTarget and silentTargetPos then
-            -- Проверяем видимость ещё раз для цвета
             local targetChar = silentTarget.Parent
             if targetChar and (not Config.Silent.VisibleCheck or IsVisible(silentTarget, targetChar)) then
-                FovStroke.Color = Color3.fromRGB(0, 255, 100)  -- зелёный = цель видна
+                FovStroke.Color = Color3.fromRGB(0, 255, 100)
                 FovStroke.Transparency = 0.1
             else
-                FovStroke.Color = Theme.Accent  -- фиолетовый = цель за стеной
+                FovStroke.Color = Theme.Accent
                 FovStroke.Transparency = 0.4
             end
         else
@@ -1079,65 +1133,52 @@ TrackConn(RunService.RenderStepped:Connect(function()
         FovCircle.Visible = false
     end
 
-    -- ESP
     if hasDrawing then
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LP then
                 local d = ESPCache[plr]
                 if not d then CreateESP(plr); d = ESPCache[plr] end
-
                 local char = plr.Character
                 local hum = char and char:FindFirstChildOfClass("Humanoid")
                 local root = char and char:FindFirstChild("HumanoidRootPart")
-
                 if not Config.ESP.Enabled or not root or not hum or hum.Health <= 0 then
                     for _, o in pairs(d) do o.Visible = false end
                     continue
                 end
-
                 local d3 = (Camera.CFrame.Position - root.Position).Magnitude
                 if d3 > Config.ESP.MaxDistance then
                     for _, o in pairs(d) do o.Visible = false end
                     continue
                 end
-
                 local sTop, onT = Camera:WorldToViewportPoint(root.Position + Vector3.new(0, 3, 0))
                 local sBot, onB = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
                 if not (onT and onB) then
                     for _, o in pairs(d) do o.Visible = false end
                     continue
                 end
-
                 local height = math.abs(sBot.Y - sTop.Y)
                 local width = height * 0.55
                 local x, y = sTop.X - width / 2, sTop.Y
-
                 d.Box.Visible = Config.ESP.Box
                 d.Box.Size = Vector2.new(width, height)
                 d.Box.Position = Vector2.new(x, y)
-
                 d.BoxOutline.Visible = Config.ESP.Box
                 d.BoxOutline.Size = Vector2.new(width, height)
                 d.BoxOutline.Position = Vector2.new(x, y)
-
                 d.Name.Visible = Config.ESP.Name
                 d.Name.Text = plr.Name
                 d.Name.Position = Vector2.new(sTop.X, y - 16)
-
                 d.Dist.Visible = Config.ESP.Distance
                 d.Dist.Text = math.floor(d3) .. "m"
                 d.Dist.Position = Vector2.new(sTop.X, y + height + 2)
-
                 if Config.ESP.Health then
                     local pct = math.clamp(hum.Health / math.max(hum.MaxHealth, 1), 0, 1)
                     d.HealthBg.Visible = true
                     d.HealthBg.Size = Vector2.new(3, height)
                     d.HealthBg.Position = Vector2.new(x - 5, y)
-
                     d.Health.Visible = true
                     d.Health.Size = Vector2.new(3, height * pct)
                     d.Health.Position = Vector2.new(x - 5, y + height - height * pct)
-
                     d.Health.Color = pct > 0.6 and Color3.fromRGB(0, 255, 0)
                         or pct > 0.3 and Color3.fromRGB(255, 200, 0)
                         or Color3.fromRGB(255, 0, 0)
@@ -1145,7 +1186,6 @@ TrackConn(RunService.RenderStepped:Connect(function()
                     d.Health.Visible = false
                     d.HealthBg.Visible = false
                 end
-
                 d.Tracer.Visible = Config.ESP.Tracer
                 if Config.ESP.Tracer then
                     d.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
@@ -1155,7 +1195,6 @@ TrackConn(RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- Speed / Noclip / NoFall
     local char = LP.Character
     if char then
         local hum = char:FindFirstChildOfClass("Humanoid")
@@ -1165,13 +1204,11 @@ TrackConn(RunService.RenderStepped:Connect(function()
             else
                 if hum.WalkSpeed ~= savedWalkSpeed then hum.WalkSpeed = savedWalkSpeed end
             end
-
             if Config.Player.NoFallDamage then
                 hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
                 hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
             end
         end
-
         if Config.Player.Noclip then
             for _, part in ipairs(char:GetDescendants()) do
                 if part:IsA("BasePart") then part.CanCollide = false end
@@ -1249,6 +1286,14 @@ TrackConn(UIS.JumpRequest:Connect(function()
 end))
 
 --=========================================================
+-- NO RECOIL — запуск
+--=========================================================
+task.spawn(function()
+    task.wait(2)
+    SetupNoRecoil()
+end)
+
+--=========================================================
 -- ХОТКЕИ
 --=========================================================
 TrackConn(UIS.InputBegan:Connect(function(input, gpe)
@@ -1264,6 +1309,12 @@ TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     elseif input.KeyCode == Enum.KeyCode.F5 then
         Config.Silent.Enabled = not Config.Silent.Enabled
         notify("Silent Aim", Config.Silent.Enabled and "ON" or "OFF")
+    elseif input.KeyCode == Enum.KeyCode.F6 then
+        Config.Gun.NoRecoil = not Config.Gun.NoRecoil
+        notify("No Recoil", Config.Gun.NoRecoil and "ON" or "OFF")
+    elseif input.KeyCode == Enum.KeyCode.F7 then
+        Config.Gun.LongRange = not Config.Gun.LongRange
+        notify("Long Range", Config.Gun.LongRange and "ON" or "OFF")
     elseif input.KeyCode == Enum.KeyCode.RightShift then
         Menu.Visible = not Menu.Visible
     elseif input.KeyCode == Enum.KeyCode.Delete then
@@ -1271,5 +1322,7 @@ TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     end
 end))
 
-notify("FerClient v5.2", "Decay FINAL — Visible Check + Anti-Stuck")
-print("[FerClient] Decay v5.2 — Silent Aim + Visible Check + Anti-Stuck")
+notify("FerClient v6.0", "Decay — No Recoil + Long Range")
+print("[FerClient] Decay v6.0 — No Recoil + Long Range")
+print("No Recoil: хук на SpringModule")
+print("Long Range: хук на BulletFire")
