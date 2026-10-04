@@ -1,7 +1,8 @@
 --[[
-    FerClient | Decay v6.2
-    Silent Aim + ESP + Aimbot (Prediction 2.0) + No Recoil + Long Range + No Fog
-    НОВОЕ: No Fog — убирает туман
+    FerClient | Decay v7.0 FINAL
+    ESP + Aimbot + Silent Aim + No Recoil + Long Range + No Fog
+    + Anti-AFK + FOV Change + Skeleton ESP + Config Save
+    + Speed без телепорта
 ]]
 
 if getgenv().FerClient_Decay_Loaded then
@@ -21,6 +22,8 @@ local Workspace = game:GetService("Workspace")
 local Lighting = game:GetService("Lighting")
 local StarterGui = game:GetService("StarterGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VirtualUser = game:GetService("VirtualUser")
+local HttpService = game:GetService("HttpService")
 local Camera = Workspace.CurrentCamera
 local LP = Players.LocalPlayer
 
@@ -42,54 +45,46 @@ local Theme = {
 }
 
 --=========================================================
--- КОНФИГ
+-- КОНФИГ (все функции OFF по умолчанию)
 --=========================================================
 local Config = {
     ESP = {
-        Enabled = true,
+        Enabled = true,        -- ВКЛ (базовое)
         Box = true, Name = true, Distance = true, Health = true, Tracer = true,
+        Skeleton = false,
         MaxDistance = 1500, Color = Theme.Accent,
     },
     Aimbot = {
         Enabled = false, AutoAim = false, FOV = 200, Smoothness = 0.5,
         MaxDistance = 600, TargetPart = "Head", Visible = false,
         TeamCheck = true, ShowFOV = true, TriggerActive = false,
-        Prediction = true,
-        PredictionX = 0.2,
-        PredictionAuto = true,
-        PredictionMax = 0.5,
-        VelocitySmooth = 5,
-        UseVelocityHistory = true,
+        Prediction = true, PredictionX = 0.2, PredictionAuto = true,
+        PredictionMax = 0.5, UseVelocityHistory = true,
     },
     Silent = {
-        Enabled = false,
-        FOV = 300,
-        MaxDistance = 20,
-        TargetPart = "Head",
-        TeamCheck = true,
-        Debug = true,
-        LastReplace = 0,
-        Cooldown = 0.3,
-        VisibleCheck = true,
+        Enabled = false, FOV = 300, MaxDistance = 20, TargetPart = "Head",
+        TeamCheck = true, Debug = true, LastReplace = 0, Cooldown = 0.3, VisibleCheck = true,
     },
     Gun = {
-        NoRecoil = false,
-        LongRange = false,
-        RangeMultiplier = 3,
+        NoRecoil = false, LongRange = false, RangeMultiplier = 3,
     },
     Player = {
         NoFallDamage = false,
         SpeedEnabled = false, SpeedValue = 30,
         Noclip = false,
+        AntiAFK = false,
     },
     Visual = {
-        Fullbright = false, XRay = false, FPSBoost = false,
-        NoFog = false,
+        Fullbright = false, XRay = false, FPSBoost = false, NoFog = false,
+        FOVChange = false, FOVValue = 70,
     },
     Misc = {
         InfiniteJump = false,
     }
 }
+
+-- Дефолт для восстановления при загрузке конфига
+local DefaultConfig = HttpService:JSONEncode(Config)
 
 local hasDrawing = pcall(function()
     local t = Drawing.new("Square"); t:Remove()
@@ -109,6 +104,79 @@ local function notify(title, text)
             Duration = 2,
         })
     end)
+end
+
+--=========================================================
+-- КОНФИГ SAVE/LOAD
+--=========================================================
+local CONFIG_FILE = "FerClient_Decay_Config.json"
+
+local function SaveConfig()
+    pcall(function()
+        if writefile then
+            local data = HttpService:JSONEncode(Config)
+            writefile(CONFIG_FILE, data)
+            notify("Config", "Сохранено ✅")
+        else
+            notify("Config", "writefile недоступен")
+        end
+    end)
+end
+
+local function LoadConfig()
+    pcall(function()
+        if isfile and isfile(CONFIG_FILE) then
+            local data = readfile(CONFIG_FILE)
+            local loaded = HttpService:JSONDecode(data)
+            
+            -- Применяем по секциям
+            for section, values in pairs(loaded) do
+                if Config[section] and type(values) == "table" then
+                    for key, val in pairs(values) do
+                        Config[section][key] = val
+                    end
+                end
+            end
+            notify("Config", "Загружено ✅")
+        else
+            notify("Config", "Файла нет")
+        end
+    end)
+end
+
+local function ResetConfig()
+    pcall(function()
+        local default = HttpService:JSONDecode(DefaultConfig)
+        for section, values in pairs(default) do
+            if Config[section] then
+                for key, val in pairs(values) do
+                    Config[section][key] = val
+                end
+            end
+        end
+        notify("Config", "Сброшено ✅")
+    end)
+end
+
+--=========================================================
+-- ANTI-AFK
+--=========================================================
+local AntiAFKActive = false
+local function EnableAntiAFK()
+    if AntiAFKActive then return end
+    AntiAFKActive = true
+    TrackConn(LP.Idled:Connect(function()
+        pcall(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end)
+    end))
+    notify("Anti-AFK", "Включён ✅")
+end
+
+local function DisableAntiAFK()
+    AntiAFKActive = false
+    notify("Anti-AFK", "Выключен")
 end
 
 --=========================================================
@@ -138,9 +206,7 @@ local MenuStroke = Instance.new("UIStroke", Menu)
 MenuStroke.Color = Theme.Border
 MenuStroke.Thickness = 1
 
---=========================================================
 -- СНЕЖИНКИ
---=========================================================
 local SnowContainer = Instance.new("Frame")
 SnowContainer.Size = UDim2.new(1, 0, 1, 0)
 SnowContainer.BackgroundTransparency = 1
@@ -204,9 +270,7 @@ TrackConn(RunService.RenderStepped:Connect(function(dt)
     end
 end))
 
---=========================================================
 -- ЗАГОЛОВОК
---=========================================================
 local TopBar = Instance.new("Frame")
 TopBar.Size = UDim2.new(1, 0, 0, 26)
 TopBar.BackgroundColor3 = Theme.Background
@@ -218,7 +282,7 @@ local Logo = Instance.new("TextLabel")
 Logo.Size = UDim2.new(1, -70, 1, 0)
 Logo.Position = UDim2.new(0, 10, 0, 0)
 Logo.BackgroundTransparency = 1
-Logo.Text = "FerClient.lua"
+Logo.Text = "FerClient v7.0"
 Logo.TextColor3 = Theme.Text
 Logo.Font = Theme.FontBold
 Logo.TextSize = 12
@@ -250,9 +314,7 @@ UnloadBtn.AutoButtonColor = false
 UnloadBtn.ZIndex = 4
 UnloadBtn.Parent = TopBar
 
---=========================================================
 -- КОНТЕНТ
---=========================================================
 local Content = Instance.new("Frame")
 Content.Size = UDim2.new(1, -20, 1, -54)
 Content.Position = UDim2.new(0, 10, 0, 30)
@@ -286,9 +348,7 @@ local MovementContent = MakeTabContent()
 local MiscContent = MakeTabContent()
 local SettingsContent = MakeTabContent()
 
---=========================================================
 -- НИЖНИЕ ВКЛАДКИ
---=========================================================
 local BottomTabs = Instance.new("Frame")
 BottomTabs.Size = UDim2.new(1, 0, 0, 22)
 BottomTabs.Position = UDim2.new(0, 0, 1, -24)
@@ -343,9 +403,7 @@ CombatTab.Btn.TextColor3 = Theme.Accent
 CombatTab.Btn.Font = Theme.FontBold
 CombatContent.Visible = true
 
---=========================================================
 -- ТУМБЛЕР
---=========================================================
 local function MakeToggle(parent, text, defaultOn, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, 0, 0, 22)
@@ -418,9 +476,7 @@ local function MakeToggle(parent, text, defaultOn, callback)
     return { Frame = frame, SetOn = function(v) isOn = v and true or false; applyState() end }
 end
 
---=========================================================
 -- СЛАЙДЕР
---=========================================================
 local function MakeSlider(parent, text, min, max, default, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, 0, 0, 26)
@@ -515,9 +571,35 @@ local function MakeSlider(parent, text, min, max, default, callback)
     return { Frame = frame }
 end
 
---=========================================================
--- ЗАГОЛОВОК СЕКЦИИ
---=========================================================
+-- КНОПКА
+local function MakeButton(parent, text, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 28)
+    btn.BackgroundColor3 = Theme.Element
+    btn.BorderSizePixel = 0
+    btn.Text = text
+    btn.TextColor3 = Theme.Text
+    btn.Font = Theme.FontBold
+    btn.TextSize = 11
+    btn.AutoButtonColor = false
+    btn.Parent = parent
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+    Instance.new("UIStroke", btn).Color = Theme.Border
+    
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = Theme.Accent }):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = Theme.Element }):Play()
+    end)
+    
+    btn.MouseButton1Click:Connect(function()
+        pcall(callback)
+    end)
+    
+    return btn
+end
+
 local function MakeSectionTitle(parent, text)
     local lbl = Instance.new("TextLabel")
     lbl.Size = UDim2.new(1, 0, 0, 16)
@@ -544,7 +626,7 @@ MakeToggle(CombatContent, "Auto Aim", false, function()
     Config.Aimbot.AutoAim = not Config.Aimbot.AutoAim
 end)
 
-MakeToggle(CombatContent, "FOV Circle", true, function()
+MakeToggle(CombatContent, "FOV Circle", false, function()
     Config.Aimbot.ShowFOV = not Config.Aimbot.ShowFOV
 end)
 
@@ -552,7 +634,7 @@ MakeToggle(CombatContent, "Prediction", true, function()
     Config.Aimbot.Prediction = not Config.Aimbot.Prediction
 end)
 
-MakeToggle(CombatContent, "Auto Prediction (по дистанции)", true, function()
+MakeToggle(CombatContent, "Auto Prediction", true, function()
     Config.Aimbot.PredictionAuto = not Config.Aimbot.PredictionAuto
 end)
 
@@ -571,7 +653,7 @@ end)
 
 MakeSlider(CombatContent, "FOV Radius", 30, 600, Config.Aimbot.FOV, function(v)
     Config.Aimbot.FOV = v
-    FovCircle.Size = UDim2.new(0, v * 2, 0, v * 2)
+    if FovCircle then FovCircle.Size = UDim2.new(0, v * 2, 0, v * 2) end
 end)
 
 MakeSlider(CombatContent, "Smoothness", 10, 100, 50, function(v)
@@ -580,14 +662,6 @@ end)
 
 MakeSlider(CombatContent, "Aimbot Max Dist", 100, 2000, Config.Aimbot.MaxDistance, function(v)
     Config.Aimbot.MaxDistance = v
-end)
-
-MakeSlider(CombatContent, "Prediction Base x100", 5, 50, math.floor((Config.Aimbot.PredictionX or 0.2) * 100), function(v)
-    Config.Aimbot.PredictionX = v / 100
-end)
-
-MakeSlider(CombatContent, "Prediction Max x100", 20, 100, math.floor((Config.Aimbot.PredictionMax or 0.5) * 100), function(v)
-    Config.Aimbot.PredictionMax = v / 100
 end)
 
 MakeSectionTitle(CombatContent, "SILENT AIM")
@@ -602,10 +676,6 @@ end)
 
 MakeToggle(CombatContent, "Silent Visible Check", true, function()
     Config.Silent.VisibleCheck = not Config.Silent.VisibleCheck
-end)
-
-MakeToggle(CombatContent, "Silent Debug", true, function()
-    Config.Silent.Debug = not Config.Silent.Debug
 end)
 
 MakeSectionTitle(CombatContent, "GUN MODS")
@@ -651,6 +721,19 @@ MakeToggle(VisualContent, "Tracers", true, function()
     Config.ESP.Tracer = not Config.ESP.Tracer
 end)
 
+MakeToggle(VisualContent, "Skeleton ESP", false, function()
+    Config.ESP.Skeleton = not Config.ESP.Skeleton
+    if Config.ESP.Skeleton then
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LP then CreateSkeleton(p) end
+        end
+    else
+        for _, p in ipairs(Players:GetPlayers()) do
+            RemoveSkeleton(p)
+        end
+    end
+end)
+
 MakeSlider(VisualContent, "ESP Distance", 200, 3000, Config.ESP.MaxDistance, function(v)
     Config.ESP.MaxDistance = v
 end)
@@ -669,9 +752,17 @@ MakeToggle(VisualContent, "FPS Boost", false, function()
     Config.Visual.FPSBoost = not Config.Visual.FPSBoost
 end)
 
-MakeToggle(VisualContent, "No Fog (убрать туман)", false, function()
+MakeToggle(VisualContent, "No Fog", false, function()
     Config.Visual.NoFog = not Config.Visual.NoFog
     notify("No Fog", Config.Visual.NoFog and "ON" or "OFF")
+end)
+
+MakeToggle(VisualContent, "FOV Change", false, function()
+    Config.Visual.FOVChange = not Config.Visual.FOVChange
+end)
+
+MakeSlider(VisualContent, "FOV Value", 30, 120, Config.Visual.FOVValue, function(v)
+    Config.Visual.FOVValue = v
 end)
 
 --=========================================================
@@ -708,19 +799,38 @@ MakeToggle(MiscContent, "Infinite Jump", false, function()
     Config.Misc.InfiniteJump = not Config.Misc.InfiniteJump
 end)
 
-MakeToggle(MiscContent, "Silent Debug", true, function()
-    Config.Silent.Debug = not Config.Silent.Debug
+MakeToggle(MiscContent, "Anti-AFK", false, function()
+    Config.Player.AntiAFK = not Config.Player.AntiAFK
+    if Config.Player.AntiAFK then
+        EnableAntiAFK()
+    else
+        DisableAntiAFK()
+    end
 end)
 
 --=========================================================
 -- SETTINGS
 --=========================================================
-MakeSectionTitle(SettingsContent, "SETTINGS")
+MakeSectionTitle(SettingsContent, "CONFIG")
+
+MakeButton(SettingsContent, "💾 Сохранить Config", function()
+    SaveConfig()
+end)
+
+MakeButton(SettingsContent, "📂 Загрузить Config", function()
+    LoadConfig()
+end)
+
+MakeButton(SettingsContent, "🔄 Сбросить Config", function()
+    ResetConfig()
+end)
+
+MakeSectionTitle(SettingsContent, "INFO")
 
 local infoLbl = Instance.new("TextLabel")
 infoLbl.Size = UDim2.new(1, 0, 0, 130)
 infoLbl.BackgroundTransparency = 1
-infoLbl.Text = "FerClient Decay v6.2 FINAL\nPrediction 2.0 + No Fog\n\nHotkeys:\nF1=ESP  F2=Aim  F3=AutoAim  F4=InfJump\nF5=Silent Aim  F6=No Recoil  F7=Long Range\nF8=No Fog  RightShift=Menu  Delete=Unload"
+infoLbl.Text = "FerClient Decay v7.0\nAnti-AFK + FOV + Skeleton + Config\n\nHotkeys:\nF1=ESP  F2=Aim  F3=AutoAim  F4=InfJump\nF5=Silent Aim  F6=No Recoil  F7=Long Range\nF8=No Fog  F9=Anti-AFK  RightShift=Menu\nDelete=Unload\n\nВсе функции OFF по умолчанию"
 infoLbl.TextColor3 = Theme.TextDim
 infoLbl.Font = Theme.Font
 infoLbl.TextSize = 10
@@ -757,9 +867,7 @@ TriggerBtn.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputTy
 TriggerBtn.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.Touch then setTrig(false) end end)
 TriggerBtn.MouseLeave:Connect(function() setTrig(false) end)
 
---=========================================================
 -- FC КНОПКА
---=========================================================
 local FCBtn = Instance.new("TextButton")
 FCBtn.Size = UDim2.new(0, 50, 0, 28)
 FCBtn.Position = UDim2.new(0, 10, 0.5, -14)
@@ -795,9 +903,7 @@ FCBtn.MouseButton1Click:Connect(function()
     Menu.Visible = not Menu.Visible
 end)
 
---=========================================================
 -- СВОРАЧИВАНИЕ
---=========================================================
 local isMin = false
 local function toggleMin()
     isMin = not isMin
@@ -812,12 +918,16 @@ MinimizeBtn.MouseButton1Click:Connect(toggleMin)
 -- UNLOAD
 --=========================================================
 local ESPCache = {}
+local SkeletonCache = {}
 
 local function Unload()
     if getgenv().FerClient_Decay_Unloading then return end
     getgenv().FerClient_Decay_Unloading = true
     pcall(function() RunService:UnbindFromRenderStep("Decay_Aimbot") end)
     for _, d in pairs(ESPCache) do
+        for _, o in pairs(d) do pcall(function() o:Remove() end) end
+    end
+    for _, d in pairs(SkeletonCache) do
         for _, o in pairs(d) do pcall(function() o:Remove() end) end
     end
     for _, c in ipairs(Connections) do pcall(function() c:Disconnect() end) end
@@ -899,6 +1009,52 @@ local function RemoveESP(player)
 end
 
 --=========================================================
+-- SKELETON ESP
+--=========================================================
+local SKELETON_PARTS = {
+    {"Head", "UpperTorso"},
+    {"UpperTorso", "LowerTorso"},
+    {"UpperTorso", "LeftUpperArm"},
+    {"LeftUpperArm", "LeftLowerArm"},
+    {"LeftLowerArm", "LeftHand"},
+    {"UpperTorso", "RightUpperArm"},
+    {"RightUpperArm", "RightLowerArm"},
+    {"RightLowerArm", "RightHand"},
+    {"LowerTorso", "LeftUpperLeg"},
+    {"LeftUpperLeg", "LeftLowerLeg"},
+    {"LeftLowerLeg", "LeftFoot"},
+    {"LowerTorso", "RightUpperLeg"},
+    {"RightUpperLeg", "RightLowerLeg"},
+    {"RightLowerLeg", "RightFoot"},
+}
+
+local function CreateSkeleton(player)
+    if player == LP or SkeletonCache[player] then return end
+    if not hasDrawing then return end
+    
+    local lines = {}
+    for i = 1, #SKELETON_PARTS do
+        local line = Drawing.new("Line")
+        line.Visible = false
+        line.Color = Color3.fromRGB(255, 255, 255)
+        line.Thickness = 1.5
+        line.Transparency = 1
+        lines[i] = line
+    end
+    
+    SkeletonCache[player] = lines
+end
+
+local function RemoveSkeleton(player)
+    local lines = SkeletonCache[player]
+    if not lines then return end
+    for _, line in ipairs(lines) do
+        pcall(function() line:Remove() end)
+    end
+    SkeletonCache[player] = nil
+end
+
+--=========================================================
 -- AIMBOT / PREDICTION 2.0
 --=========================================================
 local function IsTeammate(plr, check)
@@ -931,7 +1087,6 @@ local function GetSmoothedVelocity(part)
     if not part or not part.Parent then return Vector3.new(0, 0, 0) end
     local vel = part.AssemblyLinearVelocity
     if not vel then return Vector3.new(0, 0, 0) end
-    
     if not Config.Aimbot.UseVelocityHistory then return vel end
     
     if not VelocityHistory[part] then
@@ -952,7 +1107,6 @@ local function GetSmoothedVelocity(part)
     
     local history = VelocityHistory[part]
     local sumX, sumY, sumZ, totalWeight = 0, 0, 0, 0
-    
     for i = 1, #history do
         local weight = (6 - i) / 5
         sumX = sumX + history[i].X * weight
@@ -960,7 +1114,6 @@ local function GetSmoothedVelocity(part)
         sumZ = sumZ + history[i].Z * weight
         totalWeight = totalWeight + weight
     end
-    
     if totalWeight == 0 then return vel end
     return Vector3.new(sumX / totalWeight, sumY / totalWeight, sumZ / totalWeight)
 end
@@ -969,49 +1122,35 @@ local function IsTargetMoving(part)
     if not part or not part.Parent then return false end
     local vel = part.AssemblyLinearVelocity
     if not vel then return false end
-    local horizVel = Vector3.new(vel.X, 0, vel.Z).Magnitude
-    return horizVel > 3
+    return Vector3.new(vel.X, 0, vel.Z).Magnitude > 3
 end
 
 local function CalculatePredictionTime(part, distance)
     if not Config.Aimbot.Prediction then return 0 end
-    
     if Config.Aimbot.PredictionAuto then
         local baseTime = Config.Aimbot.PredictionX or 0.2
-        
         local distMult = 1.0
         if distance > 100 then distMult = 1.5 end
         if distance > 200 then distMult = 2.0 end
         if distance > 400 then distMult = 2.5 end
         if distance > 800 then distMult = 3.0 end
-        
         if IsTargetMoving(part) then distMult = distMult * 1.5 end
-        
-        local predTime = baseTime * distMult
-        return math.min(predTime, Config.Aimbot.PredictionMax or 0.5)
+        return math.min(baseTime * distMult, Config.Aimbot.PredictionMax or 0.5)
     else
         return Config.Aimbot.PredictionX or 0.2
     end
 end
 
-local function GetPredictedPosition(part, predTime)
+local function GetPredictedPosition(part)
     if not part or not part.Parent then return Vector3.new(0, 0, 0) end
     if not Config.Aimbot.Prediction then return part.Position end
-    
     local distance = (part.Position - Camera.CFrame.Position).Magnitude
     local velocity = GetSmoothedVelocity(part)
-    
-    local actualTime = predTime
-    if not actualTime then
-        actualTime = CalculatePredictionTime(part, distance)
-    end
-    
+    local actualTime = CalculatePredictionTime(part, distance)
     local predicted = part.Position + velocity * actualTime
-    
     if Config.Aimbot.TargetPart == "Head" then
         predicted = predicted + Vector3.new(0, 0.5, 0)
     end
-    
     return predicted
 end
 
@@ -1025,12 +1164,7 @@ local function GetClosestTarget(fovRange, maxRange, partName, teamCheck, visible
             if hum and hum.Health > 0 then
                 local part = char:FindFirstChild(partName) or char:FindFirstChild("HumanoidRootPart")
                 if part then
-                    local predPos
-                    if Config.Aimbot.Prediction then
-                        predPos = GetPredictedPosition(part)
-                    else
-                        predPos = part.Position
-                    end
+                    local predPos = Config.Aimbot.Prediction and GetPredictedPosition(part) or part.Position
                     local sp, onScreen = Camera:WorldToViewportPoint(predPos)
                     if onScreen then
                         local d3 = (Camera.CFrame.Position - predPos).Magnitude
@@ -1060,8 +1194,7 @@ TrackConn(RunService.RenderStepped:Connect(function()
     if Config.Silent.Enabled then
         local t, p = GetClosestTarget(
             Config.Silent.FOV, Config.Silent.MaxDistance,
-            Config.Silent.TargetPart, Config.Silent.TeamCheck,
-            Config.Silent.VisibleCheck
+            Config.Silent.TargetPart, Config.Silent.TeamCheck, Config.Silent.VisibleCheck
         )
         silentTarget = t
         silentTargetPos = p
@@ -1126,11 +1259,7 @@ pcall(function()
                     for i = 1, args.n do
                         local v = args[i]
                         if typeof(v) == "number" and v > 50 and v < 10000 then
-                            local newVal = v * Config.Gun.RangeMultiplier
-                            args[i] = newVal
-                            if Config.Silent.Debug then
-                                print("[LongRange] " .. tostring(v) .. " → " .. tostring(newVal))
-                            end
+                            args[i] = v * Config.Gun.RangeMultiplier
                         end
                     end
                     return oldNC(self, table.unpack(args, 1, args.n))
@@ -1167,11 +1296,47 @@ end
 RunService:BindToRenderStep("Decay_Aimbot", AIM_PRIORITY, AimStep)
 
 --=========================================================
--- ГЛАВНЫЙ ЦИКЛ
+-- SPEED (без телепорта назад)
 --=========================================================
 local savedWalkSpeed = 16
+local smoothedSpeed = 16
 
+TrackConn(RunService.RenderStepped:Connect(function(dt)
+    local char = LP.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    
+    if Config.Player.SpeedEnabled then
+        -- ПЛАВНОЕ ускорение (без рывков)
+        local targetSpeed = Config.Player.SpeedValue
+        smoothedSpeed = smoothedSpeed + (targetSpeed - smoothedSpeed) * math.clamp(dt * 5, 0, 1)
+        hum.WalkSpeed = smoothedSpeed
+    else
+        -- Плавный возврат к норме
+        if math.abs(smoothedSpeed - savedWalkSpeed) > 0.1 then
+            smoothedSpeed = smoothedSpeed + (savedWalkSpeed - smoothedSpeed) * math.clamp(dt * 5, 0, 1)
+            hum.WalkSpeed = smoothedSpeed
+        else
+            smoothedSpeed = savedWalkSpeed
+            hum.WalkSpeed = savedWalkSpeed
+        end
+    end
+end))
+
+TrackConn(LP.CharacterAdded:Connect(function(char)
+    local hum = char:WaitForChild("Humanoid", 5)
+    if hum then 
+        savedWalkSpeed = hum.WalkSpeed 
+        smoothedSpeed = hum.WalkSpeed
+    end
+end))
+
+--=========================================================
+-- ГЛАВНЫЙ ЦИКЛ
+--=========================================================
 TrackConn(RunService.RenderStepped:Connect(function()
+    -- FOV Circle
     if Config.Aimbot.ShowFOV and (Config.Aimbot.Enabled or Config.Silent.Enabled) then
         FovCircle.Visible = true
         FovCircle.Size = UDim2.new(0, Config.Aimbot.FOV * 2, 0, Config.Aimbot.FOV * 2)
@@ -1179,19 +1344,17 @@ TrackConn(RunService.RenderStepped:Connect(function()
             local targetChar = silentTarget.Parent
             if targetChar and (not Config.Silent.VisibleCheck or IsVisible(silentTarget, targetChar)) then
                 FovStroke.Color = Color3.fromRGB(0, 255, 100)
-                FovStroke.Transparency = 0.1
             else
                 FovStroke.Color = Theme.Accent
-                FovStroke.Transparency = 0.4
             end
         else
             FovStroke.Color = Theme.Accent
-            FovStroke.Transparency = 0.2
         end
     else
         FovCircle.Visible = false
     end
 
+    -- ESP
     if hasDrawing then
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LP then
@@ -1252,21 +1415,67 @@ TrackConn(RunService.RenderStepped:Connect(function()
                 end
             end
         end
+        
+        -- Skeleton ESP
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LP then
+                if not Config.ESP.Skeleton then
+                    if SkeletonCache[plr] then RemoveSkeleton(plr) end
+                    continue
+                end
+                
+                if not SkeletonCache[plr] then CreateSkeleton(plr) end
+                local lines = SkeletonCache[plr]
+                local char = plr.Character
+                
+                if not char or not char:FindFirstChild("HumanoidRootPart") then
+                    if lines then for _, l in ipairs(lines) do l.Visible = false end end
+                    continue
+                end
+                
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if not hum or hum.Health <= 0 then
+                    if lines then for _, l in ipairs(lines) do l.Visible = false end end
+                    continue
+                end
+                
+                local d3 = (Camera.CFrame.Position - char.HumanoidRootPart.Position).Magnitude
+                if d3 > Config.ESP.MaxDistance then
+                    if lines then for _, l in ipairs(lines) do l.Visible = false end end
+                    continue
+                end
+                
+                for i, pair in ipairs(SKELETON_PARTS) do
+                    local p1 = char:FindFirstChild(pair[1])
+                    local p2 = char:FindFirstChild(pair[2])
+                    local line = lines[i]
+                    
+                    if p1 and p2 and p1:IsA("BasePart") and p2:IsA("BasePart") then
+                        local sp1, on1 = Camera:WorldToViewportPoint(p1.Position)
+                        local sp2, on2 = Camera:WorldToViewportPoint(p2.Position)
+                        
+                        if on1 and on2 then
+                            line.Visible = true
+                            line.From = Vector2.new(sp1.X, sp1.Y)
+                            line.To = Vector2.new(sp2.X, sp2.Y)
+                        else
+                            line.Visible = false
+                        end
+                    else
+                        line.Visible = false
+                    end
+                end
+            end
+        end
     end
 
+    -- Noclip / NoFall
     local char = LP.Character
     if char then
         local hum = char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            if Config.Player.SpeedEnabled then
-                hum.WalkSpeed = Config.Player.SpeedValue
-            else
-                if hum.WalkSpeed ~= savedWalkSpeed then hum.WalkSpeed = savedWalkSpeed end
-            end
-            if Config.Player.NoFallDamage then
-                hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-                hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-            end
+        if hum and Config.Player.NoFallDamage then
+            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
         end
         if Config.Player.Noclip then
             for _, part in ipairs(char:GetDescendants()) do
@@ -1276,17 +1485,22 @@ TrackConn(RunService.RenderStepped:Connect(function()
     end
 end))
 
-TrackConn(LP.CharacterAdded:Connect(function(char)
-    local hum = char:WaitForChild("Humanoid", 5)
-    if hum then savedWalkSpeed = hum.WalkSpeed end
+TrackConn(Players.PlayerAdded:Connect(function(plr)
+    CreateESP(plr)
+    if Config.ESP.Skeleton then CreateSkeleton(plr) end
 end))
 
-TrackConn(Players.PlayerAdded:Connect(CreateESP))
-TrackConn(Players.PlayerRemoving:Connect(RemoveESP))
-for _, plr in ipairs(Players:GetPlayers()) do CreateESP(plr) end
+TrackConn(Players.PlayerRemoving:Connect(function(plr)
+    RemoveESP(plr)
+    RemoveSkeleton(plr)
+end))
+
+for _, plr in ipairs(Players:GetPlayers()) do 
+    CreateESP(plr)
+end
 
 --=========================================================
--- FULLBRIGHT / X-RAY / FPS BOOST / INF JUMP
+-- FULLBRIGHT / X-RAY / FPS BOOST / NO FOG / FOV
 --=========================================================
 TrackConn(RunService.Heartbeat:Connect(function()
     if not Config.Visual.Fullbright then return end
@@ -1335,71 +1549,59 @@ TrackConn(RunService.Heartbeat:Connect(function()
     end
 end))
 
---=========================================================
 -- NO FOG
---=========================================================
-local OriginalFog = {
-    Saved = false,
-    FogEnd = nil,
-    FogStart = nil,
-    FogColor = nil,
-    Atmosphere = nil,
-    OriginalAtmosphere = nil,
-}
-
+local OriginalFog = { Saved = false }
 TrackConn(RunService.Heartbeat:Connect(function()
-    -- Сохраняем оригинал ОДИН раз
     if not OriginalFog.Saved then
         OriginalFog.FogEnd = Lighting.FogEnd
         OriginalFog.FogStart = Lighting.FogStart
-        OriginalFog.FogColor = Lighting.FogColor
         OriginalFog.Atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
         if OriginalFog.Atmosphere then
-            OriginalFog.OriginalAtmosphere = {
-                Density = OriginalFog.Atmosphere.Density,
-                Haze = OriginalFog.Atmosphere.Haze,
-                Glare = OriginalFog.Atmosphere.Glare,
-                Offset = OriginalFog.Atmosphere.Offset,
-                Color = OriginalFog.Atmosphere.Color,
-                Decay = OriginalFog.Atmosphere.Decay,
-            }
+            OriginalFog.Density = OriginalFog.Atmosphere.Density
+            OriginalFog.Haze = OriginalFog.Atmosphere.Haze
+            OriginalFog.Glare = OriginalFog.Atmosphere.Glare
         end
         OriginalFog.Saved = true
     end
-
+    
     if Config.Visual.NoFog then
         pcall(function()
             Lighting.FogEnd = 9e9
             Lighting.FogStart = 0
-
             local atm = Lighting:FindFirstChildOfClass("Atmosphere")
             if atm then
                 atm.Density = 0
                 atm.Haze = 0
                 atm.Glare = 0
-                atm.Offset = 0
             end
         end)
-    else
-        if OriginalFog.Saved then
-            pcall(function()
-                Lighting.FogEnd = OriginalFog.FogEnd
-                Lighting.FogStart = OriginalFog.FogStart
-                Lighting.FogColor = OriginalFog.FogColor
+    elseif OriginalFog.Saved then
+        pcall(function()
+            Lighting.FogEnd = OriginalFog.FogEnd
+            Lighting.FogStart = OriginalFog.FogStart
+            if OriginalFog.Atmosphere then
+                OriginalFog.Atmosphere.Density = OriginalFog.Density
+                OriginalFog.Atmosphere.Haze = OriginalFog.Haze
+                OriginalFog.Atmosphere.Glare = OriginalFog.Glare
+            end
+        end)
+    end
+end))
 
-                if OriginalFog.Atmosphere and OriginalFog.OriginalAtmosphere then
-                    OriginalFog.Atmosphere.Density = OriginalFog.OriginalAtmosphere.Density
-                    OriginalFog.Atmosphere.Haze = OriginalFog.OriginalAtmosphere.Haze
-                    OriginalFog.Atmosphere.Glare = OriginalFog.OriginalAtmosphere.Glare
-                    OriginalFog.Atmosphere.Offset = OriginalFog.OriginalAtmosphere.Offset
-                    OriginalFog.Atmosphere.Color = OriginalFog.OriginalAtmosphere.Color
-                    OriginalFog.Atmosphere.Decay = OriginalFog.OriginalAtmosphere.Decay
-                end
-            end)
+-- FOV CHANGE
+local OriginalFOV = nil
+TrackConn(RunService.Heartbeat:Connect(function()
+    if not OriginalFOV then OriginalFOV = Camera.FieldOfView end
+    if Config.Visual.FOVChange then
+        pcall(function() Camera.FieldOfView = Config.Visual.FOVValue end)
+    else
+        if OriginalFOV then
+            pcall(function() Camera.FieldOfView = OriginalFOV end)
         end
     end
 end))
 
+-- INFINITE JUMP
 TrackConn(UIS.JumpRequest:Connect(function()
     if not Config.Misc.InfiniteJump then return end
     local char = LP.Character
@@ -1434,6 +1636,9 @@ TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     elseif input.KeyCode == Enum.KeyCode.F8 then
         Config.Visual.NoFog = not Config.Visual.NoFog
         notify("No Fog", Config.Visual.NoFog and "ON" or "OFF")
+    elseif input.KeyCode == Enum.KeyCode.F9 then
+        Config.Player.AntiAFK = not Config.Player.AntiAFK
+        if Config.Player.AntiAFK then EnableAntiAFK() else DisableAntiAFK() end
     elseif input.KeyCode == Enum.KeyCode.RightShift then
         Menu.Visible = not Menu.Visible
     elseif input.KeyCode == Enum.KeyCode.Delete then
@@ -1441,5 +1646,5 @@ TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     end
 end))
 
-notify("FerClient v6.2", "Decay — No Fog добавлен")
-print("[FerClient] Decay v6.2 — No Fog + Prediction 2.0 + No Recoil + Long Range")
+notify("FerClient v7.0", "Anti-AFK + FOV + Skeleton + Config")
+print("[FerClient] Decay v7.0 — все функции OFF по умолчанию")
