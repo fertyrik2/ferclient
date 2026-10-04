@@ -1,7 +1,7 @@
 --[[
-    FerClient | Decay v6.1
-    Silent Aim + ESP + Aimbot (Prediction 2.0) + No Recoil + Long Range
-    Улучшено: точное предсказание для бегущих игроков
+    FerClient | Decay v6.2
+    Silent Aim + ESP + Aimbot (Prediction 2.0) + No Recoil + Long Range + No Fog
+    НОВОЕ: No Fog — убирает туман
 ]]
 
 if getgenv().FerClient_Decay_Loaded then
@@ -84,6 +84,7 @@ local Config = {
     },
     Visual = {
         Fullbright = false, XRay = false, FPSBoost = false,
+        NoFog = false,
     },
     Misc = {
         InfiniteJump = false,
@@ -668,6 +669,11 @@ MakeToggle(VisualContent, "FPS Boost", false, function()
     Config.Visual.FPSBoost = not Config.Visual.FPSBoost
 end)
 
+MakeToggle(VisualContent, "No Fog (убрать туман)", false, function()
+    Config.Visual.NoFog = not Config.Visual.NoFog
+    notify("No Fog", Config.Visual.NoFog and "ON" or "OFF")
+end)
+
 --=========================================================
 -- MOVEMENT
 --=========================================================
@@ -712,9 +718,9 @@ end)
 MakeSectionTitle(SettingsContent, "SETTINGS")
 
 local infoLbl = Instance.new("TextLabel")
-infoLbl.Size = UDim2.new(1, 0, 0, 120)
+infoLbl.Size = UDim2.new(1, 0, 0, 130)
 infoLbl.BackgroundTransparency = 1
-infoLbl.Text = "FerClient Decay v6.1 FINAL\nPrediction 2.0 (для бегущих)\n\nHotkeys:\nF1=ESP  F2=Aim  F3=AutoAim  F4=InfJump\nF5=Silent Aim  F6=No Recoil  F7=Long Range\nRightShift=Menu  Delete=Unload"
+infoLbl.Text = "FerClient Decay v6.2 FINAL\nPrediction 2.0 + No Fog\n\nHotkeys:\nF1=ESP  F2=Aim  F3=AutoAim  F4=InfJump\nF5=Silent Aim  F6=No Recoil  F7=Long Range\nF8=No Fog  RightShift=Menu  Delete=Unload"
 infoLbl.TextColor3 = Theme.TextDim
 infoLbl.Font = Theme.Font
 infoLbl.TextSize = 10
@@ -918,9 +924,6 @@ local function IsVisible(part, character)
     return false
 end
 
---=========================================================
--- PREDICTION 2.0
---=========================================================
 local VelocityHistory = setmetatable({}, { __mode = "k" })
 local LastUpdate = {}
 
@@ -1332,6 +1335,71 @@ TrackConn(RunService.Heartbeat:Connect(function()
     end
 end))
 
+--=========================================================
+-- NO FOG
+--=========================================================
+local OriginalFog = {
+    Saved = false,
+    FogEnd = nil,
+    FogStart = nil,
+    FogColor = nil,
+    Atmosphere = nil,
+    OriginalAtmosphere = nil,
+}
+
+TrackConn(RunService.Heartbeat:Connect(function()
+    -- Сохраняем оригинал ОДИН раз
+    if not OriginalFog.Saved then
+        OriginalFog.FogEnd = Lighting.FogEnd
+        OriginalFog.FogStart = Lighting.FogStart
+        OriginalFog.FogColor = Lighting.FogColor
+        OriginalFog.Atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+        if OriginalFog.Atmosphere then
+            OriginalFog.OriginalAtmosphere = {
+                Density = OriginalFog.Atmosphere.Density,
+                Haze = OriginalFog.Atmosphere.Haze,
+                Glare = OriginalFog.Atmosphere.Glare,
+                Offset = OriginalFog.Atmosphere.Offset,
+                Color = OriginalFog.Atmosphere.Color,
+                Decay = OriginalFog.Atmosphere.Decay,
+            }
+        end
+        OriginalFog.Saved = true
+    end
+
+    if Config.Visual.NoFog then
+        pcall(function()
+            Lighting.FogEnd = 9e9
+            Lighting.FogStart = 0
+
+            local atm = Lighting:FindFirstChildOfClass("Atmosphere")
+            if atm then
+                atm.Density = 0
+                atm.Haze = 0
+                atm.Glare = 0
+                atm.Offset = 0
+            end
+        end)
+    else
+        if OriginalFog.Saved then
+            pcall(function()
+                Lighting.FogEnd = OriginalFog.FogEnd
+                Lighting.FogStart = OriginalFog.FogStart
+                Lighting.FogColor = OriginalFog.FogColor
+
+                if OriginalFog.Atmosphere and OriginalFog.OriginalAtmosphere then
+                    OriginalFog.Atmosphere.Density = OriginalFog.OriginalAtmosphere.Density
+                    OriginalFog.Atmosphere.Haze = OriginalFog.OriginalAtmosphere.Haze
+                    OriginalFog.Atmosphere.Glare = OriginalFog.OriginalAtmosphere.Glare
+                    OriginalFog.Atmosphere.Offset = OriginalFog.OriginalAtmosphere.Offset
+                    OriginalFog.Atmosphere.Color = OriginalFog.OriginalAtmosphere.Color
+                    OriginalFog.Atmosphere.Decay = OriginalFog.OriginalAtmosphere.Decay
+                end
+            end)
+        end
+    end
+end))
+
 TrackConn(UIS.JumpRequest:Connect(function()
     if not Config.Misc.InfiniteJump then return end
     local char = LP.Character
@@ -1363,6 +1431,9 @@ TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     elseif input.KeyCode == Enum.KeyCode.F7 then
         Config.Gun.LongRange = not Config.Gun.LongRange
         notify("Long Range", Config.Gun.LongRange and "ON" or "OFF")
+    elseif input.KeyCode == Enum.KeyCode.F8 then
+        Config.Visual.NoFog = not Config.Visual.NoFog
+        notify("No Fog", Config.Visual.NoFog and "ON" or "OFF")
     elseif input.KeyCode == Enum.KeyCode.RightShift then
         Menu.Visible = not Menu.Visible
     elseif input.KeyCode == Enum.KeyCode.Delete then
@@ -1370,5 +1441,5 @@ TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     end
 end))
 
-notify("FerClient v6.1", "Decay — Prediction 2.0 (для бегущих)")
-print("[FerClient] Decay v6.1 — Aimbot Prediction 2.0 + No Recoil + Long Range")
+notify("FerClient v6.2", "Decay — No Fog добавлен")
+print("[FerClient] Decay v6.2 — No Fog + Prediction 2.0 + No Recoil + Long Range")
