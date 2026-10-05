@@ -1,8 +1,6 @@
 --[[
-    FerClient | Decay v7.0 FINAL
-    ESP + Aimbot + Silent Aim + No Recoil + Long Range + No Fog
-    + Anti-AFK + FOV Change + Skeleton ESP + Config Save
-    + Speed без телепорта
+    FerClient | Decay v7.1 FINAL
+    ФИКС: Aimbot не промахивается вблизи
 ]]
 
 if getgenv().FerClient_Decay_Loaded then
@@ -49,7 +47,7 @@ local Theme = {
 --=========================================================
 local Config = {
     ESP = {
-        Enabled = true,        -- ВКЛ (базовое)
+        Enabled = true,
         Box = true, Name = true, Distance = true, Health = true, Tracer = true,
         Skeleton = false,
         MaxDistance = 1500, Color = Theme.Accent,
@@ -58,8 +56,12 @@ local Config = {
         Enabled = false, AutoAim = false, FOV = 200, Smoothness = 0.5,
         MaxDistance = 600, TargetPart = "Head", Visible = false,
         TeamCheck = true, ShowFOV = true, TriggerActive = false,
-        Prediction = true, PredictionX = 0.2, PredictionAuto = true,
-        PredictionMax = 0.5, UseVelocityHistory = true,
+        Prediction = true,
+        PredictionX = 0.2,
+        PredictionAuto = true,
+        PredictionMax = 0.5,
+        MinPredictionDistance = 30,   -- ⚠️ НОВОЕ: не предсказывать ближе 30м
+        UseVelocityHistory = true,
     },
     Silent = {
         Enabled = false, FOV = 300, MaxDistance = 20, TargetPart = "Head",
@@ -83,7 +85,6 @@ local Config = {
     }
 }
 
--- Дефолт для восстановления при загрузке конфига
 local DefaultConfig = HttpService:JSONEncode(Config)
 
 local hasDrawing = pcall(function()
@@ -114,11 +115,8 @@ local CONFIG_FILE = "FerClient_Decay_Config.json"
 local function SaveConfig()
     pcall(function()
         if writefile then
-            local data = HttpService:JSONEncode(Config)
-            writefile(CONFIG_FILE, data)
+            writefile(CONFIG_FILE, HttpService:JSONEncode(Config))
             notify("Config", "Сохранено ✅")
-        else
-            notify("Config", "writefile недоступен")
         end
     end)
 end
@@ -126,11 +124,8 @@ end
 local function LoadConfig()
     pcall(function()
         if isfile and isfile(CONFIG_FILE) then
-            local data = readfile(CONFIG_FILE)
-            local loaded = HttpService:JSONDecode(data)
-            
-            -- Применяем по секциям
-            for section, values in pairs(loaded) do
+            local data = HttpService:JSONDecode(readfile(CONFIG_FILE))
+            for section, values in pairs(data) do
                 if Config[section] and type(values) == "table" then
                     for key, val in pairs(values) do
                         Config[section][key] = val
@@ -138,8 +133,6 @@ local function LoadConfig()
                 end
             end
             notify("Config", "Загружено ✅")
-        else
-            notify("Config", "Файла нет")
         end
     end)
 end
@@ -202,9 +195,8 @@ Menu.Visible = false
 Menu.ClipsDescendants = false
 Menu.Parent = ScreenGui
 
-local MenuStroke = Instance.new("UIStroke", Menu)
-MenuStroke.Color = Theme.Border
-MenuStroke.Thickness = 1
+Instance.new("UIStroke", Menu).Color = Theme.Border
+Instance.new("UIStroke", Menu).Thickness = 1
 
 -- СНЕЖИНКИ
 local SnowContainer = Instance.new("Frame")
@@ -282,7 +274,7 @@ local Logo = Instance.new("TextLabel")
 Logo.Size = UDim2.new(1, -70, 1, 0)
 Logo.Position = UDim2.new(0, 10, 0, 0)
 Logo.BackgroundTransparency = 1
-Logo.Text = "FerClient v7.0"
+Logo.Text = "FerClient v7.1"
 Logo.TextColor3 = Theme.Text
 Logo.Font = Theme.FontBold
 Logo.TextSize = 12
@@ -596,8 +588,6 @@ local function MakeButton(parent, text, callback)
     btn.MouseButton1Click:Connect(function()
         pcall(callback)
     end)
-    
-    return btn
 end
 
 local function MakeSectionTitle(parent, text)
@@ -664,6 +654,14 @@ MakeSlider(CombatContent, "Aimbot Max Dist", 100, 2000, Config.Aimbot.MaxDistanc
     Config.Aimbot.MaxDistance = v
 end)
 
+MakeSlider(CombatContent, "Min Dist для Prediction", 10, 200, Config.Aimbot.MinPredictionDistance, function(v)
+    Config.Aimbot.MinPredictionDistance = v
+end)
+
+MakeSlider(CombatContent, "Prediction Base x100", 5, 50, math.floor((Config.Aimbot.PredictionX or 0.2) * 100), function(v)
+    Config.Aimbot.PredictionX = v / 100
+end)
+
 MakeSectionTitle(CombatContent, "SILENT AIM")
 
 MakeToggle(CombatContent, "Silent Aim", false, function()
@@ -686,10 +684,6 @@ end)
 
 MakeToggle(CombatContent, "Long Range Bullets", false, function()
     Config.Gun.LongRange = not Config.Gun.LongRange
-end)
-
-MakeSlider(CombatContent, "Range Multiplier", 1, 10, Config.Gun.RangeMultiplier, function(v)
-    Config.Gun.RangeMultiplier = v
 end)
 
 --=========================================================
@@ -754,7 +748,6 @@ end)
 
 MakeToggle(VisualContent, "No Fog", false, function()
     Config.Visual.NoFog = not Config.Visual.NoFog
-    notify("No Fog", Config.Visual.NoFog and "ON" or "OFF")
 end)
 
 MakeToggle(VisualContent, "FOV Change", false, function()
@@ -801,11 +794,7 @@ end)
 
 MakeToggle(MiscContent, "Anti-AFK", false, function()
     Config.Player.AntiAFK = not Config.Player.AntiAFK
-    if Config.Player.AntiAFK then
-        EnableAntiAFK()
-    else
-        DisableAntiAFK()
-    end
+    if Config.Player.AntiAFK then EnableAntiAFK() else DisableAntiAFK() end
 end)
 
 --=========================================================
@@ -813,24 +802,16 @@ end)
 --=========================================================
 MakeSectionTitle(SettingsContent, "CONFIG")
 
-MakeButton(SettingsContent, "💾 Сохранить Config", function()
-    SaveConfig()
-end)
-
-MakeButton(SettingsContent, "📂 Загрузить Config", function()
-    LoadConfig()
-end)
-
-MakeButton(SettingsContent, "🔄 Сбросить Config", function()
-    ResetConfig()
-end)
+MakeButton(SettingsContent, "💾 Сохранить Config", SaveConfig)
+MakeButton(SettingsContent, "📂 Загрузить Config", LoadConfig)
+MakeButton(SettingsContent, "🔄 Сбросить Config", ResetConfig)
 
 MakeSectionTitle(SettingsContent, "INFO")
 
 local infoLbl = Instance.new("TextLabel")
 infoLbl.Size = UDim2.new(1, 0, 0, 130)
 infoLbl.BackgroundTransparency = 1
-infoLbl.Text = "FerClient Decay v7.0\nAnti-AFK + FOV + Skeleton + Config\n\nHotkeys:\nF1=ESP  F2=Aim  F3=AutoAim  F4=InfJump\nF5=Silent Aim  F6=No Recoil  F7=Long Range\nF8=No Fog  F9=Anti-AFK  RightShift=Menu\nDelete=Unload\n\nВсе функции OFF по умолчанию"
+infoLbl.Text = "FerClient Decay v7.1\nФИКС: Aimbot не промахивается вблизи\n\nHotkeys:\nF1=ESP  F2=Aim  F3=AutoAim  F4=InfJump\nF5=Silent Aim  F6=No Recoil  F7=Long Range\nF8=No Fog  F9=Anti-AFK  RightShift=Menu\nDelete=Unload\n\nВсе функции OFF по умолчанию"
 infoLbl.TextColor3 = Theme.TextDim
 infoLbl.Font = Theme.Font
 infoLbl.TextSize = 10
@@ -865,7 +846,6 @@ TriggerBtn.MouseButton1Down:Connect(function() setTrig(true) end)
 TriggerBtn.MouseButton1Up:Connect(function() setTrig(false) end)
 TriggerBtn.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.Touch then setTrig(true) end end)
 TriggerBtn.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.Touch then setTrig(false) end end)
-TriggerBtn.MouseLeave:Connect(function() setTrig(false) end)
 
 -- FC КНОПКА
 local FCBtn = Instance.new("TextButton")
@@ -882,9 +862,8 @@ FCBtn.Active = true
 FCBtn.Draggable = true
 FCBtn.Parent = ScreenGui
 
-local ToggleStroke = Instance.new("UIStroke", FCBtn)
-ToggleStroke.Color = Theme.Accent
-ToggleStroke.Thickness = 1.5
+Instance.new("UIStroke", FCBtn).Color = Theme.Accent
+Instance.new("UIStroke", FCBtn).Thickness = 1.5
 
 FCBtn.MouseEnter:Connect(function()
     FCBtn.BackgroundColor3 = Theme.Accent
@@ -1012,26 +991,18 @@ end
 -- SKELETON ESP
 --=========================================================
 local SKELETON_PARTS = {
-    {"Head", "UpperTorso"},
-    {"UpperTorso", "LowerTorso"},
-    {"UpperTorso", "LeftUpperArm"},
-    {"LeftUpperArm", "LeftLowerArm"},
-    {"LeftLowerArm", "LeftHand"},
-    {"UpperTorso", "RightUpperArm"},
-    {"RightUpperArm", "RightLowerArm"},
-    {"RightLowerArm", "RightHand"},
-    {"LowerTorso", "LeftUpperLeg"},
-    {"LeftUpperLeg", "LeftLowerLeg"},
-    {"LeftLowerLeg", "LeftFoot"},
-    {"LowerTorso", "RightUpperLeg"},
-    {"RightUpperLeg", "RightLowerLeg"},
-    {"RightLowerLeg", "RightFoot"},
+    {"Head", "UpperTorso"}, {"UpperTorso", "LowerTorso"},
+    {"UpperTorso", "LeftUpperArm"}, {"LeftUpperArm", "LeftLowerArm"},
+    {"LeftLowerArm", "LeftHand"}, {"UpperTorso", "RightUpperArm"},
+    {"RightUpperArm", "RightLowerArm"}, {"RightLowerArm", "RightHand"},
+    {"LowerTorso", "LeftUpperLeg"}, {"LeftUpperLeg", "LeftLowerLeg"},
+    {"LeftLowerLeg", "LeftFoot"}, {"LowerTorso", "RightUpperLeg"},
+    {"RightUpperLeg", "RightLowerLeg"}, {"RightLowerLeg", "RightFoot"},
 }
 
 local function CreateSkeleton(player)
     if player == LP or SkeletonCache[player] then return end
     if not hasDrawing then return end
-    
     local lines = {}
     for i = 1, #SKELETON_PARTS do
         local line = Drawing.new("Line")
@@ -1041,7 +1012,6 @@ local function CreateSkeleton(player)
         line.Transparency = 1
         lines[i] = line
     end
-    
     SkeletonCache[player] = lines
 end
 
@@ -1055,7 +1025,7 @@ local function RemoveSkeleton(player)
 end
 
 --=========================================================
--- AIMBOT / PREDICTION 2.0
+-- AIMBOT / PREDICTION 2.1 (с Min Distance)
 --=========================================================
 local function IsTeammate(plr, check)
     if not check then return false end
@@ -1125,16 +1095,30 @@ local function IsTargetMoving(part)
     return Vector3.new(vel.X, 0, vel.Z).Magnitude > 3
 end
 
+-- ⚠️ ГЛАВНЫЙ ФИКС — Min Distance
 local function CalculatePredictionTime(part, distance)
     if not Config.Aimbot.Prediction then return 0 end
+    
+    -- ⚠️ ФИКС: если цель БЛИЖЕ Min Distance — НЕ предсказываем
+    local minDist = Config.Aimbot.MinPredictionDistance or 30
+    if distance < minDist then
+        return 0
+    end
+    
     if Config.Aimbot.PredictionAuto then
         local baseTime = Config.Aimbot.PredictionX or 0.2
+        
+        -- Множитель начинается с 1.0 (только что прошли minDist)
         local distMult = 1.0
-        if distance > 100 then distMult = 1.5 end
-        if distance > 200 then distMult = 2.0 end
-        if distance > 400 then distMult = 2.5 end
-        if distance > 800 then distMult = 3.0 end
+        -- Нормируем расстояние от minDist
+        local extraDist = distance - minDist
+        if extraDist > 100 then distMult = 1.5 end
+        if extraDist > 200 then distMult = 2.0 end
+        if extraDist > 400 then distMult = 2.5 end
+        if extraDist > 800 then distMult = 3.0 end
+        
         if IsTargetMoving(part) then distMult = distMult * 1.5 end
+        
         return math.min(baseTime * distMult, Config.Aimbot.PredictionMax or 0.5)
     else
         return Config.Aimbot.PredictionX or 0.2
@@ -1144,10 +1128,17 @@ end
 local function GetPredictedPosition(part)
     if not part or not part.Parent then return Vector3.new(0, 0, 0) end
     if not Config.Aimbot.Prediction then return part.Position end
+    
     local distance = (part.Position - Camera.CFrame.Position).Magnitude
+    local predTime = CalculatePredictionTime(part, distance)
+    
+    -- Если predTime = 0 → просто возвращаем текущую позицию
+    if predTime <= 0 then
+        return part.Position
+    end
+    
     local velocity = GetSmoothedVelocity(part)
-    local actualTime = CalculatePredictionTime(part, distance)
-    local predicted = part.Position + velocity * actualTime
+    local predicted = part.Position + velocity * predTime
     if Config.Aimbot.TargetPart == "Head" then
         predicted = predicted + Vector3.new(0, 0.5, 0)
     end
@@ -1229,9 +1220,6 @@ pcall(function()
                                 if not Config.Silent.VisibleCheck or IsVisible(silentTarget, targetChar) then
                                     Config.Silent.LastReplace = now
                                     args[1] = (silentTargetPos - Camera.CFrame.Position).Unit
-                                    if Config.Silent.Debug then
-                                        notify("SilentAim ✅", targetChar.Name .. " (" .. math.floor(dist) .. "m)")
-                                    end
                                     return oldNC(self, table.unpack(args, 1, args.n))
                                 end
                             end
@@ -1296,7 +1284,7 @@ end
 RunService:BindToRenderStep("Decay_Aimbot", AIM_PRIORITY, AimStep)
 
 --=========================================================
--- SPEED (без телепорта назад)
+-- SPEED (плавно)
 --=========================================================
 local savedWalkSpeed = 16
 local smoothedSpeed = 16
@@ -1308,12 +1296,10 @@ TrackConn(RunService.RenderStepped:Connect(function(dt)
     if not hum then return end
     
     if Config.Player.SpeedEnabled then
-        -- ПЛАВНОЕ ускорение (без рывков)
         local targetSpeed = Config.Player.SpeedValue
         smoothedSpeed = smoothedSpeed + (targetSpeed - smoothedSpeed) * math.clamp(dt * 5, 0, 1)
         hum.WalkSpeed = smoothedSpeed
     else
-        -- Плавный возврат к норме
         if math.abs(smoothedSpeed - savedWalkSpeed) > 0.1 then
             smoothedSpeed = smoothedSpeed + (savedWalkSpeed - smoothedSpeed) * math.clamp(dt * 5, 0, 1)
             hum.WalkSpeed = smoothedSpeed
@@ -1336,7 +1322,6 @@ end))
 -- ГЛАВНЫЙ ЦИКЛ
 --=========================================================
 TrackConn(RunService.RenderStepped:Connect(function()
-    -- FOV Circle
     if Config.Aimbot.ShowFOV and (Config.Aimbot.Enabled or Config.Silent.Enabled) then
         FovCircle.Visible = true
         FovCircle.Size = UDim2.new(0, Config.Aimbot.FOV * 2, 0, Config.Aimbot.FOV * 2)
@@ -1354,7 +1339,6 @@ TrackConn(RunService.RenderStepped:Connect(function()
         FovCircle.Visible = false
     end
 
-    -- ESP
     if hasDrawing then
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LP then
@@ -1416,44 +1400,36 @@ TrackConn(RunService.RenderStepped:Connect(function()
             end
         end
         
-        -- Skeleton ESP
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LP then
                 if not Config.ESP.Skeleton then
                     if SkeletonCache[plr] then RemoveSkeleton(plr) end
                     continue
                 end
-                
                 if not SkeletonCache[plr] then CreateSkeleton(plr) end
                 local lines = SkeletonCache[plr]
                 local char = plr.Character
-                
                 if not char or not char:FindFirstChild("HumanoidRootPart") then
                     if lines then for _, l in ipairs(lines) do l.Visible = false end end
                     continue
                 end
-                
                 local hum = char:FindFirstChildOfClass("Humanoid")
                 if not hum or hum.Health <= 0 then
                     if lines then for _, l in ipairs(lines) do l.Visible = false end end
                     continue
                 end
-                
                 local d3 = (Camera.CFrame.Position - char.HumanoidRootPart.Position).Magnitude
                 if d3 > Config.ESP.MaxDistance then
                     if lines then for _, l in ipairs(lines) do l.Visible = false end end
                     continue
                 end
-                
                 for i, pair in ipairs(SKELETON_PARTS) do
                     local p1 = char:FindFirstChild(pair[1])
                     local p2 = char:FindFirstChild(pair[2])
                     local line = lines[i]
-                    
                     if p1 and p2 and p1:IsA("BasePart") and p2:IsA("BasePart") then
                         local sp1, on1 = Camera:WorldToViewportPoint(p1.Position)
                         local sp2, on2 = Camera:WorldToViewportPoint(p2.Position)
-                        
                         if on1 and on2 then
                             line.Visible = true
                             line.From = Vector2.new(sp1.X, sp1.Y)
@@ -1469,7 +1445,6 @@ TrackConn(RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- Noclip / NoFall
     local char = LP.Character
     if char then
         local hum = char:FindFirstChildOfClass("Humanoid")
@@ -1549,7 +1524,6 @@ TrackConn(RunService.Heartbeat:Connect(function()
     end
 end))
 
--- NO FOG
 local OriginalFog = { Saved = false }
 TrackConn(RunService.Heartbeat:Connect(function()
     if not OriginalFog.Saved then
@@ -1563,7 +1537,6 @@ TrackConn(RunService.Heartbeat:Connect(function()
         end
         OriginalFog.Saved = true
     end
-    
     if Config.Visual.NoFog then
         pcall(function()
             Lighting.FogEnd = 9e9
@@ -1588,7 +1561,6 @@ TrackConn(RunService.Heartbeat:Connect(function()
     end
 end))
 
--- FOV CHANGE
 local OriginalFOV = nil
 TrackConn(RunService.Heartbeat:Connect(function()
     if not OriginalFOV then OriginalFOV = Camera.FieldOfView end
@@ -1601,7 +1573,6 @@ TrackConn(RunService.Heartbeat:Connect(function()
     end
 end))
 
--- INFINITE JUMP
 TrackConn(UIS.JumpRequest:Connect(function()
     if not Config.Misc.InfiniteJump then return end
     local char = LP.Character
@@ -1646,5 +1617,5 @@ TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     end
 end))
 
-notify("FerClient v7.0", "Anti-AFK + FOV + Skeleton + Config")
-print("[FerClient] Decay v7.0 — все функции OFF по умолчанию")
+notify("FerClient v7.1", "Aimbot фикс — не промахивается вблизи")
+print("[FerClient] Decay v7.1 — Min Distance для Prediction")
