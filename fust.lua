@@ -1,6 +1,6 @@
 --[[
-    FerClient | Fust v1.1
-    ESP + Aimbot + Speed (Anti-Teleport) + Noclip + Helicopter Fly
+    FerClient | Fust v2.0
+    Silent Aim (через таблицу Fire) + ESP + Aimbot + Speed + Noclip + Heli Fly
 ]]
 
 if getgenv().Fust_Loaded then
@@ -19,6 +19,7 @@ local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 local Lighting = game:GetService("Lighting")
 local StarterGui = game:GetService("StarterGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Camera = Workspace.CurrentCamera
 local LP = Players.LocalPlayer
 
@@ -51,6 +52,14 @@ local Config = {
     Aimbot = {
         Enabled = false, FOV = 200, Smoothness = 0.5, MaxDistance = 600,
         TriggerActive = false,
+    },
+    Silent = {
+        Enabled = false,
+        FOV = 200,
+        MaxDistance = 600,
+        TargetPart = "Head",
+        TeamCheck = true,
+        Debug = true,
     },
     Player = {
         SpeedEnabled = false, SpeedValue = 30,
@@ -100,8 +109,8 @@ if not ScreenGui.Parent then ScreenGui.Parent = LP:WaitForChild("PlayerGui") end
 
 local Menu = Instance.new("Frame")
 Menu.Name = "Main"
-Menu.Size = UDim2.new(0, 280, 0, 400)
-Menu.Position = UDim2.new(0.5, -140, 0.5, -200)
+Menu.Size = UDim2.new(0, 280, 0, 420)
+Menu.Position = UDim2.new(0.5, -140, 0.5, -210)
 Menu.BackgroundColor3 = Theme.Background
 Menu.BorderSizePixel = 0
 Menu.Active = true
@@ -112,6 +121,7 @@ Instance.new("UIStroke", Menu).Color = Theme.Border
 Instance.new("UIStroke", Menu).Thickness = 1
 Instance.new("UICorner", Menu).CornerRadius = UDim.new(0, 10)
 
+-- Topbar
 local TopBar = Instance.new("Frame")
 TopBar.Size = UDim2.new(1, 0, 0, 30)
 TopBar.BackgroundColor3 = Theme.Background
@@ -122,7 +132,7 @@ local Logo = Instance.new("TextLabel")
 Logo.Size = UDim2.new(1, -40, 1, 0)
 Logo.Position = UDim2.new(0, 10, 0, 0)
 Logo.BackgroundTransparency = 1
-Logo.Text = "FerClient | Fust v1.1"
+Logo.Text = "FerClient | Fust v2.0"
 Logo.TextColor3 = Theme.Text
 Logo.Font = Theme.FontBold
 Logo.TextSize = 12
@@ -156,7 +166,9 @@ Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
     Content.CanvasSize = UDim2.new(0, 0, 0, Layout.AbsoluteContentSize.Y + 10)
 end)
 
--- ЭЛЕМЕНТЫ UI
+--=========================================================
+-- UI ЭЛЕМЕНТЫ
+--=========================================================
 local function MakeToggle(text, default, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, 0, 0, 26)
@@ -164,6 +176,7 @@ local function MakeToggle(text, default, callback)
     frame.BorderSizePixel = 0
     frame.Parent = Content
     Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 4)
+
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, -40, 1, 0)
     label.Position = UDim2.new(0, 10, 0, 0)
@@ -174,6 +187,7 @@ local function MakeToggle(text, default, callback)
     label.TextSize = 11
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = frame
+
     local track = Instance.new("Frame")
     track.Size = UDim2.new(0, 28, 0, 14)
     track.Position = UDim2.new(1, -36, 0.5, -7)
@@ -181,6 +195,7 @@ local function MakeToggle(text, default, callback)
     track.BorderSizePixel = 0
     track.Parent = frame
     Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
+
     local knob = Instance.new("Frame")
     knob.AnchorPoint = Vector2.new(0, 0.5)
     knob.Size = UDim2.new(0, 10, 0, 10)
@@ -189,6 +204,7 @@ local function MakeToggle(text, default, callback)
     knob.BorderSizePixel = 0
     knob.Parent = track
     Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
     local isOn = default or false
     local function apply()
         if isOn then
@@ -201,6 +217,7 @@ local function MakeToggle(text, default, callback)
     end
     isOn = default or false
     apply()
+
     local click = Instance.new("TextButton")
     click.Size = UDim2.new(1, 0, 1, 0)
     click.BackgroundTransparency = 1
@@ -220,6 +237,7 @@ local function MakeSlider(text, min, max, default, callback)
     frame.BorderSizePixel = 0
     frame.Parent = Content
     Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 4)
+
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(0.5, 0, 1, 0)
     label.Position = UDim2.new(0, 10, 0, 0)
@@ -230,6 +248,7 @@ local function MakeSlider(text, min, max, default, callback)
     label.TextSize = 10
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = frame
+
     local valLabel = Instance.new("TextLabel")
     valLabel.Size = UDim2.new(0, 40, 1, 0)
     valLabel.Position = UDim2.new(1, -50, 0, 0)
@@ -240,6 +259,7 @@ local function MakeSlider(text, min, max, default, callback)
     valLabel.TextSize = 10
     valLabel.TextXAlignment = Enum.TextXAlignment.Right
     valLabel.Parent = frame
+
     local track = Instance.new("Frame")
     track.Size = UDim2.new(1, -110, 0, 4)
     track.Position = UDim2.new(0, 10, 1, -8)
@@ -247,12 +267,14 @@ local function MakeSlider(text, min, max, default, callback)
     track.BorderSizePixel = 0
     track.Parent = frame
     Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
+
     local fill = Instance.new("Frame")
     fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
     fill.BackgroundColor3 = Theme.Accent
     fill.BorderSizePixel = 0
     fill.Parent = track
     Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+
     local dragging = false
     local function update(x)
         local relX = math.clamp(x - track.AbsolutePosition.X, 0, track.AbsoluteSize.X)
@@ -262,6 +284,7 @@ local function MakeSlider(text, min, max, default, callback)
         valLabel.Text = tostring(value)
         pcall(callback, value)
     end
+
     track.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true; update(input.Position.X)
@@ -292,7 +315,9 @@ local function MakeSection(text)
     lbl.Parent = Content
 end
 
--- СЕКЦИИ
+--=========================================================
+-- UI СЕКЦИИ
+--=========================================================
 MakeSection("ESP")
 MakeToggle("ESP Enabled", true, function() Config.ESP.Enabled = not Config.ESP.Enabled end)
 MakeToggle("Boxes", true, function() Config.ESP.Box = not Config.ESP.Box end)
@@ -307,6 +332,11 @@ MakeToggle("Aimbot", false, function() Config.Aimbot.Enabled = not Config.Aimbot
 MakeSlider("FOV Radius", 30, 600, 200, function(v) Config.Aimbot.FOV = v end)
 MakeSlider("Smoothness x100", 10, 100, 50, function(v) Config.Aimbot.Smoothness = v / 100 end)
 MakeSlider("Max Distance", 100, 2000, 600, function(v) Config.Aimbot.MaxDistance = v end)
+
+MakeSection("SILENT AIM")
+MakeToggle("Silent Aim", false, function() Config.Silent.Enabled = not Config.Silent.Enabled end)
+MakeSlider("Silent FOV", 30, 600, 200, function(v) Config.Silent.FOV = v end)
+MakeSlider("Silent Max Dist", 100, 2000, 600, function(v) Config.Silent.MaxDistance = v end)
 
 MakeSection("MOVEMENT (Anti-Teleport)")
 MakeToggle("Speed Hack", false, function() Config.Player.SpeedEnabled = not Config.Player.SpeedEnabled end)
@@ -327,7 +357,9 @@ MakeToggle("FPS Boost", false, function() Config.Visual.FPSBoost = not Config.Vi
 MakeSection("MISC")
 MakeToggle("Anti-AFK", false, function() Config.Misc.AntiAFK = not Config.Misc.AntiAFK end)
 
--- FC
+--=========================================================
+-- FC КНОПКА
+--=========================================================
 local FCBtn = Instance.new("TextButton")
 FCBtn.Size = UDim2.new(0, 50, 0, 28)
 FCBtn.Position = UDim2.new(0, 10, 0.5, -14)
@@ -345,8 +377,11 @@ Instance.new("UIStroke", FCBtn).Thickness = 1.5
 FCBtn.MouseButton1Click:Connect(function() Menu.Visible = not Menu.Visible end)
 CloseBtn.MouseButton1Click:Connect(function() Menu.Visible = false end)
 
+--=========================================================
 -- ESP
+--=========================================================
 local ESPCache = {}
+
 local function CreateESP(plr)
     if plr == LP or ESPCache[plr] or not hasDrawing then return end
     local box = Drawing.new("Square"); box.Visible = false; box.Color = Theme.Accent; box.Thickness = 1
@@ -357,18 +392,26 @@ local function CreateESP(plr)
     local tr = Drawing.new("Line"); tr.Visible = false; tr.Thickness = 1; tr.Color = Theme.Accent
     ESPCache[plr] = { Box = box, BoxOutline = boxO, Name = nm, Dist = dst, HP = hp, Tracer = tr }
 end
+
 local function RemoveESP(plr)
     local d = ESPCache[plr]; if not d then return end
     for _, o in pairs(d) do pcall(function() o:Remove() end) end
     ESPCache[plr] = nil
 end
 
--- Aimbot
-local function GetClosestTarget()
+--=========================================================
+-- ТАРГЕТ (общий для Aimbot и Silent Aim)
+--=========================================================
+local function IsTeammate(plr)
+    if not plr.Team or not LP.Team then return false end
+    return plr.Team == LP.Team
+end
+
+local function GetClosestTarget(fovRange, maxRange, teamCheck)
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    local closest, closestDist = nil, Config.Aimbot.FOV
+    local closest, closestDist, closestPart = nil, fovRange, nil
     for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LP then
+        if plr ~= LP and not (teamCheck and IsTeammate(plr)) then
             local char = plr.Character
             local hum = char and char:FindFirstChildOfClass("Humanoid")
             if hum and hum.Health > 0 then
@@ -377,31 +420,82 @@ local function GetClosestTarget()
                     local sp, onScreen = Camera:WorldToViewportPoint(part.Position)
                     if onScreen then
                         local d3 = (Camera.CFrame.Position - part.Position).Magnitude
-                        if d3 <= Config.Aimbot.MaxDistance then
+                        if d3 <= maxRange then
                             local sd = (Vector2.new(sp.X, sp.Y) - center).Magnitude
-                            if sd < closestDist then closestDist = sd; closest = part end
+                            if sd < closestDist then
+                                closestDist = sd
+                                closest = plr
+                                closestPart = part
+                            end
                         end
                     end
                 end
             end
         end
     end
-    return closest
+    return closest, closestPart
 end
 
--- FOV круг
-local FovCircle = Instance.new("Frame")
-FovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
-FovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
-FovCircle.Size = UDim2.new(0, 400, 0, 400)
-FovCircle.BackgroundTransparency = 1
-FovCircle.Visible = false
-FovCircle.Parent = ScreenGui
-Instance.new("UICorner", FovCircle).CornerRadius = UDim.new(1, 0)
-local FovStroke = Instance.new("UIStroke", FovCircle)
-FovStroke.Color = Theme.Accent; FovStroke.Thickness = 2
+-- Silent target обновление
+local silentPart = nil
+TrackConn(RunService.RenderStepped:Connect(function()
+    if Config.Silent.Enabled then
+        local plr, part = GetClosestTarget(Config.Silent.FOV, Config.Silent.MaxDistance, Config.Silent.TeamCheck)
+        silentPart = part
+    else
+        silentPart = nil
+    end
+end))
 
--- SPEED ANTI-TELEPORT
+--=========================================================
+-- SILENT AIM HOOK — подмена таблицы в Fire
+--=========================================================
+pcall(function()
+    if not (hookmetamethod and newcclosure) then return end
+    local oldNC
+    oldNC = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        
+        if method == "FireServer" and typeof(self) == "Instance" then
+            if self.Name == "Fire" and Config.Silent.Enabled and silentPart then
+                local args = {...}
+                
+                -- Первый аргумент — таблица с данными выстрела
+                if type(args[1]) == "table" then
+                    local data = args[1]
+                    
+                    -- Ищем поле dir (направление)
+                    if data.dir then
+                        local myPos = Camera.CFrame.Position
+                        local targetPos = silentPart.Position
+                        -- ВАЖНО: направление = (цель - камера).Unit
+                        local newDir = (targetPos - myPos).Unit
+                        
+                        data.dir = newDir
+                        
+                        if Config.Silent.Debug then
+                            notify("SilentAim ✅", silentPart.Parent.Name)
+                        end
+                        
+                        return oldNC(self, table.unpack(args))
+                    end
+                    
+                    -- Пробуем другие поля (например origin)
+                    if data.origin and data.dir then
+                        data.dir = (silentPart.Position - data.origin).Unit
+                        return oldNC(self, table.unpack(args))
+                    end
+                end
+            end
+        end
+        
+        return oldNC(self, ...)
+    end))
+end)
+
+--=========================================================
+-- SPEED (Anti-Teleport)
+--=========================================================
 local savedSpeed = 16; local smoothedSpeed = 16
 TrackConn(RunService.Heartbeat:Connect(function(dt)
     local char = LP.Character
@@ -426,8 +520,9 @@ TrackConn(LP.CharacterAdded:Connect(function(char)
     if hum then savedSpeed = hum.WalkSpeed; smoothedSpeed = hum.WalkSpeed end
 end))
 
+--=========================================================
 -- HELI FLY
-local heliConns = {}
+--=========================================================
 TrackConn(RunService.Heartbeat:Connect(function()
     if not Config.Heli.Enabled then return end
     local char = LP.Character
@@ -437,35 +532,53 @@ TrackConn(RunService.Heartbeat:Connect(function()
     local seat = hum.SeatPart
     local vehicle = seat.Parent
     if not vehicle then return end
-    
     local base = vehicle:FindFirstChild("Base") or vehicle:FindFirstChild("Chassis") or vehicle.PrimaryPart
     if not base then return end
-    
-    local cam = Camera
     local moveVec = Vector3.zero
-    if UIS:IsKeyDown(Enum.KeyCode.W) then moveVec += cam.CFrame.LookVector end
-    if UIS:IsKeyDown(Enum.KeyCode.S) then moveVec -= cam.CFrame.LookVector end
-    if UIS:IsKeyDown(Enum.KeyCode.A) then moveVec -= cam.CFrame.RightVector end
-    if UIS:IsKeyDown(Enum.KeyCode.D) then moveVec += cam.CFrame.RightVector end
+    if UIS:IsKeyDown(Enum.KeyCode.W) then moveVec += Camera.CFrame.LookVector end
+    if UIS:IsKeyDown(Enum.KeyCode.S) then moveVec -= Camera.CFrame.LookVector end
+    if UIS:IsKeyDown(Enum.KeyCode.A) then moveVec -= Camera.CFrame.RightVector end
+    if UIS:IsKeyDown(Enum.KeyCode.D) then moveVec += Camera.CFrame.RightVector end
     if UIS:IsKeyDown(Enum.KeyCode.Space) then moveVec += Vector3.new(0, 1, 0) end
     if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then moveVec -= Vector3.new(0, 1, 0) end
-    
     if moveVec.Magnitude > 0 then
         base.CFrame = base.CFrame + moveVec.Unit * Config.Heli.Speed * 0.016
     end
 end))
 
--- Главный цикл
-TrackConn(RunService.RenderStepped:Connect(function()
-    if Config.Aimbot.Enabled then
-        FovCircle.Visible = true
-        FovCircle.Size = UDim2.new(0, Config.Aimbot.FOV * 2, 0, Config.Aimbot.FOV * 2)
-    else FovCircle.Visible = false end
+--=========================================================
+-- FOV КРУГ
+--=========================================================
+local FovCircle = Instance.new("Frame")
+FovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+FovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
+FovCircle.Size = UDim2.new(0, 400, 0, 400)
+FovCircle.BackgroundTransparency = 1
+FovCircle.Visible = false
+FovCircle.Parent = ScreenGui
+Instance.new("UICorner", FovCircle).CornerRadius = UDim.new(1, 0)
+local FovStroke = Instance.new("UIStroke", FovCircle)
+FovStroke.Color = Theme.Accent; FovStroke.Thickness = 2
 
+--=========================================================
+-- ГЛАВНЫЙ ЦИКЛ
+--=========================================================
+TrackConn(RunService.RenderStepped:Connect(function()
+    -- FOV
+    if Config.Aimbot.Enabled or Config.Silent.Enabled then
+        FovCircle.Visible = true
+        local size = Config.Aimbot.Enabled and Config.Aimbot.FOV or Config.Silent.FOV
+        FovCircle.Size = UDim2.new(0, size * 2, 0, size * 2)
+    else
+        FovCircle.Visible = false
+    end
+
+    -- ESP
     if hasDrawing then
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LP then
-                local d = ESPCache[plr] or (CreateESP(plr) or ESPCache[plr])
+                local d = ESPCache[plr]
+                if not d then CreateESP(plr); d = ESPCache[plr] end
                 local char = plr.Character
                 local hum = char and char:FindFirstChildOfClass("Humanoid")
                 local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -481,35 +594,51 @@ TrackConn(RunService.RenderStepped:Connect(function()
                         if onT and onB then
                             local h = math.abs(sBot.Y - sTop.Y); local w = h * 0.55
                             local x, y = sTop.X - w/2, sTop.Y
-                            d.Box.Visible = Config.ESP.Box; d.Box.Size = Vector2.new(w, h); d.Box.Position = Vector2.new(x, y)
-                            d.BoxOutline.Visible = Config.ESP.Box; d.BoxOutline.Size = Vector2.new(w, h); d.BoxOutline.Position = Vector2.new(x, y)
-                            d.Name.Visible = Config.ESP.Name; d.Name.Text = plr.Name; d.Name.Position = Vector2.new(sTop.X, y - 16)
-                            d.Dist.Visible = Config.ESP.Distance; d.Dist.Text = math.floor(dist) .. "m"; d.Dist.Position = Vector2.new(sTop.X, y + h + 2)
+                            d.Box.Visible = Config.ESP.Box
+                            d.Box.Size = Vector2.new(w, h)
+                            d.Box.Position = Vector2.new(x, y)
+                            d.BoxOutline.Visible = Config.ESP.Box
+                            d.BoxOutline.Size = Vector2.new(w, h)
+                            d.BoxOutline.Position = Vector2.new(x, y)
+                            d.Name.Visible = Config.ESP.Name
+                            d.Name.Text = plr.Name
+                            d.Name.Position = Vector2.new(sTop.X, y - 16)
+                            d.Dist.Visible = Config.ESP.Distance
+                            d.Dist.Text = math.floor(dist) .. "m"
+                            d.Dist.Position = Vector2.new(sTop.X, y + h + 2)
                             if Config.ESP.Health then
                                 local pct = math.clamp(hum.Health / math.max(hum.MaxHealth, 1), 0, 1)
-                                d.HP.Visible = true; d.HP.Size = Vector2.new(3, h * pct); d.HP.Position = Vector2.new(x - 5, y + h - h * pct)
+                                d.HP.Visible = true
+                                d.HP.Size = Vector2.new(3, h * pct)
+                                d.HP.Position = Vector2.new(x - 5, y + h - h * pct)
                                 d.HP.Color = pct > 0.6 and Color3.fromRGB(0,255,0) or pct > 0.3 and Color3.fromRGB(255,200,0) or Color3.fromRGB(255,0,0)
-                            else d.HP.Visible = false end
+                            else
+                                d.HP.Visible = false
+                            end
                             d.Tracer.Visible = Config.ESP.Tracer
                             if Config.ESP.Tracer then
                                 d.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
                                 d.Tracer.To = Vector2.new(sBot.X, sBot.Y)
                             end
-                        else for _, o in pairs(d) do o.Visible = false end end
+                        else
+                            for _, o in pairs(d) do o.Visible = false end
+                        end
                     end
                 end
             end
         end
     end
 
+    -- Aimbot (двигает камеру)
     if Config.Aimbot.Enabled and (Config.Aimbot.TriggerActive or UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)) then
-        local target = GetClosestTarget()
-        if target then
-            local targetCF = CFrame.new(Camera.CFrame.Position, target.Position)
+        local _, part = GetClosestTarget(Config.Aimbot.FOV, Config.Aimbot.MaxDistance, false)
+        if part then
+            local targetCF = CFrame.new(Camera.CFrame.Position, part.Position)
             Camera.CFrame = Camera.CFrame:Lerp(targetCF, Config.Aimbot.Smoothness)
         end
     end
 
+    -- Noclip / NoFall
     local char = LP.Character
     if char then
         local hum = char:FindFirstChildOfClass("Humanoid")
@@ -524,6 +653,7 @@ TrackConn(RunService.RenderStepped:Connect(function()
         end
     end
 
+    -- Visual
     if Config.Visual.Fullbright then
         pcall(function()
             Lighting.Brightness = 5; Lighting.ClockTime = 14
@@ -546,18 +676,24 @@ for _, plr in ipairs(Players:GetPlayers()) do CreateESP(plr) end
 TrackConn(UIS.JumpRequest:Connect(function()
     if not Config.Misc.InfiniteJump then return end
     local char = LP.Character
-    if char then local hum = char:FindFirstChildOfClass("Humanoid"); if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end end
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+    end
 end))
 
 TrackConn(LP.Idled:Connect(function()
     if not Config.Misc.AntiAFK then return end
     pcall(function()
         local VU = game:GetService("VirtualUser")
-        VU:CaptureController(); VU:ClickButton2(Vector2.new())
+        VU:CaptureController()
+        VU:ClickButton2(Vector2.new())
     end)
 end))
 
+--=========================================================
 -- HOLD TO AIM
+--=========================================================
 local TriggerBtn = Instance.new("TextButton")
 TriggerBtn.Size = UDim2.new(1, -16, 0, 36)
 TriggerBtn.Position = UDim2.new(0, 8, 1, -44)
@@ -569,16 +705,24 @@ TriggerBtn.Font = Theme.FontBold
 TriggerBtn.TextSize = 12
 TriggerBtn.Parent = Menu
 Instance.new("UICorner", TriggerBtn).CornerRadius = UDim.new(0, 6)
-local function setTrig(a) Config.Aimbot.TriggerActive = a; TriggerBtn.BackgroundColor3 = a and Color3.fromRGB(180,150,255) or Theme.Accent end
+
+local function setTrig(a)
+    Config.Aimbot.TriggerActive = a
+    TriggerBtn.BackgroundColor3 = a and Color3.fromRGB(180,150,255) or Theme.Accent
+end
 TriggerBtn.MouseButton1Down:Connect(function() setTrig(true) end)
 TriggerBtn.MouseButton1Up:Connect(function() setTrig(false) end)
 TriggerBtn.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.Touch then setTrig(true) end end)
 TriggerBtn.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.Touch then setTrig(false) end end)
 TriggerBtn.MouseLeave:Connect(function() setTrig(false) end)
 
+--=========================================================
 -- UNLOAD
+--=========================================================
 local function Unload()
-    for _, d in pairs(ESPCache) do for _, o in pairs(d) do pcall(function() o:Remove() end) end end
+    for _, d in pairs(ESPCache) do
+        for _, o in pairs(d) do pcall(function() o:Remove() end) end
+    end
     for _, c in ipairs(Connections) do pcall(function() c:Disconnect() end) end
     pcall(function() ScreenGui:Destroy() end)
     getgenv().Fust_Loaded = false
@@ -586,5 +730,5 @@ local function Unload()
 end
 getgenv().Fust_Unload = Unload
 
-notify("FerClient | Fust v1.1", "Загружен ✅")
-print("[FerClient] Fust v1.1 — Heli Fly + Speed Anti-Teleport")
+notify("FerClient | Fust v2.0", "Silent Aim + ESP + Aimbot")
+print("[FerClient] Fust v2.0 — Silent Aim через таблицу Fire")
