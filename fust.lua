@@ -1,6 +1,6 @@
 --[[
-    FerClient | Fust v1.0
-    Универсальный чит: ESP + Aimbot + Speed (Anti-Teleport) + Noclip
+    FerClient | Fust v1.1
+    ESP + Aimbot + Speed (Anti-Teleport) + Noclip + Helicopter Fly
 ]]
 
 if getgenv().Fust_Loaded then
@@ -40,7 +40,7 @@ local Theme = {
 }
 
 --=========================================================
--- КОНФИГ (все выключено кроме ESP)
+-- КОНФИГ
 --=========================================================
 local Config = {
     ESP = {
@@ -55,6 +55,9 @@ local Config = {
     Player = {
         SpeedEnabled = false, SpeedValue = 30,
         Noclip = false, NoFallDamage = false,
+    },
+    Heli = {
+        Enabled = false, Speed = 60,
     },
     Visual = {
         Fullbright = false, NoFog = false, FPSBoost = false,
@@ -97,8 +100,8 @@ if not ScreenGui.Parent then ScreenGui.Parent = LP:WaitForChild("PlayerGui") end
 
 local Menu = Instance.new("Frame")
 Menu.Name = "Main"
-Menu.Size = UDim2.new(0, 280, 0, 380)
-Menu.Position = UDim2.new(0.5, -140, 0.5, -190)
+Menu.Size = UDim2.new(0, 280, 0, 400)
+Menu.Position = UDim2.new(0.5, -140, 0.5, -200)
 Menu.BackgroundColor3 = Theme.Background
 Menu.BorderSizePixel = 0
 Menu.Active = true
@@ -109,7 +112,6 @@ Instance.new("UIStroke", Menu).Color = Theme.Border
 Instance.new("UIStroke", Menu).Thickness = 1
 Instance.new("UICorner", Menu).CornerRadius = UDim.new(0, 10)
 
--- Топбар
 local TopBar = Instance.new("Frame")
 TopBar.Size = UDim2.new(1, 0, 0, 30)
 TopBar.BackgroundColor3 = Theme.Background
@@ -120,7 +122,7 @@ local Logo = Instance.new("TextLabel")
 Logo.Size = UDim2.new(1, -40, 1, 0)
 Logo.Position = UDim2.new(0, 10, 0, 0)
 Logo.BackgroundTransparency = 1
-Logo.Text = "FerClient | Fust"
+Logo.Text = "FerClient | Fust v1.1"
 Logo.TextColor3 = Theme.Text
 Logo.Font = Theme.FontBold
 Logo.TextSize = 12
@@ -137,7 +139,6 @@ CloseBtn.Font = Theme.FontBold
 CloseBtn.TextSize = 12
 CloseBtn.Parent = TopBar
 
--- Контент
 local Content = Instance.new("ScrollingFrame")
 Content.Size = UDim2.new(1, -16, 1, -38)
 Content.Position = UDim2.new(0, 8, 0, 34)
@@ -155,9 +156,7 @@ Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
     Content.CanvasSize = UDim2.new(0, 0, 0, Layout.AbsoluteContentSize.Y + 10)
 end)
 
---=========================================================
 -- ЭЛЕМЕНТЫ UI
---=========================================================
 local function MakeToggle(text, default, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, 0, 0, 26)
@@ -165,7 +164,6 @@ local function MakeToggle(text, default, callback)
     frame.BorderSizePixel = 0
     frame.Parent = Content
     Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 4)
-
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, -40, 1, 0)
     label.Position = UDim2.new(0, 10, 0, 0)
@@ -176,7 +174,6 @@ local function MakeToggle(text, default, callback)
     label.TextSize = 11
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = frame
-
     local track = Instance.new("Frame")
     track.Size = UDim2.new(0, 28, 0, 14)
     track.Position = UDim2.new(1, -36, 0.5, -7)
@@ -184,7 +181,6 @@ local function MakeToggle(text, default, callback)
     track.BorderSizePixel = 0
     track.Parent = frame
     Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
-
     local knob = Instance.new("Frame")
     knob.AnchorPoint = Vector2.new(0, 0.5)
     knob.Size = UDim2.new(0, 10, 0, 10)
@@ -193,7 +189,6 @@ local function MakeToggle(text, default, callback)
     knob.BorderSizePixel = 0
     knob.Parent = track
     Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
-
     local isOn = default or false
     local function apply()
         if isOn then
@@ -206,7 +201,6 @@ local function MakeToggle(text, default, callback)
     end
     isOn = default or false
     apply()
-
     local click = Instance.new("TextButton")
     click.Size = UDim2.new(1, 0, 1, 0)
     click.BackgroundTransparency = 1
@@ -226,7 +220,6 @@ local function MakeSlider(text, min, max, default, callback)
     frame.BorderSizePixel = 0
     frame.Parent = Content
     Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 4)
-
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(0.5, 0, 1, 0)
     label.Position = UDim2.new(0, 10, 0, 0)
@@ -237,7 +230,6 @@ local function MakeSlider(text, min, max, default, callback)
     label.TextSize = 10
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = frame
-
     local valLabel = Instance.new("TextLabel")
     valLabel.Size = UDim2.new(0, 40, 1, 0)
     valLabel.Position = UDim2.new(1, -50, 0, 0)
@@ -248,7 +240,6 @@ local function MakeSlider(text, min, max, default, callback)
     valLabel.TextSize = 10
     valLabel.TextXAlignment = Enum.TextXAlignment.Right
     valLabel.Parent = frame
-
     local track = Instance.new("Frame")
     track.Size = UDim2.new(1, -110, 0, 4)
     track.Position = UDim2.new(0, 10, 1, -8)
@@ -256,14 +247,12 @@ local function MakeSlider(text, min, max, default, callback)
     track.BorderSizePixel = 0
     track.Parent = frame
     Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
-
     local fill = Instance.new("Frame")
     fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
     fill.BackgroundColor3 = Theme.Accent
     fill.BorderSizePixel = 0
     fill.Parent = track
     Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
-
     local dragging = false
     local function update(x)
         local relX = math.clamp(x - track.AbsolutePosition.X, 0, track.AbsoluteSize.X)
@@ -273,24 +262,19 @@ local function MakeSlider(text, min, max, default, callback)
         valLabel.Text = tostring(value)
         pcall(callback, value)
     end
-
     track.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            update(input.Position.X)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; update(input.Position.X)
         end
     end)
     UIS.InputChanged:Connect(function(input)
         if not dragging then return end
-        if input.UserInputType == Enum.UserInputType.MouseMovement
-            or input.UserInputType == Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             update(input.Position.X)
         end
     end)
     UIS.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = false
         end
     end)
@@ -308,9 +292,7 @@ local function MakeSection(text)
     lbl.Parent = Content
 end
 
---=========================================================
--- UI СЕКЦИИ
---=========================================================
+-- СЕКЦИИ
 MakeSection("ESP")
 MakeToggle("ESP Enabled", true, function() Config.ESP.Enabled = not Config.ESP.Enabled end)
 MakeToggle("Boxes", true, function() Config.ESP.Box = not Config.ESP.Box end)
@@ -333,20 +315,19 @@ MakeToggle("Noclip", false, function() Config.Player.Noclip = not Config.Player.
 MakeToggle("No Fall Damage", false, function() Config.Player.NoFallDamage = not Config.Player.NoFallDamage end)
 MakeToggle("Infinite Jump", false, function() Config.Misc.InfiniteJump = not Config.Misc.InfiniteJump end)
 
+MakeSection("HELICOPTER")
+MakeToggle("Heli Fly", false, function() Config.Heli.Enabled = not Config.Heli.Enabled end)
+MakeSlider("Heli Speed", 20, 200, 60, function(v) Config.Heli.Speed = v end)
+
 MakeSection("VISUAL")
 MakeToggle("Fullbright", false, function() Config.Visual.Fullbright = not Config.Visual.Fullbright end)
 MakeToggle("No Fog", false, function() Config.Visual.NoFog = not Config.Visual.NoFog end)
 MakeToggle("FPS Boost", false, function() Config.Visual.FPSBoost = not Config.Visual.FPSBoost end)
 
 MakeSection("MISC")
-MakeToggle("Anti-AFK", false, function()
-    Config.Misc.AntiAFK = not Config.Misc.AntiAFK
-    if Config.Misc.AntiAFK then notify("Anti-AFK", "ON") end
-end)
+MakeToggle("Anti-AFK", false, function() Config.Misc.AntiAFK = not Config.Misc.AntiAFK end)
 
---=========================================================
--- FC КНОПКА
---=========================================================
+-- FC
 local FCBtn = Instance.new("TextButton")
 FCBtn.Size = UDim2.new(0, 50, 0, 28)
 FCBtn.Position = UDim2.new(0, 10, 0.5, -14)
@@ -364,11 +345,8 @@ Instance.new("UIStroke", FCBtn).Thickness = 1.5
 FCBtn.MouseButton1Click:Connect(function() Menu.Visible = not Menu.Visible end)
 CloseBtn.MouseButton1Click:Connect(function() Menu.Visible = false end)
 
---=========================================================
 -- ESP
---=========================================================
 local ESPCache = {}
-
 local function CreateESP(plr)
     if plr == LP or ESPCache[plr] or not hasDrawing then return end
     local box = Drawing.new("Square"); box.Visible = false; box.Color = Theme.Accent; box.Thickness = 1
@@ -379,16 +357,13 @@ local function CreateESP(plr)
     local tr = Drawing.new("Line"); tr.Visible = false; tr.Thickness = 1; tr.Color = Theme.Accent
     ESPCache[plr] = { Box = box, BoxOutline = boxO, Name = nm, Dist = dst, HP = hp, Tracer = tr }
 end
-
 local function RemoveESP(plr)
     local d = ESPCache[plr]; if not d then return end
     for _, o in pairs(d) do pcall(function() o:Remove() end) end
     ESPCache[plr] = nil
 end
 
---=========================================================
--- AIMBOT ЛОГИКА
---=========================================================
+-- Aimbot
 local function GetClosestTarget()
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     local closest, closestDist = nil, Config.Aimbot.FOV
@@ -414,9 +389,7 @@ local function GetClosestTarget()
     return closest
 end
 
---=========================================================
--- FOV КРУГ
---=========================================================
+-- FOV круг
 local FovCircle = Instance.new("Frame")
 FovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
 FovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
@@ -426,124 +399,109 @@ FovCircle.Visible = false
 FovCircle.Parent = ScreenGui
 Instance.new("UICorner", FovCircle).CornerRadius = UDim.new(1, 0)
 local FovStroke = Instance.new("UIStroke", FovCircle)
-FovStroke.Color = Theme.Accent
-FovStroke.Thickness = 2
+FovStroke.Color = Theme.Accent; FovStroke.Thickness = 2
 
---=========================================================
--- SPEED HACK (ANTI-TELEPORT)
---=========================================================
-local savedWalkSpeed = 16
-local smoothedSpeed = 16
-
+-- SPEED ANTI-TELEPORT
+local savedSpeed = 16; local smoothedSpeed = 16
 TrackConn(RunService.Heartbeat:Connect(function(dt)
     local char = LP.Character
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hum then return end
-    
     if Config.Player.SpeedEnabled then
-        -- Ограничиваем максимум 50 (чтобы не телепало)
-        local maxSafe = 50
-        local targetSpeed = math.clamp(Config.Player.SpeedValue, 16, maxSafe)
-        
-        -- Плавное ускорение
+        local targetSpeed = math.clamp(Config.Player.SpeedValue, 16, 50)
         smoothedSpeed = smoothedSpeed + (targetSpeed - smoothedSpeed) * math.clamp(dt * 8, 0, 1)
         hum.WalkSpeed = smoothedSpeed
-        
-        -- Anti-Teleport: если откинуло назад
-        if hum.WalkSpeed < 10 and smoothedSpeed > 20 then
-            hum.WalkSpeed = smoothedSpeed
-        end
+        if hum.WalkSpeed < 10 and smoothedSpeed > 20 then hum.WalkSpeed = smoothedSpeed end
     else
-        -- Плавный возврат к норме
-        if math.abs(smoothedSpeed - savedWalkSpeed) > 0.1 then
-            smoothedSpeed = smoothedSpeed + (savedWalkSpeed - smoothedSpeed) * math.clamp(dt * 8, 0, 1)
+        if math.abs(smoothedSpeed - savedSpeed) > 0.1 then
+            smoothedSpeed = smoothedSpeed + (savedSpeed - smoothedSpeed) * math.clamp(dt * 8, 0, 1)
             hum.WalkSpeed = smoothedSpeed
-        else
-            smoothedSpeed = savedWalkSpeed
-            hum.WalkSpeed = savedWalkSpeed
-        end
+        else smoothedSpeed = savedSpeed; hum.WalkSpeed = savedSpeed end
     end
 end))
 
 TrackConn(LP.CharacterAdded:Connect(function(char)
     local hum = char:WaitForChild("Humanoid", 5)
-    if hum then 
-        savedWalkSpeed = hum.WalkSpeed
-        smoothedSpeed = hum.WalkSpeed
+    if hum then savedSpeed = hum.WalkSpeed; smoothedSpeed = hum.WalkSpeed end
+end))
+
+-- HELI FLY
+local heliConns = {}
+TrackConn(RunService.Heartbeat:Connect(function()
+    if not Config.Heli.Enabled then return end
+    local char = LP.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum or not hum.SeatPart then return end
+    local seat = hum.SeatPart
+    local vehicle = seat.Parent
+    if not vehicle then return end
+    
+    local base = vehicle:FindFirstChild("Base") or vehicle:FindFirstChild("Chassis") or vehicle.PrimaryPart
+    if not base then return end
+    
+    local cam = Camera
+    local moveVec = Vector3.zero
+    if UIS:IsKeyDown(Enum.KeyCode.W) then moveVec += cam.CFrame.LookVector end
+    if UIS:IsKeyDown(Enum.KeyCode.S) then moveVec -= cam.CFrame.LookVector end
+    if UIS:IsKeyDown(Enum.KeyCode.A) then moveVec -= cam.CFrame.RightVector end
+    if UIS:IsKeyDown(Enum.KeyCode.D) then moveVec += cam.CFrame.RightVector end
+    if UIS:IsKeyDown(Enum.KeyCode.Space) then moveVec += Vector3.new(0, 1, 0) end
+    if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then moveVec -= Vector3.new(0, 1, 0) end
+    
+    if moveVec.Magnitude > 0 then
+        base.CFrame = base.CFrame + moveVec.Unit * Config.Heli.Speed * 0.016
     end
 end))
 
---=========================================================
--- ГЛАВНЫЙ ЦИКЛ
---=========================================================
-TrackConn(RunService.RenderStepped:Connect(function(dt)
-    -- FOV
+-- Главный цикл
+TrackConn(RunService.RenderStepped:Connect(function()
     if Config.Aimbot.Enabled then
         FovCircle.Visible = true
         FovCircle.Size = UDim2.new(0, Config.Aimbot.FOV * 2, 0, Config.Aimbot.FOV * 2)
-    else
-        FovCircle.Visible = false
-    end
+    else FovCircle.Visible = false end
 
-    -- ESP
     if hasDrawing then
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LP then
-                local d = ESPCache[plr]
-                if not d then CreateESP(plr); d = ESPCache[plr] end
+                local d = ESPCache[plr] or (CreateESP(plr) or ESPCache[plr])
                 local char = plr.Character
                 local hum = char and char:FindFirstChildOfClass("Humanoid")
                 local root = char and char:FindFirstChild("HumanoidRootPart")
                 if not Config.ESP.Enabled or not root or not hum or hum.Health <= 0 then
                     for _, o in pairs(d) do o.Visible = false end
-                    continue
-                end
-                local dist = (Camera.CFrame.Position - root.Position).Magnitude
-                if dist > Config.ESP.MaxDistance then
-                    for _, o in pairs(d) do o.Visible = false end
-                    continue
-                end
-                local sTop, onT = Camera:WorldToViewportPoint(root.Position + Vector3.new(0, 3, 0))
-                local sBot, onB = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
-                if not (onT and onB) then
-                    for _, o in pairs(d) do o.Visible = false end
-                    continue
-                end
-                local h = math.abs(sBot.Y - sTop.Y)
-                local w = h * 0.55
-                local x, y = sTop.X - w/2, sTop.Y
-                d.Box.Visible = Config.ESP.Box
-                d.Box.Size = Vector2.new(w, h)
-                d.Box.Position = Vector2.new(x, y)
-                d.BoxOutline.Visible = Config.ESP.Box
-                d.BoxOutline.Size = Vector2.new(w, h)
-                d.BoxOutline.Position = Vector2.new(x, y)
-                d.Name.Visible = Config.ESP.Name
-                d.Name.Text = plr.Name
-                d.Name.Position = Vector2.new(sTop.X, y - 16)
-                d.Dist.Visible = Config.ESP.Distance
-                d.Dist.Text = math.floor(dist) .. "m"
-                d.Dist.Position = Vector2.new(sTop.X, y + h + 2)
-                if Config.ESP.Health then
-                    local pct = math.clamp(hum.Health / math.max(hum.MaxHealth, 1), 0, 1)
-                    d.HP.Visible = true
-                    d.HP.Size = Vector2.new(3, h * pct)
-                    d.HP.Position = Vector2.new(x - 5, y + h - h * pct)
-                    d.HP.Color = pct > 0.6 and Color3.fromRGB(0,255,0) or pct > 0.3 and Color3.fromRGB(255,200,0) or Color3.fromRGB(255,0,0)
                 else
-                    d.HP.Visible = false
-                end
-                d.Tracer.Visible = Config.ESP.Tracer
-                if Config.ESP.Tracer then
-                    d.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
-                    d.Tracer.To = Vector2.new(sBot.X, sBot.Y)
+                    local dist = (Camera.CFrame.Position - root.Position).Magnitude
+                    if dist > Config.ESP.MaxDistance then
+                        for _, o in pairs(d) do o.Visible = false end
+                    else
+                        local sTop, onT = Camera:WorldToViewportPoint(root.Position + Vector3.new(0, 3, 0))
+                        local sBot, onB = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
+                        if onT and onB then
+                            local h = math.abs(sBot.Y - sTop.Y); local w = h * 0.55
+                            local x, y = sTop.X - w/2, sTop.Y
+                            d.Box.Visible = Config.ESP.Box; d.Box.Size = Vector2.new(w, h); d.Box.Position = Vector2.new(x, y)
+                            d.BoxOutline.Visible = Config.ESP.Box; d.BoxOutline.Size = Vector2.new(w, h); d.BoxOutline.Position = Vector2.new(x, y)
+                            d.Name.Visible = Config.ESP.Name; d.Name.Text = plr.Name; d.Name.Position = Vector2.new(sTop.X, y - 16)
+                            d.Dist.Visible = Config.ESP.Distance; d.Dist.Text = math.floor(dist) .. "m"; d.Dist.Position = Vector2.new(sTop.X, y + h + 2)
+                            if Config.ESP.Health then
+                                local pct = math.clamp(hum.Health / math.max(hum.MaxHealth, 1), 0, 1)
+                                d.HP.Visible = true; d.HP.Size = Vector2.new(3, h * pct); d.HP.Position = Vector2.new(x - 5, y + h - h * pct)
+                                d.HP.Color = pct > 0.6 and Color3.fromRGB(0,255,0) or pct > 0.3 and Color3.fromRGB(255,200,0) or Color3.fromRGB(255,0,0)
+                            else d.HP.Visible = false end
+                            d.Tracer.Visible = Config.ESP.Tracer
+                            if Config.ESP.Tracer then
+                                d.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                                d.Tracer.To = Vector2.new(sBot.X, sBot.Y)
+                            end
+                        else for _, o in pairs(d) do o.Visible = false end end
+                    end
                 end
             end
         end
     end
 
-    -- Aimbot
     if Config.Aimbot.Enabled and (Config.Aimbot.TriggerActive or UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)) then
         local target = GetClosestTarget()
         if target then
@@ -552,7 +510,6 @@ TrackConn(RunService.RenderStepped:Connect(function(dt)
         end
     end
 
-    -- Noclip / NoFall
     local char = LP.Character
     if char then
         local hum = char:FindFirstChildOfClass("Humanoid")
@@ -567,21 +524,15 @@ TrackConn(RunService.RenderStepped:Connect(function(dt)
         end
     end
 
-    -- Fullbright
     if Config.Visual.Fullbright then
         pcall(function()
-            Lighting.Brightness = 5
-            Lighting.ClockTime = 14
-            Lighting.FogEnd = 100000
-            Lighting.GlobalShadows = false
+            Lighting.Brightness = 5; Lighting.ClockTime = 14
+            Lighting.FogEnd = 100000; Lighting.GlobalShadows = false
         end)
     end
-
-    -- No Fog
     if Config.Visual.NoFog then
         pcall(function()
-            Lighting.FogEnd = 9e9
-            Lighting.FogStart = 0
+            Lighting.FogEnd = 9e9; Lighting.FogStart = 0
             local atm = Lighting:FindFirstChildOfClass("Atmosphere")
             if atm then atm.Density = 0; atm.Haze = 0 end
         end)
@@ -592,29 +543,21 @@ TrackConn(Players.PlayerAdded:Connect(CreateESP))
 TrackConn(Players.PlayerRemoving:Connect(RemoveESP))
 for _, plr in ipairs(Players:GetPlayers()) do CreateESP(plr) end
 
--- Infinite Jump
 TrackConn(UIS.JumpRequest:Connect(function()
     if not Config.Misc.InfiniteJump then return end
     local char = LP.Character
-    if char then
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
-    end
+    if char then local hum = char:FindFirstChildOfClass("Humanoid"); if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end end
 end))
 
--- Anti-AFK
 TrackConn(LP.Idled:Connect(function()
     if not Config.Misc.AntiAFK then return end
     pcall(function()
         local VU = game:GetService("VirtualUser")
-        VU:CaptureController()
-        VU:ClickButton2(Vector2.new())
+        VU:CaptureController(); VU:ClickButton2(Vector2.new())
     end)
 end))
 
---=========================================================
 -- HOLD TO AIM
---=========================================================
 local TriggerBtn = Instance.new("TextButton")
 TriggerBtn.Size = UDim2.new(1, -16, 0, 36)
 TriggerBtn.Position = UDim2.new(0, 8, 1, -44)
@@ -626,24 +569,16 @@ TriggerBtn.Font = Theme.FontBold
 TriggerBtn.TextSize = 12
 TriggerBtn.Parent = Menu
 Instance.new("UICorner", TriggerBtn).CornerRadius = UDim.new(0, 6)
-
-local function setTrig(a)
-    Config.Aimbot.TriggerActive = a
-    TriggerBtn.BackgroundColor3 = a and Color3.fromRGB(180,150,255) or Theme.Accent
-end
+local function setTrig(a) Config.Aimbot.TriggerActive = a; TriggerBtn.BackgroundColor3 = a and Color3.fromRGB(180,150,255) or Theme.Accent end
 TriggerBtn.MouseButton1Down:Connect(function() setTrig(true) end)
 TriggerBtn.MouseButton1Up:Connect(function() setTrig(false) end)
 TriggerBtn.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.Touch then setTrig(true) end end)
 TriggerBtn.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.Touch then setTrig(false) end end)
 TriggerBtn.MouseLeave:Connect(function() setTrig(false) end)
 
---=========================================================
 -- UNLOAD
---=========================================================
 local function Unload()
-    for _, d in pairs(ESPCache) do
-        for _, o in pairs(d) do pcall(function() o:Remove() end) end
-    end
+    for _, d in pairs(ESPCache) do for _, o in pairs(d) do pcall(function() o:Remove() end) end end
     for _, c in ipairs(Connections) do pcall(function() c:Disconnect() end) end
     pcall(function() ScreenGui:Destroy() end)
     getgenv().Fust_Loaded = false
@@ -651,5 +586,5 @@ local function Unload()
 end
 getgenv().Fust_Unload = Unload
 
-notify("FerClient | Fust", "Загружен ✅")
-print("[FerClient] Fust — загружен | Speed Anti-Teleport")
+notify("FerClient | Fust v1.1", "Загружен ✅")
+print("[FerClient] Fust v1.1 — Heli Fly + Speed Anti-Teleport")
