@@ -1,7 +1,6 @@
 --[[
-    FerClient | Fust v4.0 FINAL
-    Silent Aim (Bow+Gun) + Bow Long Range + ESP + Aimbot
-    + Speed + Noclip + Heli Fly + Новое меню
+    FerClient | Fust v4.1 FINAL
+    Фикс: кнопки нажимаются, вкладки переключаются
 ]]
 
 if getgenv().Fust_Loaded then
@@ -24,51 +23,28 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Camera = Workspace.CurrentCamera
 local LP = Players.LocalPlayer
 
---=========================================================
--- ТЕМА (Null-wave)
---=========================================================
+-- Тема
 local Theme = {
-    Background   = Color3.fromRGB(15, 15, 25),
-    Panel        = Color3.fromRGB(20, 20, 35),
-    Element      = Color3.fromRGB(28, 28, 45),
-    Accent       = Color3.fromRGB(150, 120, 240),
-    On           = Color3.fromRGB(150, 120, 240),
-    Off          = Color3.fromRGB(50, 50, 70),
-    Text         = Color3.fromRGB(230, 230, 240),
-    TextDim      = Color3.fromRGB(120, 120, 140),
-    Border       = Color3.fromRGB(40, 40, 60),
-    Font         = Enum.Font.Gotham,
-    FontBold     = Enum.Font.GothamBold,
+    Background = Color3.fromRGB(15, 15, 25),
+    Panel = Color3.fromRGB(20, 20, 35),
+    Element = Color3.fromRGB(28, 28, 45),
+    Accent = Color3.fromRGB(150, 120, 240),
+    On = Color3.fromRGB(150, 120, 240),
+    Off = Color3.fromRGB(50, 50, 70),
+    Text = Color3.fromRGB(230, 230, 240),
+    TextDim = Color3.fromRGB(120, 120, 140),
+    Border = Color3.fromRGB(40, 40, 60),
+    Font = Enum.Font.Gotham,
+    FontBold = Enum.Font.GothamBold,
 }
 
---=========================================================
--- КОНФИГ
---=========================================================
+-- Конфиг
 local Config = {
-    ESP = {
-        Enabled = true,
-        Box = true, Name = true, Distance = true, Health = true, Tracer = true,
-        MaxDistance = 1500,
-    },
-    Aimbot = {
-        Enabled = false, AutoAim = false, FOV = 200, Smoothness = 0.5,
-        MaxDistance = 600, TargetPart = "Head", Visible = false,
-        TeamCheck = true, ShowFOV = true, TriggerActive = false,
-    },
-    Silent = {
-        Enabled = false, FOV = 200, MaxDistance = 600, TargetPart = "Head",
-        TeamCheck = true, Debug = true,
-    },
-    Gun = {
-        LongRange = false,
-        RangeMultiplier = 3,
-        BowLongRange = false,
-        BowMultiplier = 3,
-    },
-    Player = {
-        SpeedEnabled = false, SpeedValue = 30,
-        Noclip = false, NoFallDamage = false,
-    },
+    ESP = { Enabled = true, Box = true, Name = true, Distance = true, Health = true, Tracer = true, MaxDistance = 1500 },
+    Aimbot = { Enabled = false, AutoAim = false, FOV = 200, Smoothness = 0.5, MaxDistance = 600, TargetPart = "Head", Visible = false, TeamCheck = true, ShowFOV = true, TriggerActive = false },
+    Silent = { Enabled = false, FOV = 200, MaxDistance = 600, TargetPart = "Head", TeamCheck = true, Debug = true },
+    Gun = { LongRange = false, RangeMultiplier = 3, BowLongRange = false, BowMultiplier = 3 },
+    Player = { SpeedEnabled = false, SpeedValue = 30, Noclip = false, NoFallDamage = false },
     Heli = { Enabled = false, Speed = 60 },
     Visual = { Fullbright = false, NoFog = false, FPSBoost = false },
     Misc = { InfiniteJump = false, AntiAFK = false },
@@ -79,22 +55,15 @@ local hasDrawing = pcall(function()
 end)
 
 local Connections = {}
-local function TrackConn(c)
-    Connections[#Connections + 1] = c
-    return c
-end
+local function TrackConn(c) Connections[#Connections + 1] = c; return c end
 
 local function notify(title, text)
     pcall(function()
-        StarterGui:SetCore("SendNotification", {
-            Title = title or "FerClient", Text = text or "", Duration = 2,
-        })
+        StarterGui:SetCore("SendNotification", { Title = title or "FerClient", Text = text or "", Duration = 2 })
     end)
 end
 
---=========================================================
--- ГЛАВНЫЙ GUI (Меню с вкладками как в Decay)
---=========================================================
+-- GUI
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "FerClient_Fust"
 ScreenGui.ResetOnSpawn = false
@@ -104,7 +73,7 @@ pcall(function() ScreenGui.Parent = HUI end)
 if not ScreenGui.Parent then ScreenGui.Parent = LP:WaitForChild("PlayerGui") end
 
 local Menu = Instance.new("Frame")
-Menu.Name = "FerClient_Main"
+Menu.Name = "Main"
 Menu.Size = UDim2.new(0, 450, 0, 280)
 Menu.Position = UDim2.new(0.5, -225, 0.5, -140)
 Menu.BackgroundColor3 = Theme.Background
@@ -121,19 +90,19 @@ local TopBar = Instance.new("Frame")
 TopBar.Size = UDim2.new(1, 0, 0, 26)
 TopBar.BackgroundColor3 = Theme.Background
 TopBar.BorderSizePixel = 0
-TopBar.ZIndex = 3
+TopBar.ZIndex = 10
 TopBar.Parent = Menu
 
 local Logo = Instance.new("TextLabel")
 Logo.Size = UDim2.new(1, -70, 1, 0)
 Logo.Position = UDim2.new(0, 10, 0, 0)
 Logo.BackgroundTransparency = 1
-Logo.Text = "FerClient v4.0"
+Logo.Text = "FerClient | Fust v4.1"
 Logo.TextColor3 = Theme.Text
 Logo.Font = Theme.FontBold
 Logo.TextSize = 12
 Logo.TextXAlignment = Enum.TextXAlignment.Left
-Logo.ZIndex = 4
+Logo.ZIndex = 11
 Logo.Parent = TopBar
 
 local MinimizeBtn = Instance.new("TextButton")
@@ -144,8 +113,7 @@ MinimizeBtn.Text = "—"
 MinimizeBtn.TextColor3 = Theme.TextDim
 MinimizeBtn.Font = Theme.FontBold
 MinimizeBtn.TextSize = 12
-MinimizeBtn.AutoButtonColor = false
-MinimizeBtn.ZIndex = 4
+MinimizeBtn.ZIndex = 11
 MinimizeBtn.Parent = TopBar
 
 local UnloadBtn = Instance.new("TextButton")
@@ -156,8 +124,7 @@ UnloadBtn.Text = "✕"
 UnloadBtn.TextColor3 = Theme.TextDim
 UnloadBtn.Font = Theme.FontBold
 UnloadBtn.TextSize = 11
-UnloadBtn.AutoButtonColor = false
-UnloadBtn.ZIndex = 4
+UnloadBtn.ZIndex = 11
 UnloadBtn.Parent = TopBar
 
 -- Контент
@@ -165,7 +132,7 @@ local Content = Instance.new("Frame")
 Content.Size = UDim2.new(1, -20, 1, -54)
 Content.Position = UDim2.new(0, 10, 0, 30)
 Content.BackgroundTransparency = 1
-Content.ZIndex = 3
+Content.ZIndex = 1
 Content.Parent = Menu
 
 local function MakeTabContent()
@@ -177,7 +144,7 @@ local function MakeTabContent()
     sf.ScrollBarImageColor3 = Theme.Accent
     sf.CanvasSize = UDim2.new(0, 0, 0, 0)
     sf.Visible = false
-    sf.ZIndex = 3
+    sf.ZIndex = 1
     sf.Parent = Content
     local layout = Instance.new("UIListLayout", sf)
     layout.Padding = UDim.new(0, 4)
@@ -200,7 +167,7 @@ BottomTabs.Size = UDim2.new(1, 0, 0, 22)
 BottomTabs.Position = UDim2.new(0, 0, 1, -24)
 BottomTabs.BackgroundColor3 = Theme.Background
 BottomTabs.BorderSizePixel = 0
-BottomTabs.ZIndex = 3
+BottomTabs.ZIndex = 10
 BottomTabs.Parent = Menu
 
 local BottomLayout = Instance.new("UIListLayout", BottomTabs)
@@ -220,8 +187,7 @@ local function CreateBottomTab(name, contentFrame)
     btn.TextColor3 = Theme.TextDim
     btn.Font = Theme.Font
     btn.TextSize = 10
-    btn.AutoButtonColor = false
-    btn.ZIndex = 4
+    btn.ZIndex = 11
     btn.Parent = BottomTabs
 
     local tab = { Btn = btn, Name = name, Content = contentFrame }
@@ -254,6 +220,7 @@ local function MakeToggle(parent, text, default, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, 0, 0, 22)
     frame.BackgroundTransparency = 1
+    frame.ZIndex = 2
     frame.Parent = parent
 
     local label = Instance.new("TextLabel")
@@ -264,6 +231,7 @@ local function MakeToggle(parent, text, default, callback)
     label.Font = Theme.Font
     label.TextSize = 11
     label.TextXAlignment = Enum.TextXAlignment.Left
+    label.ZIndex = 3
     label.Parent = frame
 
     local track = Instance.new("Frame")
@@ -271,6 +239,7 @@ local function MakeToggle(parent, text, default, callback)
     track.Position = UDim2.new(1, -30, 0.5, -7)
     track.BackgroundColor3 = Theme.Off
     track.BorderSizePixel = 0
+    track.ZIndex = 3
     track.Parent = frame
     Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
 
@@ -280,6 +249,7 @@ local function MakeToggle(parent, text, default, callback)
     knob.Position = UDim2.new(0, 2, 0.5, 0)
     knob.BackgroundColor3 = Color3.fromRGB(220, 220, 220)
     knob.BorderSizePixel = 0
+    knob.ZIndex = 4
     knob.Parent = track
     Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
 
@@ -300,6 +270,7 @@ local function MakeToggle(parent, text, default, callback)
     click.Size = UDim2.new(1, 0, 1, 0)
     click.BackgroundTransparency = 1
     click.Text = ""
+    click.ZIndex = 5
     click.Parent = frame
     click.MouseButton1Click:Connect(function()
         pcall(callback)
@@ -313,6 +284,7 @@ local function MakeSlider(parent, text, min, max, default, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, 0, 0, 26)
     frame.BackgroundTransparency = 1
+    frame.ZIndex = 2
     frame.Parent = parent
 
     local label = Instance.new("TextLabel")
@@ -323,6 +295,7 @@ local function MakeSlider(parent, text, min, max, default, callback)
     label.Font = Theme.Font
     label.TextSize = 10
     label.TextXAlignment = Enum.TextXAlignment.Left
+    label.ZIndex = 3
     label.Parent = frame
 
     local valLabel = Instance.new("TextLabel")
@@ -334,6 +307,7 @@ local function MakeSlider(parent, text, min, max, default, callback)
     valLabel.Font = Theme.FontBold
     valLabel.TextSize = 10
     valLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valLabel.ZIndex = 3
     valLabel.Parent = frame
 
     local track = Instance.new("Frame")
@@ -341,6 +315,7 @@ local function MakeSlider(parent, text, min, max, default, callback)
     track.Position = UDim2.new(0, 55, 0.5, -1)
     track.BackgroundColor3 = Theme.Element
     track.BorderSizePixel = 0
+    track.ZIndex = 3
     track.Parent = frame
     Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
 
@@ -348,6 +323,7 @@ local function MakeSlider(parent, text, min, max, default, callback)
     fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
     fill.BackgroundColor3 = Theme.Accent
     fill.BorderSizePixel = 0
+    fill.ZIndex = 4
     fill.Parent = track
     Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
 
@@ -363,7 +339,8 @@ local function MakeSlider(parent, text, min, max, default, callback)
 
     track.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true; update(input.Position.X)
+            dragging = true
+            update(input.Position.X)
         end
     end)
     UIS.InputChanged:Connect(function(input)
@@ -388,18 +365,17 @@ local function MakeSection(parent, text)
     lbl.Font = Theme.FontBold
     lbl.TextSize = 9
     lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.ZIndex = 2
     lbl.Parent = parent
 end
 
---=========================================================
 -- COMBAT
---=========================================================
 MakeSection(CombatContent, "AIMBOT")
 MakeToggle(CombatContent, "Aimbot", false, function() Config.Aimbot.Enabled = not Config.Aimbot.Enabled end)
 MakeToggle(CombatContent, "Auto Aim", false, function() Config.Aimbot.AutoAim = not Config.Aimbot.AutoAim end)
 MakeToggle(CombatContent, "FOV Circle", true, function() Config.Aimbot.ShowFOV = not Config.Aimbot.ShowFOV end)
 MakeToggle(CombatContent, "Team Check", true, function() Config.Aimbot.TeamCheck = not Config.Aimbot.TeamCheck; Config.Silent.TeamCheck = Config.Aimbot.TeamCheck end)
-MakeSlider(CombatContent, "FOV Radius", 30, 600, Config.Aimbot.FOV, function(v) Config.Aimbot.FOV = v; FovCircle.Size = UDim2.new(0, v * 2, 0, v * 2) end)
+MakeSlider(CombatContent, "FOV Radius", 30, 600, Config.Aimbot.FOV, function(v) Config.Aimbot.FOV = v end)
 MakeSlider(CombatContent, "Smoothness", 10, 100, 50, function(v) Config.Aimbot.Smoothness = v / 100 end)
 MakeSlider(CombatContent, "Max Distance", 100, 2000, Config.Aimbot.MaxDistance, function(v) Config.Aimbot.MaxDistance = v end)
 
@@ -415,9 +391,7 @@ MakeSlider(CombatContent, "Gun Range x", 1, 10, Config.Gun.RangeMultiplier, func
 MakeToggle(CombatContent, "Bow Long Range", false, function() Config.Gun.BowLongRange = not Config.Gun.BowLongRange end)
 MakeSlider(CombatContent, "Bow Range x", 1, 10, Config.Gun.BowMultiplier, function(v) Config.Gun.BowMultiplier = v end)
 
---=========================================================
 -- VISUAL
---=========================================================
 MakeSection(VisualContent, "PLAYER ESP")
 MakeToggle(VisualContent, "ESP Enabled", true, function() Config.ESP.Enabled = not Config.ESP.Enabled end)
 MakeToggle(VisualContent, "Boxes", true, function() Config.ESP.Box = not Config.ESP.Box end)
@@ -432,9 +406,7 @@ MakeToggle(VisualContent, "Fullbright", false, function() Config.Visual.Fullbrig
 MakeToggle(VisualContent, "No Fog", false, function() Config.Visual.NoFog = not Config.Visual.NoFog end)
 MakeToggle(VisualContent, "FPS Boost", false, function() Config.Visual.FPSBoost = not Config.Visual.FPSBoost end)
 
---=========================================================
 -- MOVEMENT
---=========================================================
 MakeSection(MovementContent, "MOVEMENT")
 MakeToggle(MovementContent, "Speed Hack", false, function() Config.Player.SpeedEnabled = not Config.Player.SpeedEnabled end)
 MakeSlider(MovementContent, "Speed (10-50)", 10, 50, 30, function(v) Config.Player.SpeedValue = v end)
@@ -446,31 +418,26 @@ MakeSection(MovementContent, "HELICOPTER")
 MakeToggle(MovementContent, "Heli Fly", false, function() Config.Heli.Enabled = not Config.Heli.Enabled end)
 MakeSlider(MovementContent, "Heli Speed", 20, 200, 60, function(v) Config.Heli.Speed = v end)
 
---=========================================================
 -- MISC
---=========================================================
 MakeSection(MiscContent, "MISC")
 MakeToggle(MiscContent, "Anti-AFK", false, function() Config.Misc.AntiAFK = not Config.Misc.AntiAFK end)
 
---=========================================================
 -- SETTINGS
---=========================================================
 MakeSection(SettingsContent, "INFO")
 local infoLbl = Instance.new("TextLabel")
 infoLbl.Size = UDim2.new(1, 0, 0, 100)
 infoLbl.BackgroundTransparency = 1
-infoLbl.Text = "FerClient | Fust v4.0\nSilent Aim + Bow Long Range + Aimbot\n\nХоткеи:\nF1=ESP  F2=Aim  F3=InfJump\nRightShift=Меню  Delete=Unload"
+infoLbl.Text = "FerClient | Fust v4.1\nКнопки работают ✅\n\nХоткеи:\nF1=ESP  F2=Aim  F3=InfJump\nRightShift=Меню  Delete=Unload"
 infoLbl.TextColor3 = Theme.TextDim
 infoLbl.Font = Theme.Font
 infoLbl.TextSize = 10
 infoLbl.TextWrapped = true
 infoLbl.TextXAlignment = Enum.TextXAlignment.Left
 infoLbl.TextYAlignment = Enum.TextYAlignment.Top
+infoLbl.ZIndex = 2
 infoLbl.Parent = SettingsContent
 
---=========================================================
--- FC КНОПКА
---=========================================================
+-- FC
 local FCBtn = Instance.new("TextButton")
 FCBtn.Size = UDim2.new(0, 50, 0, 28)
 FCBtn.Position = UDim2.new(0, 10, 0.5, -14)
@@ -480,16 +447,14 @@ FCBtn.Text = "FC"
 FCBtn.TextColor3 = Theme.Accent
 FCBtn.Font = Theme.FontBold
 FCBtn.TextSize = 14
-FCBtn.AutoButtonColor = false
 FCBtn.Active = true
 FCBtn.Draggable = true
+FCBtn.ZIndex = 100
 FCBtn.Parent = ScreenGui
 Instance.new("UIStroke", FCBtn).Color = Theme.Accent
 Instance.new("UIStroke", FCBtn).Thickness = 1.5
-
 FCBtn.MouseButton1Click:Connect(function() Menu.Visible = not Menu.Visible end)
 
--- Minimize / Unload
 local isMin = false
 local function toggleMin()
     isMin = not isMin
@@ -499,9 +464,7 @@ local function toggleMin()
 end
 MinimizeBtn.MouseButton1Click:Connect(toggleMin)
 
---=========================================================
 -- ESP
---=========================================================
 local ESPCache = {}
 local function CreateESP(plr)
     if plr == LP or ESPCache[plr] or not hasDrawing then return end
@@ -564,19 +527,15 @@ TrackConn(RunService.RenderStepped:Connect(function()
     end
 end))
 
---=========================================================
--- SILENT AIM + BOW LONG RANGE HOOK
---=========================================================
+-- SILENT AIM + LONG RANGE HOOK
 pcall(function()
     if not (hookmetamethod and newcclosure) then return end
     local oldNC
     oldNC = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
         local method = getnamecallmethod()
-        
         if method == "FireServer" and typeof(self) == "Instance" then
             local args = {...}
             
-            -- 1. SILENT AIM для лука (Shoot)
             if self.Name == "Shoot" and Config.Silent.Enabled and silentPart then
                 if type(args[1]) == "table" and args[1].dir and args[1].origin then
                     local data = args[1]
@@ -587,7 +546,6 @@ pcall(function()
                 end
             end
             
-            -- 2. SILENT AIM для огнестрела (Fire)
             if self.Name == "Fire" and Config.Silent.Enabled and silentPart then
                 if type(args[1]) == "table" and args[1].dir then
                     local data = args[1]
@@ -599,19 +557,15 @@ pcall(function()
                 end
             end
             
-            -- 3. BOW LONG RANGE (Shoot)
             if self.Name == "Shoot" and Config.Gun.BowLongRange and type(args[1]) == "table" then
                 local data = args[1]
-                -- Пытаемся найти поле дальности
                 for k, v in pairs(data) do
                     if typeof(v) == "number" and v > 10 and v < 5000 then
-                        -- Похоже на дистанцию/скорость
                         data[k] = v * Config.Gun.BowMultiplier
                     end
                 end
             end
             
-            -- 4. GUN LONG RANGE (Fire)
             if self.Name == "Fire" and Config.Gun.LongRange and type(args[1]) == "table" then
                 local data = args[1]
                 for k, v in pairs(data) do
@@ -623,14 +577,11 @@ pcall(function()
             
             return oldNC(self, table.unpack(args))
         end
-        
         return oldNC(self, ...)
     end))
 end)
 
---=========================================================
--- SPEED ANTI-TELEPORT
---=========================================================
+-- SPEED
 local savedSpeed = 16; local smoothedSpeed = 16
 TrackConn(RunService.Heartbeat:Connect(function(dt)
     local char = LP.Character
@@ -641,7 +592,6 @@ TrackConn(RunService.Heartbeat:Connect(function(dt)
         local targetSpeed = math.clamp(Config.Player.SpeedValue, 16, 50)
         smoothedSpeed = smoothedSpeed + (targetSpeed - smoothedSpeed) * math.clamp(dt * 8, 0, 1)
         hum.WalkSpeed = smoothedSpeed
-        if hum.WalkSpeed < 10 and smoothedSpeed > 20 then hum.WalkSpeed = smoothedSpeed end
     else
         if math.abs(smoothedSpeed - savedSpeed) > 0.1 then
             smoothedSpeed = smoothedSpeed + (savedSpeed - smoothedSpeed) * math.clamp(dt * 8, 0, 1)
@@ -655,9 +605,7 @@ TrackConn(LP.CharacterAdded:Connect(function(char)
     if hum then savedSpeed = hum.WalkSpeed; smoothedSpeed = hum.WalkSpeed end
 end))
 
---=========================================================
--- HELI FLY
---=========================================================
+-- HELI
 TrackConn(RunService.Heartbeat:Connect(function()
     if not Config.Heli.Enabled then return end
     local char = LP.Character
@@ -692,9 +640,7 @@ Instance.new("UICorner", FovCircle).CornerRadius = UDim.new(1, 0)
 local FovStroke = Instance.new("UIStroke", FovCircle)
 FovStroke.Color = Theme.Accent; FovStroke.Thickness = 2
 
---=========================================================
 -- ГЛАВНЫЙ ЦИКЛ
---=========================================================
 TrackConn(RunService.RenderStepped:Connect(function()
     if Config.Aimbot.Enabled or Config.Silent.Enabled then
         FovCircle.Visible = true
@@ -808,7 +754,6 @@ TrackConn(LP.Idled:Connect(function()
     end)
 end))
 
--- UNLOAD
 local function Unload()
     for _, d in pairs(ESPCache) do
         for _, o in pairs(d) do pcall(function() o:Remove() end) end
@@ -821,7 +766,6 @@ end
 UnloadBtn.MouseButton1Click:Connect(Unload)
 getgenv().Fust_Unload = Unload
 
--- Хоткеи
 TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == Enum.KeyCode.F1 then Config.ESP.Enabled = not Config.ESP.Enabled
@@ -831,5 +775,5 @@ TrackConn(UIS.InputBegan:Connect(function(input, gpe)
     elseif input.KeyCode == Enum.KeyCode.Delete then Unload() end
 end))
 
-notify("FerClient | Fust v4.0", "Bow Long Range + Новое меню")
-print("[FerClient] Fust v4.0 — меню как в Decay + Bow Long Range")
+notify("FerClient | Fust v4.1", "Кнопки работают ✅")
+print("[FerClient] Fust v4.1 — фикс кнопок")
