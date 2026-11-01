@@ -1,5 +1,4 @@
---[[ FerClient v1.1 | Delta Mobile | UI + Visual fixes applied
-     Not runtime-tested. Static analysis only. ]]
+--[[ FerClient v1.3 | Delta Mobile | Visual Fixes & Optimization ]]
 local P=game:GetService("Players")
 local R=game:GetService("RunService")
 local U=game:GetService("UserInputService")
@@ -9,7 +8,11 @@ local T=game:GetService("TweenService")
 local CG=game:GetService("CoreGui")
 
 local LP = P.LocalPlayer
-local CAM = W.CurrentCamera
+
+-- 1. Безопасное получение камеры (фикс устаревшей ссылки)
+local function GetCamera()
+    return W.CurrentCamera
+end
 
 --==================== CONFIG ====================
 local C = {
@@ -17,8 +20,9 @@ local C = {
     AimPart="Head", Smooth=0.35, FOV=120,
     ESP=false, ESPBox=true, ESPName=true, ESPCharms=true, ESPDist=true,
     ESPColor=Color3.fromRGB(0,200,255),
+    ShowFOV=false, FOVSize=150,
     Fullbright=false, XRay=false, NoDeco=false, SkyFon=false, FPSBoost=false,
-    Speed=false, SpeedVal=25, InfJump=false, AntiAFK=false,
+    InfJump=false, AntiAFK=false,
 }
 
 --==================== THEME ====================
@@ -145,6 +149,8 @@ N("UIPadding", {
 }, CT)
 
 --==================== COMPONENTS ====================
+local SliderConnections = {}
+
 local function Label(text)
     N("TextLabel", {
         Text = text, Font = Enum.Font.GothamBold, TextSize = 12,
@@ -236,6 +242,7 @@ local function Slider(text, mn, mx, def, cb)
         Text = "", BackgroundTransparency = 1,
         Size = UDim2.new(1,0,1,0), ZIndex = 4,
     }, row)
+    
     local function setFromX(x)
         local r = math.clamp((x - tr.AbsolutePosition.X) / tr.AbsoluteSize.X, 0, 1)
         local v = math.floor(mn + (mx - mn) * r + 0.5)
@@ -244,6 +251,7 @@ local function Slider(text, mn, mx, def, cb)
         kn.Position = UDim2.new(r, -6, 0.5, -6)
         if cb then cb(v) end
     end
+    
     inp.InputBegan:Connect(function(i)
         if i.UserInputType == Enum.UserInputType.MouseButton1
         or i.UserInputType == Enum.UserInputType.Touch then
@@ -257,12 +265,15 @@ local function Slider(text, mn, mx, def, cb)
             dragging = false
         end
     end)
-    U.InputChanged:Connect(function(i)
+    
+    -- 4. Сохранение соединения в таблицу
+    local connection = U.InputChanged:Connect(function(i)
         if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement
         or i.UserInputType == Enum.UserInputType.Touch) then
             setFromX(i.Position.X)
         end
     end)
+    table.insert(SliderConnections, connection)
 end
 
 local function Dropdown(text, opts, def, cb)
@@ -315,8 +326,14 @@ local function Dropdown(text, opts, def, cb)
     end)
 end
 
---==================== ESP STATE ====================
+--==================== DRAWING STATE ====================
 local ESP = {}
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Visible = false
+FOVCircle.Filled = false
+FOVCircle.NumSides = 80
+FOVCircle.Thickness = 0.7
+FOVCircle.Transparency = 0.8
 
 local function destroyESPEntry(e)
     if not e then return end
@@ -337,6 +354,7 @@ end)
 --==================== TARGET ====================
 local function Nearest()
     local best, dist = nil, C.FOV
+    local CAM = GetCamera() -- Фикс камеры
     local cen = Vector2.new(CAM.ViewportSize.X/2, CAM.ViewportSize.Y/2)
     for _, pl in ipairs(P:GetPlayers()) do
         if pl ~= LP and pl.Character then
@@ -419,54 +437,62 @@ local function NoDeco(on)
     end
 end
 
+-- 2. Обновленная SkyFon с защитой
 local function SkyFon(on)
+    local existing = L:FindFirstChild("FerSky")
+
     if on then
+        if existing then return end
         OldSky = L:FindFirstChildOfClass("Sky")
-        if OldSky then OldSky.Parent = nil end
-        local f = N("Folder", { Name = "FerSky" }, L)
-        N("Sky", {
-            SkyboxBk="rbxassetid://159454299", SkyboxDn="rbxassetid://159454296",
-            SkyboxFt="rbxassetid://159454293", SkyboxLf="rbxassetid://159454286",
-            SkyboxRt="rbxassetid://159454300", SkyboxUp="rbxassetid://159454288",
-            StarCount = 5000,
-        }, f)
+        if OldSky then
+            OldSky.Parent = nil
+        end
+        local f = Instance.new("Folder")
+        f.Name = "FerSky"
+        f.Parent = L
+        local sky = Instance.new("Sky")
+        sky.Name = "FerSkybox"
+        sky.SkyboxBk = "rbxassetid://159454299"
+        sky.SkyboxDn = "rbxassetid://159454296"
+        sky.SkyboxFt = "rbxassetid://159454293"
+        sky.SkyboxLf = "rbxassetid://159454286"
+        sky.SkyboxRt = "rbxassetid://159454300"
+        sky.SkyboxUp = "rbxassetid://159454288"
+        sky.StarCount = 5000
+        sky.Parent = f
     else
-        local f = L:FindFirstChild("FerSky")
-        if f then f:Destroy() end
-        if OldSky then OldSky.Parent = L end
+        if existing then
+            existing:Destroy()
+        end
+        if OldSky then
+            OldSky.Parent = L
+            OldSky = nil
+        end
     end
 end
 
+-- 3. Обновленный FPS Boost
 local function FPS(on)
     if on then
         FPSOff = {}
-        for _, v in ipairs(L:GetChildren()) do
-            if v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Clouds") then
-                table.insert(FPSOff, { o = v, e = v.Enabled })
-                pcall(function() v.Enabled = false end)
+        for _, obj in ipairs(L:GetDescendants()) do
+            if obj:IsA("PostEffect") then
+                table.insert(FPSOff, { o = obj, e = obj.Enabled })
+                obj.Enabled = false
             end
         end
-        pcall(function()
-            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-        end)
     else
-        for _, e in ipairs(FPSOff) do
-            pcall(function() e.o.Enabled = e.e end)
+        for _, entry in ipairs(FPSOff) do
+            if entry.o and entry.o.Parent then
+                pcall(function() entry.o.Enabled = entry.e end)
+            end
         end
         FPSOff = {}
-        pcall(function()
-            settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
-        end)
     end
 end
 
 --==================== MISC STATE ====================
 local InfConn, AFKConn
-
-local function Speed(on, v)
-    local h = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-    if h then h.WalkSpeed = on and v or 16 end
-end
 
 local function InfJump(on)
     if on then
@@ -497,18 +523,28 @@ end
 
 --==================== MAIN RENDER LOOP ====================
 R.RenderStepped:Connect(function()
-    -- Aim
+    -- Используем актуальную камеру
+    local CAM = GetCamera()
+    
+    if C.ShowFOV then
+        FOVCircle.Visible = true
+        FOVCircle.Position = Vector2.new(CAM.ViewportSize.X / 2, CAM.ViewportSize.Y / 2)
+        FOVCircle.Radius = C.FOVSize
+        FOVCircle.Color = C.ESPColor
+    else
+        FOVCircle.Visible = false
+    end
+
     if C.AimBot or C.AimSelect then
         local t = Nearest()
         if t and t.Character then
             local pt = t.Character:FindFirstChild(C.AimPart) or t.Character:FindFirstChild("Head")
             if pt then
-                CAM.CFrame = CAM.CFrame:Lerp(
-                    CFrame.new(CAM.CFrame.Position, pt.Position), C.Smooth)
+                CAM.CFrame = CAM.CFrame:Lerp(CFrame.new(CAM.CFrame.Position, pt.Position), C.Smooth)
             end
         end
     end
-    -- Trigger
+    
     if C.TriggerBot then
         local t = Nearest()
         if t and t.Character and t.Character:FindFirstChildOfClass("Humanoid")
@@ -517,7 +553,7 @@ R.RenderStepped:Connect(function()
             if tl then pcall(function() tl:Activate() end) end
         end
     end
-    -- ESP
+    
     for _, pl in ipairs(P:GetPlayers()) do
         if pl ~= LP then
             if not ESP[pl] then
@@ -636,11 +672,15 @@ Tabs.Combat = function()
         C.AimPart = v
     end)
     Slider("Aim Smooth", 1, 100, 35, function(v) C.Smooth = v/100 end)
-    Slider("FOV", 30, 400, 120, function(v) C.FOV = v end)
+    Slider("Aim FOV", 30, 400, 120, function(v) C.FOV = v end)
 end
 
 Tabs.Visual = function()
     Label("VISUAL")
+    
+    Toggle("Show FOV", C.ShowFOV, function(v) C.ShowFOV = v end)
+    Slider("FOV Size", 50, 500, 150, function(v) C.FOVSize = v end)
+    
     Toggle("ESP", C.ESP, function(v) C.ESP = v end)
     Toggle("  Box", C.ESPBox, function(v) C.ESPBox = v end)
     Toggle("  Name", C.ESPName, function(v) C.ESPName = v end)
@@ -655,11 +695,6 @@ end
 
 Tabs.Misc = function()
     Label("MISC")
-    Toggle("Legit Speed", C.Speed, function(v) C.Speed = v; Speed(v, C.SpeedVal) end)
-    Slider("Speed", 10, 50, 25, function(v)
-        C.SpeedVal = v
-        if C.Speed then Speed(true, v) end
-    end)
     Toggle("Inf Jump", C.InfJump, function(v) C.InfJump = v; InfJump(v) end)
     Toggle("Anti AFK", C.AntiAFK, function(v) C.AntiAFK = v; AFK(v) end)
 end
@@ -714,19 +749,38 @@ end)
 
 --==================== CLEANUP ====================
 local function Cleanup()
+    -- 5. Очистка Drawing
     for pl, e in pairs(ESP) do
         destroyESPEntry(e)
         ESP[pl] = nil
     end
+    if FOVCircle then 
+        pcall(function() FOVCircle:Remove() end) 
+        FOVCircle = nil
+    end
+    
+    -- Отключение соединений
     if InfConn then InfConn:Disconnect(); InfConn = nil end
     if AFKConn then AFKConn:Disconnect(); AFKConn = nil end
     if DecoConn then DecoConn:Disconnect(); DecoConn = nil end
+    
+    -- 4. Отключение слайдеров
+    for _, connection in ipairs(SliderConnections) do
+        pcall(function() connection:Disconnect() end)
+    end
+    table.clear(SliderConnections)
+    
+    -- Восстановление визуала
     pcall(function() Fullbright(false) end)
     pcall(function() XRay(false) end)
     pcall(function() NoDeco(false) end)
     pcall(function() SkyFon(false) end)
     pcall(function() FPS(false) end)
-    pcall(function() Speed(false) end)
+    
+    -- Уничтожение GUI
+    if SG then 
+        pcall(function() SG:Destroy() end) 
+    end
 end
 
 game:BindToClose(Cleanup)
