@@ -1,786 +1,228 @@
---[[ FerClient v1.3 | Delta Mobile | Visual Fixes & Optimization ]]
-local P=game:GetService("Players")
-local R=game:GetService("RunService")
-local U=game:GetService("UserInputService")
-local L=game:GetService("Lighting")
-local W=game:GetService("Workspace")
-local T=game:GetService("TweenService")
-local CG=game:GetService("CoreGui")
+--[[ FerClient v1.6 | Delta Mobile | Unified FOV + Safe Lifecycle ]]
+local P=game:GetService("Players") local R=game:GetService("RunService") local U=game:GetService("UserInputService") local L=game:GetService("Lighting") local W=game:GetService("Workspace") local T=game:GetService("TweenService") local CG=game:GetService("CoreGui")
+local LP=P.LocalPlayer
 
-local LP = P.LocalPlayer
+-- 1. Безопасный перезапуск
+if _G.FerClientCleanup then pcall(_G.FerClientCleanup) _G.FerClientCleanup=nil end
+pcall(function() if CG:FindFirstChild("FerUI") then CG.FerUI:Destroy() end end)
 
--- 1. Безопасное получение камеры (фикс устаревшей ссылки)
-local function GetCamera()
-    return W.CurrentCamera
-end
+local Connections={} local SliderConnections={} local ESP={} local IsCleanedUp=false local FOVCircle=nil local SG,M,AV,TB,CT,CLL
+local function addConn(tbl,c) if c then table.insert(tbl,c) end return c end
+local function disconnectAll(tbl) for i=#tbl,1,-1 do local c=tbl[i] if c and c.Connected then pcall(function() c:Disconnect() end) end tbl[i]=nil end end
 
---==================== CONFIG ====================
-local C = {
-    AimSelect=false, TriggerBot=false, MagicBullet=false, AimBot=false,
-    AimPart="Head", Smooth=0.35, FOV=120,
-    ESP=false, ESPBox=true, ESPName=true, ESPCharms=true, ESPDist=true,
-    ESPColor=Color3.fromRGB(0,200,255),
-    ShowFOV=false, FOVSize=150,
-    Fullbright=false, XRay=false, NoDeco=false, SkyFon=false, FPSBoost=false,
-    InfJump=false, AntiAFK=false,
+-- 3. Защита камеры
+local function GetCamera() local cam=W.CurrentCamera if cam and cam.Parent then return cam end return nil end
+
+-- 4. Защита Drawing
+local hasDrawing=pcall(function() return Drawing.new("Square") end)
+local function SafeDrawing(class) if not hasDrawing then return nil end local ok,obj=pcall(function() return Drawing.new(class) end) return ok and obj or nil end
+local function destroyESPEntry(e) if not e then return end for _,d in pairs(e) do if d and d.Remove then pcall(function() d:Remove() end) end end end
+
+-- Конфиг (FOV теперь один)
+local C={
+    AimSelect=false,TriggerBot=false,MagicBullet=false,AimBot=false,AimPart="Head",Smooth=0.35,FOV=150,
+    ESP=false,ESPBox=true,ESPName=true,ESPCharms=true,ESPDist=true,ESPColor=Color3.fromRGB(0,200,255),
+    ShowFOV=false,
+    Fullbright=false,XRay=false,NoDeco=false,SkyFon=false,FPSBoost=false,
+    InfJump=false,AntiAFK=false
 }
 
---==================== THEME ====================
-local ACC   = Color3.fromRGB(0,170,255)
-local BG    = Color3.fromRGB(15,15,20)
-local PANEL = Color3.fromRGB(22,22,30)
-local P2    = Color3.fromRGB(30,30,40)
-local TXT   = Color3.fromRGB(235,235,245)
-local SUB   = Color3.fromRGB(150,150,165)
-local OFF   = Color3.fromRGB(60,60,75)
-local STROKE= Color3.fromRGB(45,45,60)
+-- Тема
+local ACC=Color3.fromRGB(0,170,255) local BG=Color3.fromRGB(15,15,20) local PANEL=Color3.fromRGB(22,22,30) local P2=Color3.fromRGB(30,30,40) local TXT=Color3.fromRGB(235,235,245) local SUB=Color3.fromRGB(150,150,165) local OFF=Color3.fromRGB(60,60,75) local STROKE=Color3.fromRGB(45,45,60)
+local function N(class,props,parent) local o=Instance.new(class) for k,v in pairs(props or{})do o[k]=v end if parent then o.Parent=parent end return o end
+local function Round(o,r) N("UICorner",{CornerRadius=UDim.new(0,r or 8)},o) end
+local function Stroke(o,col,th) N("UIStroke",{Color=col or STROKE,Thickness=th or 1},o) end
 
---==================== HELPERS ====================
-local function N(class, props, parent)
-    local o = Instance.new(class)
-    for k, v in pairs(props or {}) do o[k] = v end
-    if parent then o.Parent = parent end
-    return o
-end
-local function Round(o, r)
-    N("UICorner", { CornerRadius = UDim.new(0, r or 8) }, o)
-end
-local function Stroke(o, col, th)
-    N("UIStroke", { Color = col or STROKE, Thickness = th or 1 }, o)
-end
+-- GUI
+SG=N("ScreenGui",{Name="FerUI",ResetOnSpawn=false,IgnoreGuiInset=true,ZIndexBehavior=Enum.ZIndexBehavior.Sibling},CG)
+AV=N("ImageButton",{Size=UDim2.new(0,60,0,60),Position=UDim2.new(0,20,0.5,-30),BackgroundColor3=BG,AutoButtonColor=false,BorderSizePixel=0,ZIndex=50},SG) Round(AV,60) Stroke(AV,ACC,2)
+N("UIGradient",{Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(120,40,200)),ColorSequenceKeypoint.new(0.5,Color3.fromRGB(20,120,255)),ColorSequenceKeypoint.new(1,Color3.fromRGB(255,60,160))}),Rotation=45},AV)
+N("TextLabel",{Text="F",Font=Enum.Font.GothamBlack,TextSize=34,TextColor3=Color3.new(1,1,1),BackgroundTransparency=1,Size=UDim2.new(1,0,1,0),TextStrokeTransparency=0.4,ZIndex=51},AV)
+M=N("Frame",{Name="M",Size=UDim2.new(0,320,0,410),Position=UDim2.new(0.5,-160,0.5,-205),BackgroundColor3=BG,BorderSizePixel=0,Visible=false,ZIndex=40},SG) Round(M,14) Stroke(M,ACC,1)
+TB=N("Frame",{Size=UDim2.new(1,0,0,44),BackgroundColor3=PANEL,BorderSizePixel=0,ZIndex=41},M) Round(TB,14)
+N("UIGradient",{Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(120,40,200)),ColorSequenceKeypoint.new(1,Color3.fromRGB(20,120,255))}),Rotation=30,Transparency=NumberSequence.new(0.55)},TB)
+N("TextLabel",{Text="  FerClient",Font=Enum.Font.GothamBold,TextSize=17,TextColor3=TXT,BackgroundTransparency=1,Size=UDim2.new(1,-100,1,0),TextXAlignment=Enum.TextXAlignment.Left,ZIndex=42},TB)
+local CL=N("TextButton",{Text="✕",Font=Enum.Font.GothamBold,TextSize=16,TextColor3=TXT,BackgroundColor3=Color3.fromRGB(220,50,70),Size=UDim2.new(0,28,0,28),Position=UDim2.new(1,-34,0.5,-14),BorderSizePixel=0,ZIndex=43},TB) Round(CL,8)
+local TBB=N("Frame",{Size=UDim2.new(1,0,0,38),Position=UDim2.new(0,0,0,44),BackgroundColor3=BG,BorderSizePixel=0,ZIndex=41},M)
+N("UIListLayout",{FillDirection=Enum.FillDirection.Horizontal,Padding=UDim.new(0,6),HorizontalAlignment=Enum.HorizontalAlignment.Center,VerticalAlignment=Enum.VerticalAlignment.Center},TBB)
+CT=N("ScrollingFrame",{Size=UDim2.new(1,-16,1,-90),Position=UDim2.new(0,8,0,86),BackgroundColor3=PANEL,BorderSizePixel=0,ScrollBarThickness=4,ScrollBarImageColor3=ACC,CanvasSize=UDim2.new(0,0,0,0),ZIndex=41},M) Round(CT,10)
+CLL=N("UIListLayout",{Padding=UDim.new(0,6)},CT)
+N("UIPadding",{PaddingTop=UDim.new(0,8),PaddingLeft=UDim.new(0,8),PaddingRight=UDim.new(0,8),PaddingBottom=UDim.new(0,8)},CT)
 
---==================== CLEAN OLD ====================
-pcall(function()
-    if CG:FindFirstChild("FerUI") then CG.FerUI:Destroy() end
-end)
-
-local SG = N("ScreenGui", {
-    Name = "FerUI", ResetOnSpawn = false,
-    IgnoreGuiInset = true,
-    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-}, CG)
-
---==================== AVATAR ====================
-local AV = N("ImageButton", {
-    Size = UDim2.new(0,60,0,60),
-    Position = UDim2.new(0,20,0.5,-30),
-    BackgroundColor3 = BG,
-    AutoButtonColor = false,
-    BorderSizePixel = 0, ZIndex = 50,
-}, SG)
-Round(AV, 60); Stroke(AV, ACC, 2)
-N("UIGradient", {
-    Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(120,40,200)),
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(20,120,255)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(255,60,160)),
-    }), Rotation = 45,
-}, AV)
-N("TextLabel", {
-    Text = "F", Font = Enum.Font.GothamBlack, TextSize = 34,
-    TextColor3 = Color3.new(1,1,1), BackgroundTransparency = 1,
-    Size = UDim2.new(1,0,1,0), TextStrokeTransparency = 0.4, ZIndex = 51,
-}, AV)
-
---==================== MAIN PANEL ====================
-local M = N("Frame", {
-    Name = "M",
-    Size = UDim2.new(0,320,0,410),
-    Position = UDim2.new(0.5,-160,0.5,-205),
-    BackgroundColor3 = BG, BorderSizePixel = 0,
-    Visible = false, ZIndex = 40,
-}, SG)
-Round(M, 14); Stroke(M, ACC, 1)
-
-local TB = N("Frame", {
-    Size = UDim2.new(1,0,0,44),
-    BackgroundColor3 = PANEL,
-    BorderSizePixel = 0, ZIndex = 41,
-}, M)
-Round(TB, 14)
-N("UIGradient", {
-    Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(120,40,200)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(20,120,255)),
-    }), Rotation = 30, Transparency = NumberSequence.new(0.55),
-}, TB)
-N("TextLabel", {
-    Text = "  FerClient", Font = Enum.Font.GothamBold, TextSize = 17,
-    TextColor3 = TXT, BackgroundTransparency = 1,
-    Size = UDim2.new(1,-100,1,0),
-    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 42,
-}, TB)
-local CL = N("TextButton", {
-    Text = "✕", Font = Enum.Font.GothamBold, TextSize = 16,
-    TextColor3 = TXT, BackgroundColor3 = Color3.fromRGB(220,50,70),
-    Size = UDim2.new(0,28,0,28),
-    Position = UDim2.new(1,-34,0.5,-14),
-    BorderSizePixel = 0, ZIndex = 43,
-}, TB)
-Round(CL, 8)
-
-local TBB = N("Frame", {
-    Size = UDim2.new(1,0,0,38),
-    Position = UDim2.new(0,0,0,44),
-    BackgroundColor3 = BG, BorderSizePixel = 0, ZIndex = 41,
-}, M)
-N("UIListLayout", {
-    FillDirection = Enum.FillDirection.Horizontal,
-    Padding = UDim.new(0,6),
-    HorizontalAlignment = Enum.HorizontalAlignment.Center,
-    VerticalAlignment = Enum.VerticalAlignment.Center,
-}, TBB)
-
-local CT = N("ScrollingFrame", {
-    Size = UDim2.new(1,-16,1,-90),
-    Position = UDim2.new(0,8,0,86),
-    BackgroundColor3 = PANEL,
-    BorderSizePixel = 0,
-    ScrollBarThickness = 4,
-    ScrollBarImageColor3 = ACC,
-    CanvasSize = UDim2.new(0,0,0,0),
-    ZIndex = 41,
-}, M)
-Round(CT, 10)
-local CLL = N("UIListLayout", { Padding = UDim.new(0,6) }, CT)
-N("UIPadding", {
-    PaddingTop = UDim.new(0,8), PaddingLeft = UDim.new(0,8),
-    PaddingRight = UDim.new(0,8), PaddingBottom = UDim.new(0,8),
-}, CT)
-
---==================== COMPONENTS ====================
-local SliderConnections = {}
-
-local function Label(text)
-    N("TextLabel", {
-        Text = text, Font = Enum.Font.GothamBold, TextSize = 12,
-        TextColor3 = SUB, BackgroundTransparency = 1,
-        Size = UDim2.new(1,0,0,22),
-        TextXAlignment = Enum.TextXAlignment.Left,
-    }, CT)
-end
-
-local function Toggle(text, def, cb)
-    local row = N("Frame", {
-        Size = UDim2.new(1,0,0,34),
-        BackgroundColor3 = P2, BorderSizePixel = 0,
-    }, CT)
-    Round(row, 8)
-    N("TextLabel", {
-        Text = "  "..text, Font = Enum.Font.Gotham, TextSize = 13,
-        TextColor3 = TXT, BackgroundTransparency = 1,
-        Size = UDim2.new(1,-60,1,0),
-        TextXAlignment = Enum.TextXAlignment.Left,
-    }, row)
-    local sw = N("Frame", {
-        Size = UDim2.new(0,38,0,20),
-        Position = UDim2.new(1,-46,0.5,-10),
-        BackgroundColor3 = def and ACC or OFF,
-        BorderSizePixel = 0,
-    }, row)
-    Round(sw, 10)
-    local kn = N("Frame", {
-        Size = UDim2.new(0,16,0,16),
-        Position = def and UDim2.new(1,-18,0.5,-8) or UDim2.new(0,2,0.5,-8),
-        BackgroundColor3 = Color3.new(1,1,1), BorderSizePixel = 0,
-    }, sw)
-    Round(kn, 8)
-    local st = def
-    local btn = N("TextButton", {
-        Text = "", BackgroundTransparency = 1,
-        Size = UDim2.new(1,0,1,0), ZIndex = 5,
-    }, row)
-    btn.MouseButton1Click:Connect(function()
-        st = not st
-        sw.BackgroundColor3 = st and ACC or OFF
-        T:Create(kn, TweenInfo.new(0.15), {
-            Position = st and UDim2.new(1,-18,0.5,-8) or UDim2.new(0,2,0.5,-8),
-        }):Play()
+-- Компоненты
+local function Label(text) N("TextLabel",{Text=text,Font=Enum.Font.GothamBold,TextSize=12,TextColor3=SUB,BackgroundTransparency=1,Size=UDim2.new(1,0,0,22),TextXAlignment=Enum.TextXAlignment.Left},CT) end
+local function Toggle(text,def,cb)
+    local row=N("Frame",{Size=UDim2.new(1,0,0,34),BackgroundColor3=P2,BorderSizePixel=0},CT) Round(row,8)
+    N("TextLabel",{Text="  "..text,Font=Enum.Font.Gotham,TextSize=13,TextColor3=TXT,BackgroundTransparency=1,Size=UDim2.new(1,-60,1,0),TextXAlignment=Enum.TextXAlignment.Left},row)
+    local sw=N("Frame",{Size=UDim2.new(0,38,0,20),Position=UDim2.new(1,-46,0.5,-10),BackgroundColor3=def and ACC or OFF,BorderSizePixel=0},row) Round(sw,10)
+    local kn=N("Frame",{Size=UDim2.new(0,16,0,16),Position=def and UDim2.new(1,-18,0.5,-8) or UDim2.new(0,2,0.5,-8),BackgroundColor3=Color3.new(1,1,1),BorderSizePixel=0},sw) Round(kn,8)
+    local st=def local btn=N("TextButton",{Text="",BackgroundTransparency=1,Size=UDim2.new(1,0,1,0),ZIndex=5},row)
+    addConn(Connections,btn.MouseButton1Click:Connect(function()
+        if IsCleanedUp or not row.Parent then return end
+        st=not st sw.BackgroundColor3=st and ACC or OFF
+        T:Create(kn,TweenInfo.new(0.15),{Position=st and UDim2.new(1,-18,0.5,-8) or UDim2.new(0,2,0.5,-8)}):Play()
         if cb then cb(st) end
-    end)
+    end))
 end
-
-local function Slider(text, mn, mx, def, cb)
-    local row = N("Frame", {
-        Size = UDim2.new(1,0,0,52),
-        BackgroundColor3 = P2, BorderSizePixel = 0,
-    }, CT)
-    Round(row, 8)
-    N("TextLabel", {
-        Text = "  "..text, Font = Enum.Font.Gotham, TextSize = 13,
-        TextColor3 = TXT, BackgroundTransparency = 1,
-        Size = UDim2.new(1,-60,0,24),
-        TextXAlignment = Enum.TextXAlignment.Left,
-    }, row)
-    local vl = N("TextLabel", {
-        Text = tostring(def), Font = Enum.Font.GothamBold, TextSize = 13,
-        TextColor3 = ACC, BackgroundTransparency = 1,
-        Size = UDim2.new(0,50,0,24),
-        Position = UDim2.new(1,-55,0,0),
-        TextXAlignment = Enum.TextXAlignment.Right,
-    }, row)
-    local tr = N("Frame", {
-        Size = UDim2.new(1,-20,0,4),
-        Position = UDim2.new(0,10,0,34),
-        BackgroundColor3 = OFF, BorderSizePixel = 0,
-    }, row)
-    Round(tr, 2)
-    local fl = N("Frame", {
-        Size = UDim2.new((def-mn)/(mx-mn),0,1,0),
-        BackgroundColor3 = ACC, BorderSizePixel = 0,
-    }, tr)
-    Round(fl, 2)
-    local kn = N("Frame", {
-        Size = UDim2.new(0,12,0,12),
-        Position = UDim2.new((def-mn)/(mx-mn),-6,0.5,-6),
-        BackgroundColor3 = Color3.new(1,1,1),
-        BorderSizePixel = 0, ZIndex = 3,
-    }, tr)
-    Round(kn, 6)
-    local dragging = false
-    local inp = N("TextButton", {
-        Text = "", BackgroundTransparency = 1,
-        Size = UDim2.new(1,0,1,0), ZIndex = 4,
-    }, row)
-    
+local function Slider(text,mn,mx,def,cb)
+    local row=N("Frame",{Size=UDim2.new(1,0,0,52),BackgroundColor3=P2,BorderSizePixel=0},CT) Round(row,8)
+    N("TextLabel",{Text="  "..text,Font=Enum.Font.Gotham,TextSize=13,TextColor3=TXT,BackgroundTransparency=1,Size=UDim2.new(1,-60,0,24),TextXAlignment=Enum.TextXAlignment.Left},row)
+    local vl=N("TextLabel",{Text=tostring(def),Font=Enum.Font.GothamBold,TextSize=13,TextColor3=ACC,BackgroundTransparency=1,Size=UDim2.new(0,50,0,24),Position=UDim2.new(1,-55,0,0),TextXAlignment=Enum.TextXAlignment.Right},row)
+    local tr=N("Frame",{Size=UDim2.new(1,-20,0,4),Position=UDim2.new(0,10,0,34),BackgroundColor3=OFF,BorderSizePixel=0},row) Round(tr,2)
+    local fl=N("Frame",{Size=UDim2.new((def-mn)/(mx-mn),0,1,0),BackgroundColor3=ACC,BorderSizePixel=0},tr) Round(fl,2)
+    local kn=N("Frame",{Size=UDim2.new(0,12,0,12),Position=UDim2.new((def-mn)/(mx-mn),-6,0.5,-6),BackgroundColor3=Color3.new(1,1,1),BorderSizePixel=0,ZIndex=3},tr) Round(kn,6)
+    local dragging=false local inp=N("TextButton",{Text="",BackgroundTransparency=1,Size=UDim2.new(1,0,1,0),ZIndex=4},row)
     local function setFromX(x)
-        local r = math.clamp((x - tr.AbsolutePosition.X) / tr.AbsoluteSize.X, 0, 1)
-        local v = math.floor(mn + (mx - mn) * r + 0.5)
-        vl.Text = tostring(v)
-        fl.Size = UDim2.new(r, 0, 1, 0)
-        kn.Position = UDim2.new(r, -6, 0.5, -6)
-        if cb then cb(v) end
+        if IsCleanedUp or not tr or not tr.Parent then return end
+        local r=math.clamp((x-tr.AbsolutePosition.X)/tr.AbsoluteSize.X,0,1) local v=math.floor(mn+(mx-mn)*r+0.5)
+        vl.Text=tostring(v) fl.Size=UDim2.new(r,0,1,0) kn.Position=UDim2.new(r,-6,0.5,-6) if cb then cb(v) end
     end
-    
-    inp.InputBegan:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1
-        or i.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            setFromX(i.Position.X)
-        end
-    end)
-    inp.InputEnded:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1
-        or i.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
-    
-    -- 4. Сохранение соединения в таблицу
-    local connection = U.InputChanged:Connect(function(i)
-        if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement
-        or i.UserInputType == Enum.UserInputType.Touch) then
-            setFromX(i.Position.X)
-        end
-    end)
-    table.insert(SliderConnections, connection)
+    local c1=inp.InputBegan:Connect(function(i) if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=true setFromX(i.Position.X) end end)
+    local c2=inp.InputEnded:Connect(function(i) if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=false end end)
+    local c3=U.InputChanged:Connect(function(i) if IsCleanedUp or not row.Parent then return end if dragging and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then setFromX(i.Position.X) end end)
+    addConn(SliderConnections,c1) addConn(SliderConnections,c2) addConn(SliderConnections,c3)
+    addConn(Connections,row.Destroying:Connect(function() for _,c in ipairs({c1,c2,c3}) do if c and c.Connected then pcall(function() c:Disconnect() end) end end end))
+end
+local function Dropdown(text,opts,def,cb)
+    local row=N("Frame",{Size=UDim2.new(1,0,0,34),BackgroundColor3=P2,BorderSizePixel=0},CT) Round(row,8)
+    N("TextLabel",{Text="  "..text,Font=Enum.Font.Gotham,TextSize=13,TextColor3=TXT,BackgroundTransparency=1,Size=UDim2.new(0.5,0,1,0),TextXAlignment=Enum.TextXAlignment.Left},row)
+    local btn=N("TextButton",{Text=def.." ▼",Font=Enum.Font.Gotham,TextSize=12,TextColor3=ACC,BackgroundTransparency=1,Size=UDim2.new(0,110,1,0),Position=UDim2.new(1,-110,0,0)},row)
+    local lst=N("Frame",{Size=UDim2.new(1,0,0,#opts*26),Position=UDim2.new(0,0,1,2),BackgroundColor3=PANEL,BorderSizePixel=0,Visible=false,ZIndex=60},row) Round(lst,6) Stroke(lst,ACC,1)
+    N("UIListLayout",{Padding=UDim.new(0,2)},lst) N("UIPadding",{PaddingTop=UDim.new(0,4),PaddingLeft=UDim.new(0,4),PaddingRight=UDim.new(0,4),PaddingBottom=UDim.new(0,4)},lst)
+    for _,o in ipairs(opts) do
+        local ob=N("TextButton",{Text=o,Font=Enum.Font.Gotham,TextSize=12,TextColor3=TXT,BackgroundColor3=P2,Size=UDim2.new(1,0,0,24),BorderSizePixel=0,ZIndex=61},lst) Round(ob,4)
+        addConn(Connections,ob.MouseButton1Click:Connect(function() if IsCleanedUp or not row.Parent then return end btn.Text=o.." ▼" lst.Visible=false if cb then cb(o) end end))
+    end
+    addConn(Connections,btn.MouseButton1Click:Connect(function() if IsCleanedUp or not row.Parent then return end lst.Visible=not lst.Visible end))
 end
 
-local function Dropdown(text, opts, def, cb)
-    local row = N("Frame", {
-        Size = UDim2.new(1,0,0,34),
-        BackgroundColor3 = P2, BorderSizePixel = 0,
-    }, CT)
-    Round(row, 8)
-    N("TextLabel", {
-        Text = "  "..text, Font = Enum.Font.Gotham, TextSize = 13,
-        TextColor3 = TXT, BackgroundTransparency = 1,
-        Size = UDim2.new(0.5,0,1,0),
-        TextXAlignment = Enum.TextXAlignment.Left,
-    }, row)
-    local btn = N("TextButton", {
-        Text = def.." ▼", Font = Enum.Font.Gotham, TextSize = 12,
-        TextColor3 = ACC, BackgroundTransparency = 1,
-        Size = UDim2.new(0,110,1,0),
-        Position = UDim2.new(1,-110,0,0),
-    }, row)
-    local listH = #opts * 26
-    local lst = N("Frame", {
-        Size = UDim2.new(1,0,0,listH),
-        Position = UDim2.new(0,0,1,2),
-        BackgroundColor3 = PANEL, BorderSizePixel = 0,
-        Visible = false, ZIndex = 60,
-    }, row)
-    Round(lst, 6); Stroke(lst, ACC, 1)
-    N("UIListLayout", { Padding = UDim.new(0,2) }, lst)
-    N("UIPadding", {
-        PaddingTop = UDim.new(0,4), PaddingLeft = UDim.new(0,4),
-        PaddingRight = UDim.new(0,4), PaddingBottom = UDim.new(0,4),
-    }, lst)
-    for _, o in ipairs(opts) do
-        local ob = N("TextButton", {
-            Text = o, Font = Enum.Font.Gotham, TextSize = 12,
-            TextColor3 = TXT, BackgroundColor3 = P2,
-            Size = UDim2.new(1,0,0,24),
-            BorderSizePixel = 0, ZIndex = 61,
-        }, lst)
-        Round(ob, 4)
-        ob.MouseButton1Click:Connect(function()
-            btn.Text = o.." ▼"
-            lst.Visible = false
-            if cb then cb(o) end
-        end)
-    end
-    btn.MouseButton1Click:Connect(function()
-        lst.Visible = not lst.Visible
-    end)
-end
+-- Drawing & ESP
+if hasDrawing then FOVCircle=SafeDrawing("Circle") if FOVCircle then FOVCircle.Visible=false FOVCircle.Filled=false FOVCircle.NumSides=80 FOVCircle.Thickness=0.7 FOVCircle.Transparency=0.8 end end
+addConn(Connections,P.PlayerRemoving:Connect(function(pl) if ESP[pl] then destroyESPEntry(ESP[pl]) ESP[pl]=nil end end))
 
---==================== DRAWING STATE ====================
-local ESP = {}
-local FOVCircle = Drawing.new("Circle")
-FOVCircle.Visible = false
-FOVCircle.Filled = false
-FOVCircle.NumSides = 80
-FOVCircle.Thickness = 0.7
-FOVCircle.Transparency = 0.8
-
-local function destroyESPEntry(e)
-    if not e then return end
-    for _, d in pairs(e) do
-        if d and d.Remove then
-            pcall(function() d:Remove() end)
-        end
-    end
-end
-
-P.PlayerRemoving:Connect(function(pl)
-    if ESP[pl] then
-        destroyESPEntry(ESP[pl])
-        ESP[pl] = nil
-    end
-end)
-
---==================== TARGET ====================
+-- Target
 local function Nearest()
-    local best, dist = nil, C.FOV
-    local CAM = GetCamera() -- Фикс камеры
-    local cen = Vector2.new(CAM.ViewportSize.X/2, CAM.ViewportSize.Y/2)
-    for _, pl in ipairs(P:GetPlayers()) do
-        if pl ~= LP and pl.Character then
-            local hrp = pl.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                local sp, on = CAM:WorldToViewportPoint(hrp.Position)
-                if on then
-                    local d = (Vector2.new(sp.X, sp.Y) - cen).Magnitude
-                    if d < dist then dist = d; best = pl end
-                end
-            end
-        end
-    end
-    return best
+    local cam=GetCamera() if not cam then return nil end
+    local best,dist=nil,C.FOV local cen=Vector2.new(cam.ViewportSize.X/2,cam.ViewportSize.Y/2)
+    for _,pl in ipairs(P:GetPlayers()) do if pl~=LP and pl.Character then local hrp=pl.Character:FindFirstChild("HumanoidRootPart") if hrp then local sp,on=cam:WorldToViewportPoint(hrp.Position) if on then local d=(Vector2.new(sp.X,sp.Y)-cen).Magnitude if d<dist then dist=d best=pl end end end end end return best
 end
 
---==================== VISUAL STATE ====================
-local OldLB, OldSky, XRayTab, DecoConn, FPSOff, WasFB = {}, nil, {}, nil, {}, false
-local NoDecoStore = {}
-
+-- Visual state
+local OldLB,OldSky,XRayTab,DecoConn,FPSOff,WasFB={},nil,{},nil,{},false local NoDecoStore={}
 local function Fullbright(on)
-    if on then
-        WasFB = true
-        for _, k in ipairs({"Brightness","ClockTime","Ambient","OutdoorAmbient","FogEnd","GlobalShadows"}) do
-            OldLB[k] = L[k]
-        end
-        L.Brightness = 3
-        L.ClockTime = 12
-        L.Ambient = Color3.fromRGB(200,200,200)
-        L.OutdoorAmbient = Color3.fromRGB(200,200,200)
-        L.FogEnd = 1e5
-        L.GlobalShadows = false
-    elseif WasFB then
-        for k, v in pairs(OldLB) do
-            pcall(function() L[k] = v end)
-        end
-        WasFB = false
-    end
+    if on then WasFB=true for _,k in ipairs({"Brightness","ClockTime","Ambient","OutdoorAmbient","FogEnd","GlobalShadows"}) do if L[k] then OldLB[k]=L[k] end end L.Brightness=3 L.ClockTime=12 L.Ambient=Color3.fromRGB(200,200,200) L.OutdoorAmbient=Color3.fromRGB(200,200,200) L.FogEnd=1e5 L.GlobalShadows=false
+    elseif WasFB then for k,v in pairs(OldLB) do pcall(function() L[k]=v end) end WasFB=false end
 end
-
 local function XRay(on)
-    if on then
-        XRayTab = {}
-        for _, v in ipairs(W:GetDescendants()) do
-            if v:IsA("BasePart") and v.Transparency < 1 then
-                table.insert(XRayTab, { o = v, t = v.Transparency })
-                v.Transparency = 0.7
-            end
-        end
-    else
-        for _, e in ipairs(XRayTab) do
-            if e.o and e.o.Parent then
-                pcall(function() e.o.Transparency = e.t end)
-            end
-        end
-        XRayTab = {}
-    end
+    if on then XRayTab={} for _,v in ipairs(W:GetDescendants()) do if v:IsA("BasePart") and v.Transparency<1 then table.insert(XRayTab,{o=v,t=v.Transparency}) v.Transparency=0.7 end end
+    else for _,e in ipairs(XRayTab) do if e.o and e.o.Parent then pcall(function() e.o.Transparency=e.t end) end end XRayTab={} end
 end
-
 local function NoDeco(on)
-    if on then
-        if DecoConn then DecoConn:Disconnect() end
-        NoDecoStore = {}
-        local function hide(o)
-            if (o:IsA("Decal") or o:IsA("Texture")) and not NoDecoStore[o] then
-                NoDecoStore[o] = o.Transparency
-                o.Transparency = 1
-            end
-        end
-        for _, v in ipairs(W:GetDescendants()) do hide(v) end
-        DecoConn = W.DescendantAdded:Connect(hide)
-    else
-        if DecoConn then DecoConn:Disconnect(); DecoConn = nil end
-        for obj, tr in pairs(NoDecoStore) do
-            if obj and obj.Parent then
-                pcall(function() obj.Transparency = tr end)
-            end
-        end
-        NoDecoStore = {}
-    end
+    if on then if DecoConn then DecoConn:Disconnect() end NoDecoStore={} local function hide(o) if (o:IsA("Decal") or o:IsA("Texture")) and not NoDecoStore[o] then NoDecoStore[o]=o.Transparency o.Transparency=1 end end for _,v in ipairs(W:GetDescendants()) do hide(v) end DecoConn=W.DescendantAdded:Connect(hide)
+    else if DecoConn then DecoConn:Disconnect() DecoConn=nil end for obj,tr in pairs(NoDecoStore) do if obj and obj.Parent then pcall(function() obj.Transparency=tr end) end end NoDecoStore={} end
 end
-
--- 2. Обновленная SkyFon с защитой
 local function SkyFon(on)
-    local existing = L:FindFirstChild("FerSky")
-
-    if on then
-        if existing then return end
-        OldSky = L:FindFirstChildOfClass("Sky")
-        if OldSky then
-            OldSky.Parent = nil
-        end
-        local f = Instance.new("Folder")
-        f.Name = "FerSky"
-        f.Parent = L
-        local sky = Instance.new("Sky")
-        sky.Name = "FerSkybox"
-        sky.SkyboxBk = "rbxassetid://159454299"
-        sky.SkyboxDn = "rbxassetid://159454296"
-        sky.SkyboxFt = "rbxassetid://159454293"
-        sky.SkyboxLf = "rbxassetid://159454286"
-        sky.SkyboxRt = "rbxassetid://159454300"
-        sky.SkyboxUp = "rbxassetid://159454288"
-        sky.StarCount = 5000
-        sky.Parent = f
-    else
-        if existing then
-            existing:Destroy()
-        end
-        if OldSky then
-            OldSky.Parent = L
-            OldSky = nil
-        end
-    end
+    local existing=L:FindFirstChild("FerSky")
+    if on then if existing then return end local currentSky=L:FindFirstChildOfClass("Sky") if currentSky then OldSky=currentSky currentSky.Parent=nil end local f=N("Folder",{Name="FerSky"},L) N("Sky",{Name="FerSkybox",SkyboxBk="rbxassetid://159454299",SkyboxDn="rbxassetid://159454296",SkyboxFt="rbxassetid://159454293",SkyboxLf="rbxassetid://159454286",SkyboxRt="rbxassetid://159454300",SkyboxUp="rbxassetid://159454288",StarCount=5000},f)
+    else if existing then existing:Destroy() end if OldSky and OldSky.Parent==nil then pcall(function() OldSky.Parent=L end) end OldSky=nil end
 end
-
--- 3. Обновленный FPS Boost
 local function FPS(on)
-    if on then
-        FPSOff = {}
-        for _, obj in ipairs(L:GetDescendants()) do
-            if obj:IsA("PostEffect") then
-                table.insert(FPSOff, { o = obj, e = obj.Enabled })
-                obj.Enabled = false
-            end
+    if on then FPSOff={} for _,obj in ipairs(L:GetDescendants()) do if obj:IsA("PostEffect") then table.insert(FPSOff,{o=obj,e=obj.Enabled}) obj.Enabled=false end end
+    else for _,entry in ipairs(FPSOff) do if entry.o and entry.o.Parent then pcall(function() entry.o.Enabled=entry.e end) end end FPSOff={} end
+end
+
+-- Misc
+local InfConn,AFKConn
+local function InfJump(on) if on then if InfConn then InfConn:Disconnect() end InfConn=U.JumpRequest:Connect(function() local h=LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end end) else if InfConn then InfConn:Disconnect() InfConn=nil end end end
+local function AFK(on) if on then if AFKConn then AFKConn:Disconnect() end AFKConn=LP.Idled:Connect(function() pcall(function() local v=game:GetService("VirtualUser") v:CaptureController() v:ClickButton2(Vector2.new()) end) end) else if AFKConn then AFKConn:Disconnect() AFKConn=nil end end end
+
+-- Render
+addConn(Connections,R.RenderStepped:Connect(function()
+    if IsCleanedUp then return end local cam=GetCamera()
+    if cam and FOVCircle then if C.ShowFOV then FOVCircle.Visible=true FOVCircle.Position=Vector2.new(cam.ViewportSize.X/2,cam.ViewportSize.Y/2) FOVCircle.Radius=C.FOV FOVCircle.Color=C.ESPColor else FOVCircle.Visible=false end end
+    if cam and (C.AimBot or C.AimSelect) then local t=Nearest() if t and t.Character then local pt=t.Character:FindFirstChild(C.AimPart) or t.Character:FindFirstChild("Head") if pt then cam.CFrame=cam.CFrame:Lerp(CFrame.new(cam.CFrame.Position,pt.Position),C.Smooth) end end end
+    if C.TriggerBot then local t=Nearest() if t and t.Character and t.Character:FindFirstChildOfClass("Humanoid") and t.Character.Humanoid.Health>0 then local tl=LP.Character and LP.Character:FindFirstChildWhichIsA("Tool") if tl then pcall(function() tl:Activate() end) end end end
+    if hasDrawing and cam then for _,pl in ipairs(P:GetPlayers()) do if pl~=LP then
+        if not ESP[pl] then local b=SafeDrawing("Square") local n=SafeDrawing("Text") local d=SafeDrawing("Text") local c=SafeDrawing("Triangle")
+            if b and n and d and c then ESP[pl]={b=b,n=n,d=d,c=c} b.Thickness=1 b.Filled=false n.Size=14 n.Center=true n.Outline=true n.Color=Color3.new(1,1,1) d.Size=12 d.Center=true d.Outline=true d.Color=C.ESPColor c.Thickness=1 c.Filled=true
+            else if b then pcall(function() b:Remove() end) end if n then pcall(function() n:Remove() end) end if d then pcall(function() d:Remove() end) end if c then pcall(function() c:Remove() end) end end end
+        local e=ESP[pl] if e then local char=pl.Character local hrp=char and char:FindFirstChild("HumanoidRootPart") local hum=char and char:FindFirstChildOfClass("Humanoid")
+            if C.ESP and hrp and hum and hum.Health>0 then local top=cam:WorldToViewportPoint(hrp.Position+Vector3.new(0,3,0)) local bot=cam:WorldToViewportPoint(hrp.Position-Vector3.new(0,3,0)) local pos,on=cam:WorldToViewportPoint(hrp.Position)
+                if on then local h=math.abs(top.Y-bot.Y) local w=h*0.55 e.b.Size=Vector2.new(w,h) e.b.Position=Vector2.new(pos.X-w/2,top.Y) e.b.Color=C.ESPColor e.b.Visible=C.ESPBox e.n.Text=pl.Name e.n.Position=Vector2.new(pos.X,top.Y-18) e.n.Visible=C.ESPName
+                    local LPH=LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") local dist=LPH and math.floor((LPH.Position-hrp.Position).Magnitude) or 0 e.d.Text="["..dist.."m]" e.d.Position=Vector2.new(pos.X,bot.Y+2) e.d.Visible=C.ESPDist
+                    if C.ESPCharms then local cx=pos.X local cy=top.Y-30 e.c.PointA=Vector2.new(cx,cy) e.c.PointB=Vector2.new(cx-6,cy+10) e.c.PointC=Vector2.new(cx+6,cy+10) e.c.Color=C.ESPColor e.c.Visible=true else e.c.Visible=false end
+                else e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false end
+            else e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false end
         end
-    else
-        for _, entry in ipairs(FPSOff) do
-            if entry.o and entry.o.Parent then
-                pcall(function() entry.o.Enabled = entry.e end)
-            end
-        end
-        FPSOff = {}
-    end
-end
+    end end end
+end))
 
---==================== MISC STATE ====================
-local InfConn, AFKConn
+-- Tabs
+local TabBtns,Tabs={},{}
+local function ClearC() for _,x in ipairs(CT:GetChildren()) do if x:IsA("GuiObject") then x:Destroy() end end disconnectAll(SliderConnections) end
+local function UpdateCanvas() CT.CanvasSize=UDim2.new(0,0,0,CLL.AbsoluteContentSize.Y+16) end
+local function Render(name) ClearC() for k,b in pairs(TabBtns) do b.BackgroundColor3=(k==name) and ACC or P2 b.TextColor3=(k==name) and Color3.new(1,1,1) or SUB end if Tabs[name] then Tabs[name]() end task.defer(function() UpdateCanvas() task.wait(0.05) UpdateCanvas() end) end
+local function AddTab(name) local b=N("TextButton",{Text=name,Font=Enum.Font.GothamSemibold,TextSize=13,TextColor3=SUB,BackgroundColor3=P2,Size=UDim2.new(0,92,0,28),BorderSizePixel=0,AutoButtonColor=false},TBB) Round(b,8) TabBtns[name]=b
+    addConn(Connections,b.MouseButton1Click:Connect(function() if IsCleanedUp or not b.Parent then return end Render(name) end)) end
+AddTab("Combat") AddTab("Visual") AddTab("Misc")
 
-local function InfJump(on)
-    if on then
-        if InfConn then InfConn:Disconnect() end
-        InfConn = U.JumpRequest:Connect(function()
-            local h = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-            if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end
-        end)
-    else
-        if InfConn then InfConn:Disconnect(); InfConn = nil end
-    end
-end
-
-local function AFK(on)
-    if on then
-        if AFKConn then AFKConn:Disconnect() end
-        AFKConn = LP.Idled:Connect(function()
-            pcall(function()
-                local v = game:GetService("VirtualUser")
-                v:CaptureController()
-                v:ClickButton2(Vector2.new())
-            end)
-        end)
-    else
-        if AFKConn then AFKConn:Disconnect(); AFKConn = nil end
-    end
-end
-
---==================== MAIN RENDER LOOP ====================
-R.RenderStepped:Connect(function()
-    -- Используем актуальную камеру
-    local CAM = GetCamera()
-    
-    if C.ShowFOV then
-        FOVCircle.Visible = true
-        FOVCircle.Position = Vector2.new(CAM.ViewportSize.X / 2, CAM.ViewportSize.Y / 2)
-        FOVCircle.Radius = C.FOVSize
-        FOVCircle.Color = C.ESPColor
-    else
-        FOVCircle.Visible = false
-    end
-
-    if C.AimBot or C.AimSelect then
-        local t = Nearest()
-        if t and t.Character then
-            local pt = t.Character:FindFirstChild(C.AimPart) or t.Character:FindFirstChild("Head")
-            if pt then
-                CAM.CFrame = CAM.CFrame:Lerp(CFrame.new(CAM.CFrame.Position, pt.Position), C.Smooth)
-            end
-        end
-    end
-    
-    if C.TriggerBot then
-        local t = Nearest()
-        if t and t.Character and t.Character:FindFirstChildOfClass("Humanoid")
-        and t.Character.Humanoid.Health > 0 then
-            local tl = LP.Character and LP.Character:FindFirstChildWhichIsA("Tool")
-            if tl then pcall(function() tl:Activate() end) end
-        end
-    end
-    
-    for _, pl in ipairs(P:GetPlayers()) do
-        if pl ~= LP then
-            if not ESP[pl] then
-                ESP[pl] = {
-                    b = Drawing.new("Square"),
-                    n = Drawing.new("Text"),
-                    d = Drawing.new("Text"),
-                    c = Drawing.new("Triangle"),
-                }
-                ESP[pl].b.Thickness = 1
-                ESP[pl].b.Filled = false
-                ESP[pl].n.Size = 14
-                ESP[pl].n.Center = true
-                ESP[pl].n.Outline = true
-                ESP[pl].n.Color = Color3.new(1,1,1)
-                ESP[pl].d.Size = 12
-                ESP[pl].d.Center = true
-                ESP[pl].d.Outline = true
-                ESP[pl].d.Color = C.ESPColor
-                ESP[pl].c.Thickness = 1
-                ESP[pl].c.Filled = true
-            end
-            local e = ESP[pl]
-            local char = pl.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if C.ESP and hrp and hum and hum.Health > 0 then
-                local top = CAM:WorldToViewportPoint(hrp.Position + Vector3.new(0,3,0))
-                local bot = CAM:WorldToViewportPoint(hrp.Position - Vector3.new(0,3,0))
-                local pos, on = CAM:WorldToViewportPoint(hrp.Position)
-                if on then
-                    local h = math.abs(top.Y - bot.Y)
-                    local w = h * 0.55
-                    e.b.Size = Vector2.new(w, h)
-                    e.b.Position = Vector2.new(pos.X - w/2, top.Y)
-                    e.b.Color = C.ESPColor
-                    e.b.Visible = C.ESPBox
-
-                    e.n.Text = pl.Name
-                    e.n.Position = Vector2.new(pos.X, top.Y - 18)
-                    e.n.Visible = C.ESPName
-
-                    local LPH = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-                    local dist = LPH and math.floor((LPH.Position - hrp.Position).Magnitude) or 0
-                    e.d.Text = "["..dist.."m]"
-                    e.d.Position = Vector2.new(pos.X, bot.Y + 2)
-                    e.d.Visible = C.ESPDist
-
-                    if C.ESPCharms then
-                        local cx = pos.X
-                        local cy = top.Y - 30
-                        e.c.PointA = Vector2.new(cx, cy)
-                        e.c.PointB = Vector2.new(cx - 6, cy + 10)
-                        e.c.PointC = Vector2.new(cx + 6, cy + 10)
-                        e.c.Color = C.ESPColor
-                        e.c.Visible = true
-                    else
-                        e.c.Visible = false
-                    end
-                else
-                    e.b.Visible = false
-                    e.n.Visible = false
-                    e.d.Visible = false
-                    e.c.Visible = false
-                end
-            else
-                e.b.Visible = false
-                e.n.Visible = false
-                e.d.Visible = false
-                e.c.Visible = false
-            end
-        end
-    end
-end)
-
---==================== TABS ====================
-local TabBtns, Tabs = {}, {}
-
-local function ClearC()
-    for _, x in ipairs(CT:GetChildren()) do
-        if x:IsA("GuiObject") then x:Destroy() end
-    end
-end
-
-local function Render(name)
-    ClearC()
-    for k, b in pairs(TabBtns) do
-        b.BackgroundColor3 = (k == name) and ACC or P2
-        b.TextColor3 = (k == name) and Color3.new(1,1,1) or SUB
-    end
-    if Tabs[name] then Tabs[name]() end
-    CT.CanvasSize = UDim2.new(0, 0, 0, CLL.AbsoluteContentSize.Y + 16)
-end
-
-local function AddTab(name)
-    local b = N("TextButton", {
-        Text = name, Font = Enum.Font.GothamSemibold, TextSize = 13,
-        TextColor3 = SUB, BackgroundColor3 = P2,
-        Size = UDim2.new(0,92,0,28),
-        BorderSizePixel = 0, AutoButtonColor = false,
-    }, TBB)
-    Round(b, 8)
-    TabBtns[name] = b
-    b.MouseButton1Click:Connect(function() Render(name) end)
-end
-
-AddTab("Combat"); AddTab("Visual"); AddTab("Misc")
-
-Tabs.Combat = function()
+Tabs.Combat=function()
     Label("COMBAT")
-    Toggle("Aim Select", C.AimSelect, function(v) C.AimSelect = v end)
-    Toggle("Trigger Bot", C.TriggerBot, function(v) C.TriggerBot = v end)
-    Toggle("Magic Bullet", C.MagicBullet, function(v) C.MagicBullet = v end)
-    Toggle("Aim Bot", C.AimBot, function(v) C.AimBot = v end)
-    Dropdown("Aim Part", {"Head","HumanoidRootPart","UpperTorso"}, "Head", function(v)
-        C.AimPart = v
-    end)
-    Slider("Aim Smooth", 1, 100, 35, function(v) C.Smooth = v/100 end)
-    Slider("Aim FOV", 30, 400, 120, function(v) C.FOV = v end)
+    Toggle("Aim Select",C.AimSelect,function(v)C.AimSelect=v end)
+    Toggle("Trigger Bot",C.TriggerBot,function(v)C.TriggerBot=v end)
+    Toggle("Magic Bullet",C.MagicBullet,function(v)C.MagicBullet=v end)
+    Toggle("Aim Bot",C.AimBot,function(v)C.AimBot=v end)
+    Dropdown("Aim Part",{"Head","HumanoidRootPart","UpperTorso"},"Head",function(v)C.AimPart=v end)
+    Slider("Aim Smooth",1,100,35,function(v)C.Smooth=v/100 end)
+    Slider("Aim FOV",30,400,150,function(v)C.FOV=v end)
 end
 
-Tabs.Visual = function()
+Tabs.Visual=function()
     Label("VISUAL")
-    
-    Toggle("Show FOV", C.ShowFOV, function(v) C.ShowFOV = v end)
-    Slider("FOV Size", 50, 500, 150, function(v) C.FOVSize = v end)
-    
-    Toggle("ESP", C.ESP, function(v) C.ESP = v end)
-    Toggle("  Box", C.ESPBox, function(v) C.ESPBox = v end)
-    Toggle("  Name", C.ESPName, function(v) C.ESPName = v end)
-    Toggle("  Charms", C.ESPCharms, function(v) C.ESPCharms = v end)
-    Toggle("  Distance", C.ESPDist, function(v) C.ESPDist = v end)
-    Toggle("Fullbright", C.Fullbright, function(v) C.Fullbright = v; Fullbright(v) end)
-    Toggle("X-Ray", C.XRay, function(v) C.XRay = v; XRay(v) end)
-    Toggle("No Decoration", C.NoDeco, function(v) C.NoDeco = v; NoDeco(v) end)
-    Toggle("Sky Fon", C.SkyFon, function(v) C.SkyFon = v; SkyFon(v) end)
-    Toggle("FPS Boost", C.FPSBoost, function(v) C.FPSBoost = v; FPS(v) end)
+    Toggle("Show FOV",C.ShowFOV,function(v)C.ShowFOV=v end)
+    Toggle("ESP",C.ESP,function(v)C.ESP=v end)
+    Toggle("  Box",C.ESPBox,function(v)C.ESPBox=v end)
+    Toggle("  Name",C.ESPName,function(v)C.ESPName=v end)
+    Toggle("  Charms",C.ESPCharms,function(v)C.ESPCharms=v end)
+    Toggle("  Distance",C.ESPDist,function(v)C.ESPDist=v end)
+    Toggle("Fullbright",C.Fullbright,function(v)C.Fullbright=v Fullbright(v) end)
+    Toggle("X-Ray",C.XRay,function(v)C.XRay=v XRay(v) end)
+    Toggle("No Decoration",C.NoDeco,function(v)C.NoDeco=v NoDeco(v) end)
+    Toggle("Sky Fon",C.SkyFon,function(v)C.SkyFon=v SkyFon(v) end)
+    Toggle("FPS Boost",C.FPSBoost,function(v)C.FPSBoost=v FPS(v) end)
 end
 
-Tabs.Misc = function()
+Tabs.Misc=function()
     Label("MISC")
-    Toggle("Inf Jump", C.InfJump, function(v) C.InfJump = v; InfJump(v) end)
-    Toggle("Anti AFK", C.AntiAFK, function(v) C.AntiAFK = v; AFK(v) end)
+    Toggle("Inf Jump",C.InfJump,function(v)C.InfJump=v InfJump(v) end)
+    Toggle("Anti AFK",C.AntiAFK,function(v)C.AntiAFK=v AFK(v) end)
 end
 
 Render("Combat")
 
---==================== OPEN / DRAG ====================
-CL.MouseButton1Click:Connect(function() M.Visible = false end)
-AV.MouseButton1Click:Connect(function() M.Visible = not M.Visible end)
+-- Drag & Open
+addConn(Connections,CL.MouseButton1Click:Connect(function() if not IsCleanedUp and M then M.Visible=false end end))
+addConn(Connections,AV.MouseButton1Click:Connect(function() if not IsCleanedUp and M then M.Visible=not M.Visible end end))
+local drag,ds,dp=false,nil,nil
+addConn(Connections,AV.InputBegan:Connect(function(i) if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then drag=true ds=i.Position dp=AV.Position end end))
+addConn(Connections,AV.InputEnded:Connect(function(i) if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then drag=false end end))
+addConn(Connections,U.InputChanged:Connect(function(i) if IsCleanedUp or not AV then return end if drag and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then local d=i.Position-ds AV.Position=UDim2.new(dp.X.Scale,dp.X.Offset+d.X,dp.Y.Scale,dp.Y.Offset+d.Y) end end))
+local mdrag,mds,mdp=false,nil,nil
+addConn(Connections,TB.InputBegan:Connect(function(i) if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then mdrag=true mds=i.Position mdp=M.Position end end))
+addConn(Connections,TB.InputEnded:Connect(function(i) if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then mdrag=false end end))
+addConn(Connections,U.InputChanged:Connect(function(i) if IsCleanedUp or not M then return end if mdrag and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then local d=i.Position-mds M.Position=UDim2.new(mdp.X.Scale,mdp.X.Offset+d.X,mdp.Y.Scale,mdp.Y.Offset+d.Y) end end))
 
-local drag, ds, dp = false, nil, nil
-AV.InputBegan:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1
-    or i.UserInputType == Enum.UserInputType.Touch then
-        drag = true; ds = i.Position; dp = AV.Position
-    end
-end)
-AV.InputEnded:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1
-    or i.UserInputType == Enum.UserInputType.Touch then
-        drag = false
-    end
-end)
-U.InputChanged:Connect(function(i)
-    if drag and (i.UserInputType == Enum.UserInputType.MouseMovement
-    or i.UserInputType == Enum.UserInputType.Touch) then
-        local d = i.Position - ds
-        AV.Position = UDim2.new(dp.X.Scale, dp.X.Offset + d.X, dp.Y.Scale, dp.Y.Offset + d.Y)
-    end
-end)
-
-local mdrag, mds, mdp = false, nil, nil
-TB.InputBegan:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1
-    or i.UserInputType == Enum.UserInputType.Touch then
-        mdrag = true; mds = i.Position; mdp = M.Position
-    end
-end)
-TB.InputEnded:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1
-    or i.UserInputType == Enum.UserInputType.Touch then
-        mdrag = false
-    end
-end)
-U.InputChanged:Connect(function(i)
-    if mdrag and (i.UserInputType == Enum.UserInputType.MouseMovement
-    or i.UserInputType == Enum.UserInputType.Touch) then
-        local d = i.Position - mds
-        M.Position = UDim2.new(mdp.X.Scale, mdp.X.Offset + d.X, mdp.Y.Scale, mdp.Y.Offset + d.Y)
-    end
-end)
-
---==================== CLEANUP ====================
+-- Cleanup
 local function Cleanup()
-    -- 5. Очистка Drawing
-    for pl, e in pairs(ESP) do
-        destroyESPEntry(e)
-        ESP[pl] = nil
-    end
-    if FOVCircle then 
-        pcall(function() FOVCircle:Remove() end) 
-        FOVCircle = nil
-    end
-    
-    -- Отключение соединений
-    if InfConn then InfConn:Disconnect(); InfConn = nil end
-    if AFKConn then AFKConn:Disconnect(); AFKConn = nil end
-    if DecoConn then DecoConn:Disconnect(); DecoConn = nil end
-    
-    -- 4. Отключение слайдеров
-    for _, connection in ipairs(SliderConnections) do
-        pcall(function() connection:Disconnect() end)
-    end
-    table.clear(SliderConnections)
-    
-    -- Восстановление визуала
-    pcall(function() Fullbright(false) end)
-    pcall(function() XRay(false) end)
-    pcall(function() NoDeco(false) end)
-    pcall(function() SkyFon(false) end)
-    pcall(function() FPS(false) end)
-    
-    -- Уничтожение GUI
-    if SG then 
-        pcall(function() SG:Destroy() end) 
-    end
+    if IsCleanedUp then return end IsCleanedUp=true
+    for pl,e in pairs(ESP) do destroyESPEntry(e) ESP[pl]=nil end
+    if FOVCircle then pcall(function() FOVCircle:Remove() end) FOVCircle=nil end
+    disconnectAll(Connections) disconnectAll(SliderConnections)
+    if InfConn then InfConn:Disconnect() InfConn=nil end
+    if AFKConn then AFKConn:Disconnect() AFKConn=nil end
+    if DecoConn then DecoConn:Disconnect() DecoConn=nil end
+    pcall(Fullbright,false) pcall(XRay,false) pcall(NoDeco,false) pcall(SkyFon,false) pcall(FPS,false)
+    if SG then pcall(function() SG:Destroy() end) SG=nil end
 end
-
+_G.FerClientCleanup=Cleanup
 game:BindToClose(Cleanup)
