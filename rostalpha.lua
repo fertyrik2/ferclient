@@ -1,22 +1,107 @@
---[[ FerClient v3.5 | Optimized 60FPS | Silent Aim + UI FOV ]]
+--[[ FerClient v4.5 | Base Architecture | Ready for Aimbot ]]
 local P=game:GetService("Players")local R=game:GetService("RunService")local U=game:GetService("UserInputService")local L=game:GetService("Lighting")local W=game:GetService("Workspace")local T=game:GetService("TweenService")local CG=game:GetService("CoreGui")
 local LP=P.LocalPlayer
 if _G.FerClientCleanup then pcall(_G.FerClientCleanup)_G.FerClientCleanup=nil end
 pcall(function()if CG:FindFirstChild("FerUI")then CG.FerUI:Destroy()end end)
-local Connections={}local SliderConnections={}local ESP={}local IsCleanedUp=false local FOVCircle=nil local SG,M,AV,TB,CT,CLL local CurrentAimTarget=nil local LastTargetUpdate=0 local LastESPUpdate=0
-local FB_Old={Brightness=L.Brightness,ClockTime=L.ClockTime,FogEnd=L.FogEnd,GlobalShadows=L.GlobalShadows,Ambient=L.Ambient}local FB_Conn=nil
-local function addConn(tbl,c)if c then table.insert(tbl,c)end return c end
-local function disconnectAll(tbl)for i=#tbl,1,-1 do local c=tbl[i]if c and c.Connected then pcall(function()c:Disconnect()end)end tbl[i]=nil end end
+
+local Registry={Connections={},Drawings={},Instances={},Tweens={},TabConnections={},CharConns={}}
+local IsCleanedUp=false
+local function RegConn(c)if c then table.insert(Registry.Connections,c)end return c end
+local function RegTabConn(c)if c then table.insert(Registry.TabConnections,c)end return c end
+local function RegDraw(d)if d then table.insert(Registry.Drawings,d)end return d end
+local function RegInst(i)if i then table.insert(Registry.Instances,i)end return i end
+local function RegTween(t)
+    if t then 
+        table.insert(Registry.Tweens,t)
+        local c=t.Completed:Connect(function()
+            local idx=table.find(Registry.Tweens,t)
+            if idx then table.remove(Registry.Tweens,idx)end 
+            RemoveConn(c) -- ФИКС: Отключаем Completed-коннект при завершении
+        end)
+        table.insert(Registry.Connections,c)
+    end 
+    return t 
+end
+
+local function RemoveTween(t)if not t then return end local idx=table.find(Registry.Tweens,t)if idx then table.remove(Registry.Tweens,idx)end end
+local function RemoveInst(i)if not i then return end local idx=table.find(Registry.Instances,i)if idx then table.remove(Registry.Instances,idx)end end
+local function RemoveDraw(d)if not d then return end local idx=table.find(Registry.Drawings,d)if idx then table.remove(Registry.Drawings,idx)end end
+local function RemoveConn(c)if not c then return end local idx=table.find(Registry.Connections,c)if idx then table.remove(Registry.Connections,idx)end end
+
+local function FlushRegistry()
+    for i=#Registry.Tweens,1,-1 do local t=Registry.Tweens[i]if t then pcall(function()t:Cancel()end)end end
+    table.clear(Registry.Tweens)
+    for i=#Registry.Connections,1,-1 do local c=Registry.Connections[i]if c and c.Connected then pcall(function()c:Disconnect()end)end end
+    table.clear(Registry.Connections)
+    for i=#Registry.TabConnections,1,-1 do local c=Registry.TabConnections[i]if c and c.Connected then pcall(function()c:Disconnect()end)end end
+    table.clear(Registry.TabConnections)
+    for i=#Registry.Drawings,1,-1 do local d=Registry.Drawings[i]if d and d.Remove then pcall(function()d:Remove()end)end end
+    table.clear(Registry.Drawings)
+    for i=#Registry.Instances,1,-1 do local o=Registry.Instances[i]if o then pcall(function()o:Destroy()end)end end
+    table.clear(Registry.Instances)
+    table.clear(Registry.CharConns)
+end
+
+local SG,M,AV,TB,CT,CLL local CurrentAimTarget=nil local LastTargetUpdate=0 local LastESPUpdate=0
+local PlayerCache={} local ESP={}
+local function CachePlayer(pl)
+    if pl~=LP then 
+        local char=pl.Character
+        PlayerCache[pl]={Char=char, Hum=char and char:FindFirstChildOfClass("Humanoid"), HRP=char and char:FindFirstChild("HumanoidRootPart")}
+    end 
+end
+for _,pl in ipairs(P:GetPlayers())do CachePlayer(pl)end
+RegConn(P.PlayerAdded:Connect(CachePlayer))
+RegConn(P.PlayerRemoving:Connect(function(pl)
+    PlayerCache[pl]=nil 
+    if Registry.CharConns[pl] then 
+        for _,c in ipairs(Registry.CharConns[pl])do if c and c.Connected then pcall(function()c:Disconnect()end)RemoveConn(c)end end 
+        Registry.CharConns[pl]=nil 
+    end
+    if ESP[pl]then for _,d in pairs(ESP[pl])do if d and d.Remove then pcall(function()d:Remove()end)RemoveDraw(d)end end ESP[pl]=nil end 
+end))
+
+local function SetupCharTracker(pl)
+    if pl~=LP then
+        if Registry.CharConns[pl] then return end
+        Registry.CharConns[pl]={}
+        local c1=pl.CharacterAdded:Connect(function(char)
+            local hum=char:WaitForChild("Humanoid",5)
+            local hrp=char:WaitForChild("HumanoidRootPart",5)
+            if pl.Parent and pl.Character==char then
+                PlayerCache[pl]={Char=char,Hum=hum,HRP=hrp}
+            end
+        end)
+        table.insert(Registry.CharConns[pl],c1) RegConn(c1)
+        local c2=pl.CharacterRemoving:Connect(function()
+            if PlayerCache[pl]then 
+                PlayerCache[pl]={Char=nil,Hum=nil,HRP=nil} 
+                if ESP[pl]then for _,d in pairs(ESP[pl])do if d and d.Remove then pcall(function()d:Remove()end)RemoveDraw(d)end end ESP[pl]=nil end -- ФИКС: Очистка ESP при смерти
+            end
+        end)
+        table.insert(Registry.CharConns[pl],c2) RegConn(c2)
+    end
+end
+for _,pl in ipairs(P:GetPlayers())do SetupCharTracker(pl)end
+RegConn(P.PlayerAdded:Connect(SetupCharTracker))
+
 local function GetCamera()local cam=W.CurrentCamera if cam and cam.Parent then return cam end return nil end
-local hasDrawing=pcall(function()return Drawing.new("Square")end)
-local function SafeDrawing(class)if not hasDrawing then return nil end local ok,obj=pcall(function()return Drawing.new(class)end)return ok and obj or nil end
-local function destroyESPEntry(e)if not e then return end for _,d in pairs(e)do if d and d.Remove then pcall(function()d:Remove()end)end end end
+local hasDrawing=pcall(function()
+    local s=Drawing.new("Square")local t=Drawing.new("Text")local tr=Drawing.new("Triangle")
+    if s then s:Remove()end -- ФИКС: Безопасное удаление
+    if t then t:Remove()end
+    if tr then tr:Remove()end
+    return true 
+end)
+local function SafeDrawing(class)if not hasDrawing then return nil end local ok,obj=pcall(function()return Drawing.new(class)end)return ok and RegDraw(obj)or nil end
+local function destroyESPEntry(e)if not e then return end for _,d in pairs(e)do if d and d.Remove then pcall(function()d:Remove()end)RemoveDraw(d)end end end
+
 local C={AimSelect=false,AimBot=false,AimPart="Head",Smooth=0.35,FOV=150,SilentAim=false,ESP=false,ESPBox=true,ESPName=true,ESPCharms=true,ESPDist=true,ESPColor=Color3.fromRGB(0,200,255),ShowFOV=false,Fullbright=false,XRay=false,NoDeco=false,SkyFon=false,FPSBoost=false,InfJump=false,AntiAFK=false}
 local ACC=Color3.fromRGB(0,170,255)local BG=Color3.fromRGB(15,15,20)local PANEL=Color3.fromRGB(22,22,30)local P2=Color3.fromRGB(30,30,40)local TXT=Color3.fromRGB(235,235,245)local SUB=Color3.fromRGB(150,150,165)local OFF=Color3.fromRGB(60,60,75)local STROKE=Color3.fromRGB(45,45,60)
 local function N(class,props,parent)local o=Instance.new(class)for k,v in pairs(props or{})do o[k]=v end if parent then o.Parent=parent end return o end
 local function Round(o,r)N("UICorner",{CornerRadius=UDim.new(0,r or 8)},o)end
 local function Stroke(o,col,th)N("UIStroke",{Color=col or STROKE,Thickness=th or 1},o)end
-SG=N("ScreenGui",{Name="FerUI",ResetOnSpawn=false,IgnoreGuiInset=true,ZIndexBehavior=Enum.ZIndexBehavior.Sibling},CG)
+SG=RegInst(N("ScreenGui",{Name="FerUI",ResetOnSpawn=false,IgnoreGuiInset=true,ZIndexBehavior=Enum.ZIndexBehavior.Sibling},CG))
 AV=N("ImageButton",{Size=UDim2.new(0,40,0,40),Position=UDim2.new(0,20,0.5,-20),BackgroundColor3=BG,AutoButtonColor=false,BorderSizePixel=0,ZIndex=50},SG)Round(AV,40)Stroke(AV,ACC,2)
 N("UIGradient",{Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(120,40,200)),ColorSequenceKeypoint.new(0.5,Color3.fromRGB(20,120,255)),ColorSequenceKeypoint.new(1,Color3.fromRGB(255,60,160))}),Rotation=45},AV)
 N("TextLabel",{Text="F",Font=Enum.Font.GothamBlack,TextSize=24,TextColor3=Color3.new(1,1,1),BackgroundTransparency=1,Size=UDim2.new(1,0,1,0),TextStrokeTransparency=0.4,ZIndex=51},AV)
@@ -30,15 +115,25 @@ N("UIListLayout",{FillDirection=Enum.FillDirection.Vertical,Padding=UDim.new(0,6
 CT=N("ScrollingFrame",{Size=UDim2.new(1,-110,1,-50),Position=UDim2.new(0,104,0,44),BackgroundColor3=PANEL,BorderSizePixel=0,ScrollBarThickness=3,ScrollBarImageColor3=ACC,CanvasSize=UDim2.new(0,0,0,0),ZIndex=41},M)Round(CT,8)
 CLL=N("UIListLayout",{Padding=UDim.new(0,6)},CT)N("UIPadding",{PaddingTop=UDim.new(0,8),PaddingLeft=UDim.new(0,8),PaddingRight=UDim.new(0,8),PaddingBottom=UDim.new(0,8)},CT)
 local function Label(text)N("TextLabel",{Text=text,Font=Enum.Font.GothamBold,TextSize=12,TextColor3=SUB,BackgroundTransparency=1,Size=UDim2.new(1,0,0,20),TextXAlignment=Enum.TextXAlignment.Left},CT)end
-local function Toggle(text,def,cb)
+local function Toggle(text,currentVal,cb)
 local row=N("Frame",{Size=UDim2.new(1,0,0,30),BackgroundColor3=P2,BorderSizePixel=0},CT)Round(row,6)
 N("TextLabel",{Text="  "..text,Font=Enum.Font.Gotham,TextSize=13,TextColor3=TXT,BackgroundTransparency=1,Size=UDim2.new(1,-50,1,0),TextXAlignment=Enum.TextXAlignment.Left},row)
-local sw=N("Frame",{Size=UDim2.new(0,34,0,18),Position=UDim2.new(1,-42,0.5,-9),BackgroundColor3=def and ACC or OFF,BorderSizePixel=0},row)Round(sw,9)
-local kn=N("Frame",{Size=UDim2.new(0,14,0,14),Position=def and UDim2.new(1,-16,0.5,-7)or UDim2.new(0,2,0.5,-7),BackgroundColor3=Color3.new(1,1,1),BorderSizePixel=0},sw)Round(kn,7)
-local st=def local btn=N("TextButton",{Text="",BackgroundTransparency=1,Size=UDim2.new(1,0,1,0),ZIndex=5},row)
-addConn(Connections,btn.MouseButton1Click:Connect(function()if IsCleanedUp or not row.Parent then return end st=not st sw.BackgroundColor3=st and ACC or OFF T:Create(kn,TweenInfo.new(0.15),{Position=st and UDim2.new(1,-16,0.5,-7)or UDim2.new(0,2,0.5,-7)}):Play()if cb then cb(st)end end))
+local sw=N("Frame",{Size=UDim2.new(0,34,0,18),Position=UDim2.new(1,-42,0.5,-9),BackgroundColor3=currentVal and ACC or OFF,BorderSizePixel=0},row)Round(sw,9)
+local kn=N("Frame",{Size=UDim2.new(0,14,0,14),Position=currentVal and UDim2.new(1,-16,0.5,-7)or UDim2.new(0,2,0.5,-7),BackgroundColor3=Color3.new(1,1,1),BorderSizePixel=0},sw)Round(kn,7)
+local st=currentVal local btn=N("TextButton",{Text="",BackgroundTransparency=1,Size=UDim2.new(1,0,1,0),ZIndex=5},row)
+local activeTween=nil
+RegTabConn(btn.MouseButton1Click:Connect(function()
+    if IsCleanedUp or not row.Parent then return end 
+    st=not st sw.BackgroundColor3=st and ACC or OFF 
+    if activeTween then activeTween:Cancel()RemoveTween(activeTween)end 
+    activeTween=RegTween(T:Create(kn,TweenInfo.new(0.15),{Position=st and UDim2.new(1,-16,0.5,-7)or UDim2.new(0,2,0.5,-7)}))
+    activeTween:Play()
+    if cb then cb(st)end 
+end))
 end
 local function Slider(text,mn,mx,def,cb)
+if mx==mn then mx=mn+1 end 
+def=math.clamp(def,mn,mx) 
 local row=N("Frame",{Size=UDim2.new(1,0,0,48),BackgroundColor3=P2,BorderSizePixel=0},CT)Round(row,6)
 N("TextLabel",{Text="  "..text,Font=Enum.Font.Gotham,TextSize=13,TextColor3=TXT,BackgroundTransparency=1,Size=UDim2.new(1,-50,0,22),TextXAlignment=Enum.TextXAlignment.Left},row)
 local vl=N("TextLabel",{Text=tostring(def),Font=Enum.Font.GothamBold,TextSize=13,TextColor3=ACC,BackgroundTransparency=1,Size=UDim2.new(0,50,0,22),Position=UDim2.new(1,-55,0,0),TextXAlignment=Enum.TextXAlignment.Right},row)
@@ -46,12 +141,12 @@ local tr=N("Frame",{Size=UDim2.new(1,-20,0,4),Position=UDim2.new(0,10,0,32),Back
 local fl=N("Frame",{Size=UDim2.new((def-mn)/(mx-mn),0,1,0),BackgroundColor3=ACC,BorderSizePixel=0},tr)Round(fl,2)
 local kn=N("Frame",{Size=UDim2.new(0,12,0,12),Position=UDim2.new((def-mn)/(mx-mn),-6,0.5,-6),BackgroundColor3=Color3.new(1,1,1),BorderSizePixel=0,ZIndex=3},tr)Round(kn,6)
 local dragging=false local inp=N("TextButton",{Text="",BackgroundTransparency=1,Size=UDim2.new(1,0,1,0),ZIndex=4},row)
-local function setFromX(x)if IsCleanedUp or not tr or not tr.Parent then return end local r=math.clamp((x-tr.AbsolutePosition.X)/tr.AbsoluteSize.X,0,1)local v=math.floor(mn+(mx-mn)*r+0.5)vl.Text=tostring(v)fl.Size=UDim2.new(r,0,1,0)kn.Position=UDim2.new(r,-6,0.5,-6)if cb then cb(v)end end
+local function setFromX(x)if IsCleanedUp or not tr or not tr.Parent or tr.AbsoluteSize.X==0 then return end local r=math.clamp((x-tr.AbsolutePosition.X)/tr.AbsoluteSize.X,0,1)local v=math.floor(mn+(mx-mn)*r+0.5)vl.Text=tostring(v)fl.Size=UDim2.new(r,0,1,0)kn.Position=UDim2.new(r,-6,0.5,-6)if cb then cb(v)end end
 local c1=inp.InputBegan:Connect(function(i)if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=true setFromX(i.Position.X)end end)
 local c2=inp.InputEnded:Connect(function(i)if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=false end end)
 local c3=U.InputChanged:Connect(function(i)if IsCleanedUp or not row.Parent then return end if dragging and(i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch)then setFromX(i.Position.X)end end)
-addConn(SliderConnections,c1)addConn(SliderConnections,c2)addConn(SliderConnections,c3)
-addConn(Connections,row.Destroying:Connect(function()for _,c in ipairs({c1,c2,c3})do if c and c.Connected then pcall(function()c:Disconnect()end)end end end))
+RegTabConn(c1)RegTabConn(c2)RegTabConn(c3)
+RegTabConn(row.Destroying:Connect(function()for _,c in ipairs({c1,c2,c3})do if c and c.Connected then pcall(function()c:Disconnect()end)end end end))
 end
 local function Dropdown(text,opts,def,cb)
 local row=N("Frame",{Size=UDim2.new(1,0,0,30),BackgroundColor3=P2,BorderSizePixel=0},CT)Round(row,6)
@@ -59,28 +154,43 @@ N("TextLabel",{Text="  "..text,Font=Enum.Font.Gotham,TextSize=13,TextColor3=TXT,
 local btn=N("TextButton",{Text=def.." ▼",Font=Enum.Font.Gotham,TextSize=12,TextColor3=ACC,BackgroundTransparency=1,Size=UDim2.new(0,100,1,0),Position=UDim2.new(1,-100,0,0)},row)
 local lst=N("Frame",{Size=UDim2.new(1,0,0,#opts*24),Position=UDim2.new(0,0,1,2),BackgroundColor3=PANEL,BorderSizePixel=0,Visible=false,ZIndex=60},row)Round(lst,6)Stroke(lst,ACC,1)
 N("UIListLayout",{Padding=UDim.new(0,2)},lst)N("UIPadding",{PaddingTop=UDim.new(0,4),PaddingLeft=UDim.new(0,4),PaddingRight=UDim.new(0,4),PaddingBottom=UDim.new(0,4)},lst)
-for _,o in ipairs(opts)do local ob=N("TextButton",{Text=o,Font=Enum.Font.Gotham,TextSize=12,TextColor3=TXT,BackgroundColor3=P2,Size=UDim2.new(1,0,0,22),BorderSizePixel=0,ZIndex=61},lst)Round(ob,4)addConn(Connections,ob.MouseButton1Click:Connect(function()if IsCleanedUp or not row.Parent then return end btn.Text=o.." ▼"lst.Visible=false if cb then cb(o)end end))end
-addConn(Connections,btn.MouseButton1Click:Connect(function()if IsCleanedUp or not row.Parent then return end lst.Visible=not lst.Visible end))
+for _,o in ipairs(opts)do local ob=N("TextButton",{Text=o,Font=Enum.Font.Gotham,TextSize=12,TextColor3=TXT,BackgroundColor3=P2,Size=UDim2.new(1,0,0,22),BorderSizePixel=0,ZIndex=61},lst)Round(ob,4)RegTabConn(ob.MouseButton1Click:Connect(function()if IsCleanedUp or not row.Parent then return end btn.Text=o.." ▼"lst.Visible=false if cb then cb(o)end end))end
+RegTabConn(btn.MouseButton1Click:Connect(function()if IsCleanedUp or not row.Parent then return end lst.Visible=not lst.Visible end))
 end
--- ОПТИМИЗИРОВАННЫЙ FOV (Через UI Frame вместо Drawing API)
-FOVCircle = N("Frame", { BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0.5,0,0.5,0), Visible = false, ZIndex = 10 }, SG)
-N("UICorner", { CornerRadius = UDim.new(1,0) }, FOVCircle)
-local FOVStroke = N("UIStroke", { Thickness = 1.5, Color = Color3.new(1,1,1), ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, FOVCircle)
-addConn(Connections,P.PlayerRemoving:Connect(function(pl)if ESP[pl]then destroyESPEntry(ESP[pl])ESP[pl]=nil end end))
-local function Nearest()local cam=GetCamera()if not cam then return nil end local best,dist=nil,C.FOV local cen=Vector2.new(cam.ViewportSize.X/2,cam.ViewportSize.Y/2)for _,pl in ipairs(P:GetPlayers())do if pl~=LP and pl.Character then local hrp=pl.Character:FindFirstChild("HumanoidRootPart")if hrp then local sp,on=cam:WorldToViewportPoint(hrp.Position)if on then local d=(Vector2.new(sp.X,sp.Y)-cen).Magnitude if d<dist then dist=d best=pl end end end end end return best end
--- ХУК RAYCAST (КАК В ВОМАГЛЕ)
+local FOVCircle=RegInst(N("Frame",{BackgroundTransparency=1,AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.new(0.5,0,0.5,0),Visible=false,ZIndex=10},SG))
+N("UICorner",{CornerRadius=UDim.new(1,0)},FOVCircle)
+local FOVStroke=N("UIStroke",{Thickness=1.5,Color=Color3.new(1,1,1),ApplyStrokeMode=Enum.ApplyStrokeMode.Border},FOVCircle)
+local function Nearest()local cam=GetCamera()if not cam then return nil end local best,dist=nil,C.FOV local cen=Vector2.new(cam.ViewportSize.X/2,cam.ViewportSize.Y/2)for pl,data in pairs(PlayerCache)do local hrp=data.HRP if hrp and hrp.Parent then local sp,on=cam:WorldToViewportPoint(hrp.Position)if on then local d=(Vector2.new(sp.X,sp.Y)-cen).Magnitude if d<dist then dist=d best=pl end end end end return best end
 if hookmetamethod then local oldRay oldRay=hookmetamethod(game,"__namecall",newcclosure(function(self,...)local method=getnamecallmethod()if method=="Raycast" and self==W and C.SilentAim and not checkcaller()then local target=CurrentAimTarget if target and target.Character and target.Character:FindFirstChild(C.AimPart)then local args={...}local origin=args[1]local direction=args[2]local rayParams=args[3]if typeof(origin)=="Vector3" and typeof(direction)=="Vector3"then local mag=direction.Magnitude if mag>20 then return oldRay(self,origin,(target.Character[C.AimPart].Position-origin).Unit*mag,rayParams)end end end end return oldRay(self,...)end))end
-local OldSky,XRayTab,FPSOff={},nil,{}local NoDecoStore={}
-local function Fullbright(on)if on then L.Brightness=2 L.ClockTime=14 L.FogEnd=100000 L.GlobalShadows=false L.Ambient=Color3.fromRGB(178,178,178)if not FB_Conn then FB_Conn=L.Changed:Connect(function()if C.Fullbright then L.Brightness=2 L.ClockTime=14 L.FogEnd=100000 L.GlobalShadows=false L.Ambient=Color3.fromRGB(178,178,178)end end)end elseif FB_Conn then FB_Conn:Disconnect()FB_Conn=nil L.Brightness=FB_Old.Brightness L.ClockTime=FB_Old.ClockTime L.FogEnd=FB_Old.FogEnd L.GlobalShadows=FB_Old.GlobalShadows L.Ambient=FB_Old.Ambient end end
-local function XRay(on)if on then XRayTab={}for _,v in ipairs(W:GetDescendants())do if v:IsA("BasePart")and v.Transparency<1 then table.insert(XRayTab,{o=v,t=v.Transparency})v.Transparency=0.7 end end else for _,e in ipairs(XRayTab)do if e.o and e.o.Parent then pcall(function()e.o.Transparency=e.t end)end end XRayTab={}end end
-local function NoDeco(on)if sethiddenproperty then local t=W:FindFirstChildOfClass("Terrain")if t then pcall(function()sethiddenproperty(t,"Decoration",not on)end)end else if on then if DecoConn then DecoConn:Disconnect()end NoDecoStore={}local function hide(o)if(o:IsA("Decal")or o:IsA("Texture"))and not NoDecoStore[o]then NoDecoStore[o]=o.Transparency o.Transparency=1 end end for _,v in ipairs(W:GetDescendants())do hide(v)end DecoConn=W.DescendantAdded:Connect(hide)else if DecoConn then DecoConn:Disconnect()DecoConn=nil end for obj,tr in pairs(NoDecoStore)do if obj and obj.Parent then pcall(function()obj.Transparency=tr end)end end NoDecoStore={}end end end
-local function SkyFon(on)local existing=L:FindFirstChild("FerSky")if on then if existing then return end local currentSky=L:FindFirstChildOfClass("Sky")if currentSky then OldSky=currentSky currentSky.Parent=nil end local f=N("Folder",{Name="FerSky"},L)N("Sky",{Name="FerSkybox",SkyboxBk="rbxassetid://159454299",SkyboxDn="rbxassetid://159454296",SkyboxFt="rbxassetid://159454293",SkyboxLf="rbxassetid://159454286",SkyboxRt="rbxassetid://159454300",SkyboxUp="rbxassetid://159454288",StarCount=5000},f)else if existing then existing:Destroy()end if OldSky and OldSky.Parent==nil then pcall(function()OldSky.Parent=L end)end OldSky=nil end end
-local function FPS(on)if on then FPSOff={}for _,obj in ipairs(L:GetDescendants())do if obj:IsA("PostEffect")then table.insert(FPSOff,{o=obj,e=obj.Enabled})obj.Enabled=false end end else for _,entry in ipairs(FPSOff)do if entry.o and entry.o.Parent then pcall(function()entry.o.Enabled=entry.e end)end end FPSOff={}end end
+local FB_Old={}local OldSky={}local XRayTab={}local FPSOff={}local NoDecoStore={}local SkyFolder=nil
+local function Fullbright(on)
+    if on then for _,k in ipairs({"Brightness","ClockTime","FogEnd","GlobalShadows","Ambient"})do FB_Old[k]=L[k]end L.Brightness=2 L.ClockTime=14 L.FogEnd=100000 L.GlobalShadows=false L.Ambient=Color3.fromRGB(178,178,178)
+    else for k,v in pairs(FB_Old)do pcall(function()if L[k]~=v then L[k]=v end end)end table.clear(FB_Old)end 
+end
+local function XRay(on)if on then for _,v in ipairs(W:GetDescendants())do if v:IsA("BasePart")and v.Transparency<1 then XRayTab[v]=v.Transparency v.Transparency=0.7 end end else for obj,tr in pairs(XRayTab)do if obj and obj.Parent then pcall(function()if obj.Transparency~=tr then obj.Transparency=tr end end)end end table.clear(XRayTab)end end
+local function NoDeco(on)if sethiddenproperty then local t=W:FindFirstChildOfClass("Terrain")if t then pcall(function()sethiddenproperty(t,"Decoration",not on)end)end else if on then for _,v in ipairs(W:GetDescendants())do if(v:IsA("Decal")or v:IsA("Texture"))and not NoDecoStore[v]then NoDecoStore[v]=v.Transparency v.Transparency=1 end end else for obj,tr in pairs(NoDecoStore)do if obj and obj.Parent then pcall(function()if obj.Transparency~=tr then obj.Transparency=tr end end)end end table.clear(NoDecoStore)end end end
+local function SkyFon(on)
+    local existing=L:FindFirstChild("FerSky")
+    if on then 
+        if existing then return end 
+        local currentSky=L:FindFirstChildOfClass("Sky")
+        if currentSky then OldSky[1]=currentSky currentSky.Parent=nil end 
+        local success=pcall(function()
+            SkyFolder=RegInst(N("Folder",{Name="FerSky"},L))
+            N("Sky",{Name="FerSkybox",SkyboxBk="rbxassetid://159454299",SkyboxDn="rbxassetid://159454296",SkyboxFt="rbxassetid://159454293",SkyboxLf="rbxassetid://159454286",SkyboxRt="rbxassetid://159454300",SkyboxUp="rbxassetid://159454288",StarCount=5000},SkyFolder)
+        end)
+        if not success then if SkyFolder then RemoveInst(SkyFolder)SkyFolder=nil end if OldSky[1]then OldSky[1].Parent=L table.clear(OldSky)end end 
+    else 
+        if existing then existing:Destroy()if SkyFolder then RemoveInst(SkyFolder)SkyFolder=nil end end 
+        if OldSky[1]and OldSky[1].Parent==nil then pcall(function()OldSky[1].Parent=L end)end 
+        table.clear(OldSky)
+    end 
+end
+local function FPS(on)if on then for _,obj in ipairs(L:GetDescendants())do if obj:IsA("PostEffect")then FPSOff[obj]=obj.Enabled obj.Enabled=false end end else for obj,en in pairs(FPSOff)do if obj and obj.Parent then pcall(function()if obj.Enabled~=en then obj.Enabled=en end end)end end table.clear(FPSOff)end end
 local InfConn,AFKConn
-local function InfJump(on)if on then if InfConn then InfConn:Disconnect()end InfConn=U.JumpRequest:Connect(function()local h=LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")if h then h:ChangeState(Enum.HumanoidStateType.Jumping)end end)else if InfConn then InfConn:Disconnect()InfConn=nil end end end
-local function AFK(on)if on then if AFKConn then AFKConn:Disconnect()end AFKConn=LP.Idled:Connect(function()pcall(function()local v=game:GetService("VirtualUser")v:CaptureController()v:ClickButton2(Vector2.new())end)end)else if AFKConn then AFKConn:Disconnect()AFKConn=nil end end end
--- ОПТИМИЗАЦИЯ: Поиск цели и ESP обновляются 15-30 раз в секунду (Heartbeat), а не каждый кадр
-addConn(Connections,R.Heartbeat:Connect(function()
+local function InfJump(on)if on then if not InfConn then InfConn=RegConn(U.JumpRequest:Connect(function()local h=LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")if h then h:ChangeState(Enum.HumanoidStateType.Jumping)end end))end elseif InfConn then InfConn:Disconnect()RemoveConn(InfConn)InfConn=nil end end
+local function AFK(on)if on then if not AFKConn then AFKConn=RegConn(LP.Idled:Connect(function()pcall(function()local v=game:GetService("VirtualUser")v:CaptureController()v:ClickButton2(Vector2.new())end)end))end elseif AFKConn then AFKConn:Disconnect()RemoveConn(AFKConn)AFKConn=nil end end
+RegConn(R.Heartbeat:Connect(function()
 if IsCleanedUp then return end
 local now=tick()
 if now-LastTargetUpdate>0.1 then LastTargetUpdate=now CurrentAimTarget=Nearest()end
@@ -88,49 +198,66 @@ if now-LastESPUpdate>0.03 then
 LastESPUpdate=now
 local cam=GetCamera()
 if cam and C.ESP and hasDrawing then 
-for _,pl in ipairs(P:GetPlayers())do 
-if pl~=LP then 
-if not ESP[pl]then local b=SafeDrawing("Square")local n=SafeDrawing("Text")local d=SafeDrawing("Text")local c=SafeDrawing("Triangle")if b and n and d and c then ESP[pl]={b=b,n=n,d=d,c=c}b.Thickness=1 b.Filled=false n.Size=14 n.Center=true n.Outline=true n.Color=Color3.new(1,1,1)d.Size=12 d.Center=true d.Outline=true d.Color=C.ESPColor c.Thickness=1 c.Filled=true end end 
-local e=ESP[pl]if e then local char=pl.Character local hrp=char and char:FindFirstChild("HumanoidRootPart")local hum=char and char:FindFirstChildOfClass("Humanoid")
-if hrp and hum and hum.Health>0 then 
+for pl,data in pairs(PlayerCache)do 
+if not ESP[pl]then 
+    local b=SafeDrawing("Square")local n=SafeDrawing("Text")local d=SafeDrawing("Text")local c=SafeDrawing("Triangle")
+    if b and n and d and c then ESP[pl]={b=b,n=n,d=d,c=c}b.Thickness=1 b.Filled=false n.Size=14 n.Center=true n.Outline=true n.Color=Color3.new(1,1,1)d.Size=12 d.Center=true d.Outline=true d.Color=C.ESPColor c.Thickness=1 c.Filled=true 
+    else if b then pcall(function()b:Remove()end)RemoveDraw(b)end if n then pcall(function()n:Remove()end)RemoveDraw(n)end if d then pcall(function()d:Remove()end)RemoveDraw(d)end if c then pcall(function()c:Remove()end)RemoveDraw(c)end end 
+end 
+local e=ESP[pl]if e then local hrp=data.HRP local hum=data.Hum
+if hrp and hrp.Parent and hum and hum.Health>0 then 
 local top=cam:WorldToViewportPoint(hrp.Position+Vector3.new(0,3,0))local bot=cam:WorldToViewportPoint(hrp.Position-Vector3.new(0,3,0))local pos,on=cam:WorldToViewportPoint(hrp.Position)
 if on then local h=math.abs(top.Y-bot.Y)local w=h*0.55 e.b.Size=Vector2.new(w,h)e.b.Position=Vector2.new(pos.X-w/2,top.Y)e.b.Color=C.ESPColor e.b.Visible=C.ESPBox e.n.Text=pl.Name e.n.Position=Vector2.new(pos.X,top.Y-18)e.n.Visible=C.ESPName local LPH=LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")local dist=LPH and math.floor((LPH.Position-hrp.Position).Magnitude)or 0 e.d.Text="["..dist.."m]"e.d.Position=Vector2.new(pos.X,bot.Y+2)e.d.Visible=C.ESPDist if C.ESPCharms then local cx=pos.X local cy=top.Y-30 e.c.PointA=Vector2.new(cx,cy)e.c.PointB=Vector2.new(cx-6,cy+10)e.c.PointC=Vector2.new(cx+6,cy+10)e.c.Color=C.ESPColor e.c.Visible=true else e.c.Visible=false end 
 else e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false end 
-else e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false end end 
-end 
-end 
+else e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false end end end 
 elseif not C.ESP then for _,e in pairs(ESP)do if e.b then e.b.Visible=false end if e.n then e.n.Visible=false end if e.d then e.d.Visible=false end if e.c then e.c.Visible=false end end end
 end
 end))
--- ОПТИМИЗАЦИЯ: Рендер камеры (только когда это нужно)
-addConn(Connections,R.RenderStepped:Connect(function()
-if IsCleanedUp then return end 
-local cam=GetCamera()
-if cam and FOVCircle then 
-if C.ShowFOV then FOVCircle.Visible=true local size=C.FOV*2 FOVCircle.Size=UDim2.new(0,size,0,size)FOVStroke.Color=C.ESPColor else FOVCircle.Visible=false end 
-end
+RegConn(R.RenderStepped:Connect(function()
+if IsCleanedUp then return end local cam=GetCamera()
+if cam and FOVCircle then if C.ShowFOV then FOVCircle.Visible=true local size=C.FOV*2 FOVCircle.Size=UDim2.new(0,size,0,size)FOVStroke.Color=C.ESPColor else FOVCircle.Visible=false end end
 if cam and(C.AimBot or C.AimSelect)and CurrentAimTarget then local pt=CurrentAimTarget.Character and CurrentAimTarget.Character:FindFirstChild(C.AimPart)if pt then cam.CFrame=cam.CFrame:Lerp(CFrame.new(cam.CFrame.Position,pt.Position),C.Smooth)end end
 end))
 local TabBtns,Tabs={},{}
-local function ClearC()for _,x in ipairs(CT:GetChildren())do if x:IsA("GuiObject")then x:Destroy()end end disconnectAll(SliderConnections)end
-local function UpdateCanvas()CT.CanvasSize=UDim2.new(0,0,0,CLL.AbsoluteContentSize.Y+16)end
-local function Render(name)ClearC()for k,b in pairs(TabBtns)do b.BackgroundColor3=(k==name)and ACC or P2 b.TextColor3=(k==name)and Color3.new(1,1,1)or SUB end if Tabs[name]then Tabs[name]()end task.defer(function()UpdateCanvas()task.wait(0.05)UpdateCanvas()end)end
-local function AddTab(name)local b=N("TextButton",{Text=name,Font=Enum.Font.GothamSemibold,TextSize=13,TextColor3=SUB,BackgroundColor3=P2,Size=UDim2.new(0,90,0,28),BorderSizePixel=0,AutoButtonColor=false},TBB)Round(b,6)TabBtns[name]=b addConn(Connections,b.MouseButton1Click:Connect(function()if IsCleanedUp or not b.Parent then return end Render(name)end))end
+local function ClearC()for _,x in ipairs(CT:GetChildren())do if x:IsA("GuiObject")then x:Destroy()end end for i=#Registry.TabConnections,1,-1 do local c=Registry.TabConnections[i]if c and c.Connected then pcall(function()c:Disconnect()end)end end table.clear(Registry.TabConnections) end
+local function UpdateCanvas()if CT and not IsCleanedUp then CT.CanvasSize=UDim2.new(0,0,0,CLL.AbsoluteContentSize.Y+16)end end
+local function Render(name)
+    ClearC()
+    for k,b in pairs(TabBtns)do b.BackgroundColor3=(k==name)and ACC or P2 b.TextColor3=(k==name)and Color3.new(1,1,1)or SUB end 
+    if Tabs[name]then Tabs[name]()end 
+    task.defer(function()
+        if IsCleanedUp then return end
+        UpdateCanvas()task.wait(0.05)if IsCleanedUp then return end UpdateCanvas()
+    end)
+end
+local function AddTab(name)local b=N("TextButton",{Text=name,Font=Enum.Font.GothamSemibold,TextSize=13,TextColor3=SUB,BackgroundColor3=P2,Size=UDim2.new(0,90,0,28),BorderSizePixel=0,AutoButtonColor=false},TBB)Round(b,6)TabBtns[name]=b RegConn(b.MouseButton1Click:Connect(function()if IsCleanedUp or not b.Parent then return end Render(name)end))end
 AddTab("Combat")AddTab("Visual")AddTab("Misc")
 Tabs.Combat=function()Label("COMBAT")Toggle("Silent Aim (Raycast)",C.SilentAim,function(v)C.SilentAim=v end)Toggle("Aim Bot (Camera)",C.AimBot,function(v)C.AimBot=v end)Dropdown("Aim Part",{"Head","HumanoidRootPart","UpperTorso"},"Head",function(v)C.AimPart=v end)Slider("Aim Smooth",1,100,35,function(v)C.Smooth=v/100 end)Slider("Aim FOV",30,400,150,function(v)C.FOV=v end)end
-Tabs.Visual=function()Label("VISUAL")Toggle("Show FOV",C.ShowFOV,function(v)C.ShowFOV=v end)Toggle("ESP",C.ESP,function(v)C.ESP=v end)Toggle("  Box",C.ESPBox,function(v)C.ESPBox=v end)Toggle("  Name",C.ESPName,function(v)C.ESPName=v end)Toggle("  Charms",C.ESPCharms,function(v)C.ESPCharms=v end)Toggle("  Distance",C.ESPDist,function(v)C.ESPDist=v end)Toggle("Fullbright",C.Fullbright,function(v)C.Fullbright=v Fullbright(v)end)Toggle("X-Ray",C.XRay,function(v)C.XRay=v XRay(v)end)Toggle("No Decoration",C.NoDeco,function(v)C.NoDeco=v NoDeco(v)end)Toggle("Sky Fon",C.SkyFon,function(v)C.SkyFon=v SkyFon(v)end)Toggle("FPS Boost",C.FPSBoost,function(v)C.FPSBoost=v FPS(v)end)end
+Tabs.Visual=function()Label("VISUAL")Toggle("Show FOV",C.ShowFOV,function(v)C.ShowFOV=v end)Toggle("ESP",C.ESP,function(v)C.ESP=v if not v then for pl,e in pairs(ESP)do destroyESPEntry(e)ESP[pl]=nil end end end)Toggle("  Box",C.ESPBox,function(v)C.ESPBox=v end)Toggle("  Name",C.ESPName,function(v)C.ESPName=v end)Toggle("  Charms",C.ESPCharms,function(v)C.ESPCharms=v end)Toggle("  Distance",C.ESPDist,function(v)C.ESPDist=v end)Toggle("Fullbright",C.Fullbright,function(v)C.Fullbright=v Fullbright(v)end)Toggle("X-Ray",C.XRay,function(v)C.XRay=v XRay(v)end)Toggle("No Decoration",C.NoDeco,function(v)C.NoDeco=v NoDeco(v)end)Toggle("Sky Fon",C.SkyFon,function(v)C.SkyFon=v SkyFon(v)end)Toggle("FPS Boost",C.FPSBoost,function(v)C.FPSBoost=v FPS(v)end)end
 Tabs.Misc=function()Label("MISC")Toggle("Inf Jump",C.InfJump,function(v)C.InfJump=v InfJump(v)end)Toggle("Anti AFK",C.AntiAFK,function(v)C.AntiAFK=v AFK(v)end)end
 Render("Combat")
-addConn(Connections,CL.MouseButton1Click:Connect(function()if not IsCleanedUp and M then M.Visible=false end end))
-addConn(Connections,AV.MouseButton1Click:Connect(function()if not IsCleanedUp and M then M.Visible=not M.Visible end end))
+RegConn(CL.MouseButton1Click:Connect(function()if not IsCleanedUp and M then M.Visible=false end end))
+RegConn(AV.MouseButton1Click:Connect(function()if not IsCleanedUp and M then M.Visible=not M.Visible end end))
 local drag,ds,dp=false,nil,nil
-addConn(Connections,AV.InputBegan:Connect(function(i)if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then drag=true ds=i.Position dp=AV.Position end end))
-addConn(Connections,AV.InputEnded:Connect(function(i)if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then drag=false end end))
-addConn(Connections,U.InputChanged:Connect(function(i)if IsCleanedUp or not AV then return end if drag and(i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch)then local d=i.Position-ds AV.Position=UDim2.new(dp.X.Scale,dp.X.Offset+d.X,dp.Y.Scale,dp.Y.Offset+d.Y)end end))
+RegConn(AV.InputBegan:Connect(function(i)if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then drag=true ds=i.Position dp=AV.Position end end))
+RegConn(AV.InputEnded:Connect(function(i)if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then drag=false end end))
+RegConn(U.InputChanged:Connect(function(i)if IsCleanedUp or not AV then return end if drag and(i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch)then local d=i.Position-ds AV.Position=UDim2.new(dp.X.Scale,dp.X.Offset+d.X,dp.Y.Scale,dp.Y.Offset+d.Y)end end))
 local mdrag,mds,mdp=false,nil,nil
-addConn(Connections,TB.InputBegan:Connect(function(i)if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then mdrag=true mds=i.Position mdp=M.Position end end))
-addConn(Connections,TB.InputEnded:Connect(function(i)if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then mdrag=false end end))
-addConn(Connections,U.InputChanged:Connect(function(i)if IsCleanedUp or not M then return end if mdrag and(i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch)then local d=i.Position-mds M.Position=UDim2.new(mdp.X.Scale,mdp.X.Offset+d.X,mdp.Y.Scale,mdp.Y.Offset+d.Y)end end))
-local function Cleanup()if IsCleanedUp then return end IsCleanedUp=true for pl,e in pairs(ESP)do destroyESPEntry(e)ESP[pl]=nil end if FOVCircle then FOVCircle:Destroy()FOVCircle=nil end disconnectAll(Connections)disconnectAll(SliderConnections)if InfConn then InfConn:Disconnect()InfConn=nil end if AFKConn then AFKConn:Disconnect()AFKConn=nil end pcall(Fullbright,false)pcall(XRay,false)pcall(NoDeco,false)pcall(SkyFon,false)pcall(FPS,false)if SG then pcall(function()SG:Destroy()end)SG=nil end end
+RegConn(TB.InputBegan:Connect(function(i)if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then mdrag=true mds=i.Position mdp=M.Position end end))
+RegConn(TB.InputEnded:Connect(function(i)if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then mdrag=false end end))
+RegConn(U.InputChanged:Connect(function(i)if IsCleanedUp or not M then return end if mdrag and(i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch)then local d=i.Position-mds M.Position=UDim2.new(mdp.X.Scale,mdp.X.Offset+d.X,mdp.Y.Scale,mdp.Y.Offset+d.Y)end end))
+local function Cleanup()
+    if IsCleanedUp then return end 
+    IsCleanedUp=true
+    pcall(Fullbright,false)
+    pcall(XRay,false)
+    pcall(NoDeco,false)
+    pcall(SkyFon,false)
+    pcall(FPS,false)
+    FlushRegistry()
+    table.clear(PlayerCache)
+    table.clear(ESP)
+    print("[FerClient] Cleanup complete. All resources released.")
+end
 _G.FerClientCleanup=Cleanup
 game:BindToClose(Cleanup)
