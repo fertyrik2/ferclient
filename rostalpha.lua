@@ -1,7 +1,7 @@
---[[ FerClient v4.8 | Anime BG Fix | 9/10 Architecture ]]
+--[[ FerClient v5.0 | WallCheck + MaxDist + Small FOV | Anime BG ]]
 local P=game:GetService("Players")local R=game:GetService("RunService")local U=game:GetService("UserInputService")local L=game:GetService("Lighting")local W=game:GetService("Workspace")local T=game:GetService("TweenService")local CG=game:GetService("CoreGui")
 local LP=P.LocalPlayer
-local BG_IMAGE_ID = "rbxassetid://70985600234581" -- ТВОЙ ID КАРТИНКИ
+local BG_IMAGE_ID = "rbxassetid://70985600234581"
 if _G.FerClientCleanup then pcall(_G.FerClientCleanup)_G.FerClientCleanup=nil end
 pcall(function()if CG:FindFirstChild("FerUI")then CG.FerUI:Destroy()end end)
 local Registry={Connections={},Drawings={},Instances={},Tweens={},TabConnections={},CharConns={}}
@@ -72,7 +72,7 @@ local function GetCamera()local cam=W.CurrentCamera if cam and cam.Parent then r
 local hasDrawing=pcall(function()local s=Drawing.new("Square")local t=Drawing.new("Text")local tr=Drawing.new("Triangle")if s then s:Remove()end if t then t:Remove()end if tr then tr:Remove()end return true end)
 local function SafeDrawing(class)if not hasDrawing then return nil end local ok,obj=pcall(function()return Drawing.new(class)end)return ok and RegDraw(obj)or nil end
 local function destroyESPEntry(e)if not e then return end for _,d in pairs(e)do if d and d.Remove then pcall(function()d:Remove()end)RemoveDraw(d)end end end
-local C={AimSelect=false,AimBot=false,AimPart="Head",Smooth=0.35,FOV=150,SilentAim=false,ESP=false,ESPBox=true,ESPName=true,ESPCharms=true,ESPDist=true,ESPColor=Color3.fromRGB(0,200,255),ShowFOV=false,Fullbright=false,XRay=false,NoDeco=false,SkyFon=false,FPSBoost=false,InfJump=false,AntiAFK=false}
+local C={AimSelect=false,AimBot=false,AimPart="Head",Smooth=0.35,FOV=150,MaxDist=500,WallCheck=false,SilentAim=false,ESP=false,ESPBox=true,ESPName=true,ESPCharms=true,ESPDist=true,ESPColor=Color3.fromRGB(0,200,255),ShowFOV=false,Fullbright=false,XRay=false,NoDeco=false,SkyFon=false,FPSBoost=false,InfJump=false,AntiAFK=false}
 local ACC=Color3.fromRGB(0,170,255)local BG=Color3.fromRGB(15,15,20)local PANEL=Color3.fromRGB(22,22,30)local P2=Color3.fromRGB(30,30,40)local TXT=Color3.fromRGB(235,235,245)local SUB=Color3.fromRGB(150,150,165)local OFF=Color3.fromRGB(60,60,75)local STROKE=Color3.fromRGB(45,45,60)
 local function N(class,props,parent)local o=Instance.new(class)for k,v in pairs(props or{})do o[k]=v end if parent then o.Parent=parent end return o end
 local function Round(o,r)N("UICorner",{CornerRadius=UDim.new(0,r or 8)},o)end
@@ -140,7 +140,47 @@ end
 local FOVCircle=RegInst(N("Frame",{BackgroundTransparency=1,AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.new(0.5,0,0.5,0),Visible=false,ZIndex=10},SG))
 N("UICorner",{CornerRadius=UDim.new(1,0)},FOVCircle)
 local FOVStroke=N("UIStroke",{Thickness=1.5,Color=Color3.new(1,1,1),ApplyStrokeMode=Enum.ApplyStrokeMode.Border},FOVCircle)
-local function Nearest()local cam=GetCamera()if not cam then return nil end local best,dist=nil,C.FOV local cen=Vector2.new(cam.ViewportSize.X/2,cam.ViewportSize.Y/2)for pl,data in pairs(PlayerCache)do local hrp=data.HRP if hrp and hrp.Parent then local sp,on=cam:WorldToViewportPoint(hrp.Position)if on then local d=(Vector2.new(sp.X,sp.Y)-cen).Magnitude if d<dist then dist=d best=pl end end end end return best end
+local function IsVisible(targetPart)
+    if not C.WallCheck then return true end
+    local cam = GetCamera()
+    if not cam then return false end
+    local origin = cam.CFrame.Position
+    local direction = (targetPart.Position - origin)
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    rayParams.FilterDescendantsInstances = {LP.Character}
+    local result = W:Raycast(origin, direction, rayParams)
+    if result then
+        if result.Instance:IsDescendantOf(targetPart.Parent) then return true else return false end
+    end
+    return true
+end
+local function Nearest()
+    local cam=GetCamera()
+    if not cam then return nil end 
+    local best,dist=nil,C.FOV 
+    local cen=Vector2.new(cam.ViewportSize.X/2,cam.ViewportSize.Y/2)
+    local myChar = LP.Character
+    local myPos = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    
+    for pl,data in pairs(PlayerCache)do 
+        local hrp=data.HRP 
+        if hrp and hrp.Parent then 
+            if myPos and C.MaxDist > 0 then
+                if (myPos.Position - hrp.Position).Magnitude > C.MaxDist then continue end
+            end
+            local sp,on=cam:WorldToViewportPoint(hrp.Position)
+            if on then 
+                local d=(Vector2.new(sp.X,sp.Y)-cen).Magnitude 
+                if d<dist then 
+                    local targetPart = data.Char:FindFirstChild(C.AimPart) or hrp
+                    if IsVisible(targetPart) then dist=d best=pl end
+                end 
+            end 
+        end 
+    end 
+    return best 
+end
 if hookmetamethod then local oldRay oldRay=hookmetamethod(game,"__namecall",newcclosure(function(self,...)local method=getnamecallmethod()if method=="Raycast" and self==W and C.SilentAim and not checkcaller()then local target=CurrentAimTarget if target and target.Character and target.Character:FindFirstChild(C.AimPart)then local args={...}local origin=args[1]local direction=args[2]local rayParams=args[3]if typeof(origin)=="Vector3" and typeof(direction)=="Vector3"then local mag=direction.Magnitude if mag>20 then return oldRay(self,origin,(target.Character[C.AimPart].Position-origin).Unit*mag,rayParams)end end end end return oldRay(self,...)end))end
 local FB_Old={}local OldSky={}local XRayTab={}local FPSOff={}local NoDecoStore={}local SkyFolder=nil
 local function Fullbright(on)
@@ -212,7 +252,16 @@ local function Render(name)
 end
 local function AddTab(name)local b=N("TextButton",{Text=name,Font=Enum.Font.GothamSemibold,TextSize=13,TextColor3=SUB,BackgroundColor3=P2,Size=UDim2.new(0,90,0,28),BorderSizePixel=0,AutoButtonColor=false},TBB)Round(b,6)TabBtns[name]=b RegConn(b.MouseButton1Click:Connect(function()if IsCleanedUp or not b.Parent then return end Render(name)end))end
 AddTab("Combat")AddTab("Visual")AddTab("Misc")
-Tabs.Combat=function()Label("COMBAT")Toggle("Silent Aim (Raycast)",C.SilentAim,function(v)C.SilentAim=v end)Toggle("Aim Bot (Camera)",C.AimBot,function(v)C.AimBot=v end)Dropdown("Aim Part",{"Head","HumanoidRootPart","UpperTorso"},"Head",function(v)C.AimPart=v end)Slider("Aim Smooth",1,100,35,function(v)C.Smooth=v/100 end)Slider("Aim FOV",30,400,150,function(v)C.FOV=v end)end
+Tabs.Combat=function()
+    Label("COMBAT")
+    Toggle("Silent Aim (Raycast)",C.SilentAim,function(v)C.SilentAim=v end)
+    Toggle("Aim Bot (Camera)",C.AimBot,function(v)C.AimBot=v end)
+    Toggle("Wall Check",C.WallCheck,function(v)C.WallCheck=v end)
+    Dropdown("Aim Part",{"Head","HumanoidRootPart","UpperTorso"},"Head",function(v)C.AimPart=v end)
+    Slider("Aim Smooth",1,100,35,function(v)C.Smooth=v/100 end)
+    Slider("Aim FOV",10,400,150,function(v)C.FOV=v end) -- ИЗМЕНЕНО: Минимум 10
+    Slider("Max Dist",50,2000,500,function(v)C.MaxDist=v end)
+end
 Tabs.Visual=function()Label("VISUAL")Toggle("Show FOV",C.ShowFOV,function(v)C.ShowFOV=v end)Toggle("ESP",C.ESP,function(v)C.ESP=v if not v then for pl,e in pairs(ESP)do destroyESPEntry(e)ESP[pl]=nil end end end)Toggle("  Box",C.ESPBox,function(v)C.ESPBox=v end)Toggle("  Name",C.ESPName,function(v)C.ESPName=v end)Toggle("  Charms",C.ESPCharms,function(v)C.ESPCharms=v end)Toggle("  Distance",C.ESPDist,function(v)C.ESPDist=v end)Toggle("Fullbright",C.Fullbright,function(v)C.Fullbright=v Fullbright(v)end)Toggle("X-Ray",C.XRay,function(v)C.XRay=v XRay(v)end)Toggle("No Decoration",C.NoDeco,function(v)C.NoDeco=v NoDeco(v)end)Toggle("Sky Fon",C.SkyFon,function(v)C.SkyFon=v SkyFon(v)end)Toggle("FPS Boost",C.FPSBoost,function(v)C.FPSBoost=v FPS(v)end)end
 Tabs.Misc=function()Label("MISC")Toggle("Inf Jump",C.InfJump,function(v)C.InfJump=v InfJump(v)end)Toggle("Anti AFK",C.AntiAFK,function(v)C.AntiAFK=v AFK(v)end)end
 Render("Combat")
