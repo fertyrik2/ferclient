@@ -1,9 +1,9 @@
---[[ FerClient v3.2 | Pure Raycast Hook | No Tap Block ]]
+--[[ FerClient v3.5 | Optimized 60FPS | Silent Aim + UI FOV ]]
 local P=game:GetService("Players")local R=game:GetService("RunService")local U=game:GetService("UserInputService")local L=game:GetService("Lighting")local W=game:GetService("Workspace")local T=game:GetService("TweenService")local CG=game:GetService("CoreGui")
 local LP=P.LocalPlayer
 if _G.FerClientCleanup then pcall(_G.FerClientCleanup)_G.FerClientCleanup=nil end
 pcall(function()if CG:FindFirstChild("FerUI")then CG.FerUI:Destroy()end end)
-local Connections={}local SliderConnections={}local ESP={}local IsCleanedUp=false local FOVCircle=nil local SG,M,AV,TB,CT,CLL local CurrentAimTarget=nil local LastTargetUpdate=0
+local Connections={}local SliderConnections={}local ESP={}local IsCleanedUp=false local FOVCircle=nil local SG,M,AV,TB,CT,CLL local CurrentAimTarget=nil local LastTargetUpdate=0 local LastESPUpdate=0
 local FB_Old={Brightness=L.Brightness,ClockTime=L.ClockTime,FogEnd=L.FogEnd,GlobalShadows=L.GlobalShadows,Ambient=L.Ambient}local FB_Conn=nil
 local function addConn(tbl,c)if c then table.insert(tbl,c)end return c end
 local function disconnectAll(tbl)for i=#tbl,1,-1 do local c=tbl[i]if c and c.Connected then pcall(function()c:Disconnect()end)end tbl[i]=nil end end
@@ -62,10 +62,13 @@ N("UIListLayout",{Padding=UDim.new(0,2)},lst)N("UIPadding",{PaddingTop=UDim.new(
 for _,o in ipairs(opts)do local ob=N("TextButton",{Text=o,Font=Enum.Font.Gotham,TextSize=12,TextColor3=TXT,BackgroundColor3=P2,Size=UDim2.new(1,0,0,22),BorderSizePixel=0,ZIndex=61},lst)Round(ob,4)addConn(Connections,ob.MouseButton1Click:Connect(function()if IsCleanedUp or not row.Parent then return end btn.Text=o.." ▼"lst.Visible=false if cb then cb(o)end end))end
 addConn(Connections,btn.MouseButton1Click:Connect(function()if IsCleanedUp or not row.Parent then return end lst.Visible=not lst.Visible end))
 end
-if hasDrawing then FOVCircle=SafeDrawing("Circle")if FOVCircle then FOVCircle.Visible=false FOVCircle.Filled=false FOVCircle.NumSides=60 FOVCircle.Thickness=0.7 FOVCircle.Transparency=0.8 end end
+-- ОПТИМИЗИРОВАННЫЙ FOV (Через UI Frame вместо Drawing API)
+FOVCircle = N("Frame", { BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0.5,0,0.5,0), Visible = false, ZIndex = 10 }, SG)
+N("UICorner", { CornerRadius = UDim.new(1,0) }, FOVCircle)
+local FOVStroke = N("UIStroke", { Thickness = 1.5, Color = Color3.new(1,1,1), ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, FOVCircle)
 addConn(Connections,P.PlayerRemoving:Connect(function(pl)if ESP[pl]then destroyESPEntry(ESP[pl])ESP[pl]=nil end end))
 local function Nearest()local cam=GetCamera()if not cam then return nil end local best,dist=nil,C.FOV local cen=Vector2.new(cam.ViewportSize.X/2,cam.ViewportSize.Y/2)for _,pl in ipairs(P:GetPlayers())do if pl~=LP and pl.Character then local hrp=pl.Character:FindFirstChild("HumanoidRootPart")if hrp then local sp,on=cam:WorldToViewportPoint(hrp.Position)if on then local d=(Vector2.new(sp.X,sp.Y)-cen).Magnitude if d<dist then dist=d best=pl end end end end end return best end
--- ХУК Raycast (Сайлент Аим)
+-- ХУК RAYCAST (КАК В ВОМАГЛЕ)
 if hookmetamethod then local oldRay oldRay=hookmetamethod(game,"__namecall",newcclosure(function(self,...)local method=getnamecallmethod()if method=="Raycast" and self==W and C.SilentAim and not checkcaller()then local target=CurrentAimTarget if target and target.Character and target.Character:FindFirstChild(C.AimPart)then local args={...}local origin=args[1]local direction=args[2]local rayParams=args[3]if typeof(origin)=="Vector3" and typeof(direction)=="Vector3"then local mag=direction.Magnitude if mag>20 then return oldRay(self,origin,(target.Character[C.AimPart].Position-origin).Unit*mag,rayParams)end end end end return oldRay(self,...)end))end
 local OldSky,XRayTab,FPSOff={},nil,{}local NoDecoStore={}
 local function Fullbright(on)if on then L.Brightness=2 L.ClockTime=14 L.FogEnd=100000 L.GlobalShadows=false L.Ambient=Color3.fromRGB(178,178,178)if not FB_Conn then FB_Conn=L.Changed:Connect(function()if C.Fullbright then L.Brightness=2 L.ClockTime=14 L.FogEnd=100000 L.GlobalShadows=false L.Ambient=Color3.fromRGB(178,178,178)end end)end elseif FB_Conn then FB_Conn:Disconnect()FB_Conn=nil L.Brightness=FB_Old.Brightness L.ClockTime=FB_Old.ClockTime L.FogEnd=FB_Old.FogEnd L.GlobalShadows=FB_Old.GlobalShadows L.Ambient=FB_Old.Ambient end end
@@ -76,11 +79,37 @@ local function FPS(on)if on then FPSOff={}for _,obj in ipairs(L:GetDescendants()
 local InfConn,AFKConn
 local function InfJump(on)if on then if InfConn then InfConn:Disconnect()end InfConn=U.JumpRequest:Connect(function()local h=LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")if h then h:ChangeState(Enum.HumanoidStateType.Jumping)end end)else if InfConn then InfConn:Disconnect()InfConn=nil end end end
 local function AFK(on)if on then if AFKConn then AFKConn:Disconnect()end AFKConn=LP.Idled:Connect(function()pcall(function()local v=game:GetService("VirtualUser")v:CaptureController()v:ClickButton2(Vector2.new())end)end)else if AFKConn then AFKConn:Disconnect()AFKConn=nil end end end
-addConn(Connections,R.Heartbeat:Connect(function()if IsCleanedUp then return end local now=tick()if now-LastTargetUpdate>0.1 then LastTargetUpdate=now CurrentAimTarget=Nearest()end end))
-addConn(Connections,R.RenderStepped:Connect(function()if IsCleanedUp then return end local cam=GetCamera()
-if cam and FOVCircle then if C.ShowFOV then FOVCircle.Visible=true FOVCircle.Position=Vector2.new(cam.ViewportSize.X/2,cam.ViewportSize.Y/2)FOVCircle.Radius=C.FOV FOVCircle.Color=C.ESPColor else FOVCircle.Visible=false end end
+-- ОПТИМИЗАЦИЯ: Поиск цели и ESP обновляются 15-30 раз в секунду (Heartbeat), а не каждый кадр
+addConn(Connections,R.Heartbeat:Connect(function()
+if IsCleanedUp then return end
+local now=tick()
+if now-LastTargetUpdate>0.1 then LastTargetUpdate=now CurrentAimTarget=Nearest()end
+if now-LastESPUpdate>0.03 then 
+LastESPUpdate=now
+local cam=GetCamera()
+if cam and C.ESP and hasDrawing then 
+for _,pl in ipairs(P:GetPlayers())do 
+if pl~=LP then 
+if not ESP[pl]then local b=SafeDrawing("Square")local n=SafeDrawing("Text")local d=SafeDrawing("Text")local c=SafeDrawing("Triangle")if b and n and d and c then ESP[pl]={b=b,n=n,d=d,c=c}b.Thickness=1 b.Filled=false n.Size=14 n.Center=true n.Outline=true n.Color=Color3.new(1,1,1)d.Size=12 d.Center=true d.Outline=true d.Color=C.ESPColor c.Thickness=1 c.Filled=true end end 
+local e=ESP[pl]if e then local char=pl.Character local hrp=char and char:FindFirstChild("HumanoidRootPart")local hum=char and char:FindFirstChildOfClass("Humanoid")
+if hrp and hum and hum.Health>0 then 
+local top=cam:WorldToViewportPoint(hrp.Position+Vector3.new(0,3,0))local bot=cam:WorldToViewportPoint(hrp.Position-Vector3.new(0,3,0))local pos,on=cam:WorldToViewportPoint(hrp.Position)
+if on then local h=math.abs(top.Y-bot.Y)local w=h*0.55 e.b.Size=Vector2.new(w,h)e.b.Position=Vector2.new(pos.X-w/2,top.Y)e.b.Color=C.ESPColor e.b.Visible=C.ESPBox e.n.Text=pl.Name e.n.Position=Vector2.new(pos.X,top.Y-18)e.n.Visible=C.ESPName local LPH=LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")local dist=LPH and math.floor((LPH.Position-hrp.Position).Magnitude)or 0 e.d.Text="["..dist.."m]"e.d.Position=Vector2.new(pos.X,bot.Y+2)e.d.Visible=C.ESPDist if C.ESPCharms then local cx=pos.X local cy=top.Y-30 e.c.PointA=Vector2.new(cx,cy)e.c.PointB=Vector2.new(cx-6,cy+10)e.c.PointC=Vector2.new(cx+6,cy+10)e.c.Color=C.ESPColor e.c.Visible=true else e.c.Visible=false end 
+else e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false end 
+else e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false end end 
+end 
+end 
+elseif not C.ESP then for _,e in pairs(ESP)do if e.b then e.b.Visible=false end if e.n then e.n.Visible=false end if e.d then e.d.Visible=false end if e.c then e.c.Visible=false end end end
+end
+end))
+-- ОПТИМИЗАЦИЯ: Рендер камеры (только когда это нужно)
+addConn(Connections,R.RenderStepped:Connect(function()
+if IsCleanedUp then return end 
+local cam=GetCamera()
+if cam and FOVCircle then 
+if C.ShowFOV then FOVCircle.Visible=true local size=C.FOV*2 FOVCircle.Size=UDim2.new(0,size,0,size)FOVStroke.Color=C.ESPColor else FOVCircle.Visible=false end 
+end
 if cam and(C.AimBot or C.AimSelect)and CurrentAimTarget then local pt=CurrentAimTarget.Character and CurrentAimTarget.Character:FindFirstChild(C.AimPart)if pt then cam.CFrame=cam.CFrame:Lerp(CFrame.new(cam.CFrame.Position,pt.Position),C.Smooth)end end
-if hasDrawing and cam then for _,pl in ipairs(P:GetPlayers())do if pl~=LP then if not ESP[pl]then local b=SafeDrawing("Square")local n=SafeDrawing("Text")local d=SafeDrawing("Text")local c=SafeDrawing("Triangle")if b and n and d and c then ESP[pl]={b=b,n=n,d=d,c=c}b.Thickness=1 b.Filled=false n.Size=14 n.Center=true n.Outline=true n.Color=Color3.new(1,1,1)d.Size=12 d.Center=true d.Outline=true d.Color=C.ESPColor c.Thickness=1 c.Filled=true end end local e=ESP[pl]if e then local char=pl.Character local hrp=char and char:FindFirstChild("HumanoidRootPart")local hum=char and char:FindFirstChildOfClass("Humanoid")if C.ESP and hrp and hum and hum.Health>0 then local top=cam:WorldToViewportPoint(hrp.Position+Vector3.new(0,3,0))local bot=cam:WorldToViewportPoint(hrp.Position-Vector3.new(0,3,0))local pos,on=cam:WorldToViewportPoint(hrp.Position)if on then local h=math.abs(top.Y-bot.Y)local w=h*0.55 e.b.Size=Vector2.new(w,h)e.b.Position=Vector2.new(pos.X-w/2,top.Y)e.b.Color=C.ESPColor e.b.Visible=C.ESPBox e.n.Text=pl.Name e.n.Position=Vector2.new(pos.X,top.Y-18)e.n.Visible=C.ESPName local LPH=LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")local dist=LPH and math.floor((LPH.Position-hrp.Position).Magnitude)or 0 e.d.Text="["..dist.."m]"e.d.Position=Vector2.new(pos.X,bot.Y+2)e.d.Visible=C.ESPDist if C.ESPCharms then local cx=pos.X local cy=top.Y-30 e.c.PointA=Vector2.new(cx,cy)e.c.PointB=Vector2.new(cx-6,cy+10)e.c.PointC=Vector2.new(cx+6,cy+10)e.c.Color=C.ESPColor e.c.Visible=true else e.c.Visible=false end else e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false end else e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false end end end end end
 end))
 local TabBtns,Tabs={},{}
 local function ClearC()for _,x in ipairs(CT:GetChildren())do if x:IsA("GuiObject")then x:Destroy()end end disconnectAll(SliderConnections)end
@@ -102,6 +131,6 @@ local mdrag,mds,mdp=false,nil,nil
 addConn(Connections,TB.InputBegan:Connect(function(i)if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then mdrag=true mds=i.Position mdp=M.Position end end))
 addConn(Connections,TB.InputEnded:Connect(function(i)if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then mdrag=false end end))
 addConn(Connections,U.InputChanged:Connect(function(i)if IsCleanedUp or not M then return end if mdrag and(i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch)then local d=i.Position-mds M.Position=UDim2.new(mdp.X.Scale,mdp.X.Offset+d.X,mdp.Y.Scale,mdp.Y.Offset+d.Y)end end))
-local function Cleanup()if IsCleanedUp then return end IsCleanedUp=true for pl,e in pairs(ESP)do destroyESPEntry(e)ESP[pl]=nil end if FOVCircle then pcall(function()FOVCircle:Remove()end)FOVCircle=nil end disconnectAll(Connections)disconnectAll(SliderConnections)if InfConn then InfConn:Disconnect()InfConn=nil end if AFKConn then AFKConn:Disconnect()AFKConn=nil end pcall(Fullbright,false)pcall(XRay,false)pcall(NoDeco,false)pcall(SkyFon,false)pcall(FPS,false)if SG then pcall(function()SG:Destroy()end)SG=nil end end
+local function Cleanup()if IsCleanedUp then return end IsCleanedUp=true for pl,e in pairs(ESP)do destroyESPEntry(e)ESP[pl]=nil end if FOVCircle then FOVCircle:Destroy()FOVCircle=nil end disconnectAll(Connections)disconnectAll(SliderConnections)if InfConn then InfConn:Disconnect()InfConn=nil end if AFKConn then AFKConn:Disconnect()AFKConn=nil end pcall(Fullbright,false)pcall(XRay,false)pcall(NoDeco,false)pcall(SkyFon,false)pcall(FPS,false)if SG then pcall(function()SG:Destroy()end)SG=nil end end
 _G.FerClientCleanup=Cleanup
 game:BindToClose(Cleanup)
