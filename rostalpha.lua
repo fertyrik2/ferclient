@@ -1,9 +1,9 @@
---[[ FerClient v4.5 | Base Architecture | Ready for Aimbot ]]
+--[[ FerClient v4.8 | Anime BG Fix | 9/10 Architecture ]]
 local P=game:GetService("Players")local R=game:GetService("RunService")local U=game:GetService("UserInputService")local L=game:GetService("Lighting")local W=game:GetService("Workspace")local T=game:GetService("TweenService")local CG=game:GetService("CoreGui")
 local LP=P.LocalPlayer
+local BG_IMAGE_ID = "rbxassetid://70985600234581" -- ТВОЙ ID КАРТИНКИ
 if _G.FerClientCleanup then pcall(_G.FerClientCleanup)_G.FerClientCleanup=nil end
 pcall(function()if CG:FindFirstChild("FerUI")then CG.FerUI:Destroy()end end)
-
 local Registry={Connections={},Drawings={},Instances={},Tweens={},TabConnections={},CharConns={}}
 local IsCleanedUp=false
 local function RegConn(c)if c then table.insert(Registry.Connections,c)end return c end
@@ -13,21 +13,15 @@ local function RegInst(i)if i then table.insert(Registry.Instances,i)end return 
 local function RegTween(t)
     if t then 
         table.insert(Registry.Tweens,t)
-        local c=t.Completed:Connect(function()
-            local idx=table.find(Registry.Tweens,t)
-            if idx then table.remove(Registry.Tweens,idx)end 
-            RemoveConn(c) -- ФИКС: Отключаем Completed-коннект при завершении
-        end)
+        local c=t.Completed:Connect(function()local idx=table.find(Registry.Tweens,t)if idx then table.remove(Registry.Tweens,idx)end RemoveConn(c)end)
         table.insert(Registry.Connections,c)
     end 
     return t 
 end
-
 local function RemoveTween(t)if not t then return end local idx=table.find(Registry.Tweens,t)if idx then table.remove(Registry.Tweens,idx)end end
 local function RemoveInst(i)if not i then return end local idx=table.find(Registry.Instances,i)if idx then table.remove(Registry.Instances,idx)end end
 local function RemoveDraw(d)if not d then return end local idx=table.find(Registry.Drawings,d)if idx then table.remove(Registry.Drawings,idx)end end
 local function RemoveConn(c)if not c then return end local idx=table.find(Registry.Connections,c)if idx then table.remove(Registry.Connections,idx)end end
-
 local function FlushRegistry()
     for i=#Registry.Tweens,1,-1 do local t=Registry.Tweens[i]if t then pcall(function()t:Cancel()end)end end
     table.clear(Registry.Tweens)
@@ -41,7 +35,6 @@ local function FlushRegistry()
     table.clear(Registry.Instances)
     table.clear(Registry.CharConns)
 end
-
 local SG,M,AV,TB,CT,CLL local CurrentAimTarget=nil local LastTargetUpdate=0 local LastESPUpdate=0
 local PlayerCache={} local ESP={}
 local function CachePlayer(pl)
@@ -54,13 +47,9 @@ for _,pl in ipairs(P:GetPlayers())do CachePlayer(pl)end
 RegConn(P.PlayerAdded:Connect(CachePlayer))
 RegConn(P.PlayerRemoving:Connect(function(pl)
     PlayerCache[pl]=nil 
-    if Registry.CharConns[pl] then 
-        for _,c in ipairs(Registry.CharConns[pl])do if c and c.Connected then pcall(function()c:Disconnect()end)RemoveConn(c)end end 
-        Registry.CharConns[pl]=nil 
-    end
+    if Registry.CharConns[pl] then for _,c in ipairs(Registry.CharConns[pl])do if c and c.Connected then pcall(function()c:Disconnect()end)RemoveConn(c)end end Registry.CharConns[pl]=nil end
     if ESP[pl]then for _,d in pairs(ESP[pl])do if d and d.Remove then pcall(function()d:Remove()end)RemoveDraw(d)end end ESP[pl]=nil end 
 end))
-
 local function SetupCharTracker(pl)
     if pl~=LP then
         if Registry.CharConns[pl] then return end
@@ -68,34 +57,21 @@ local function SetupCharTracker(pl)
         local c1=pl.CharacterAdded:Connect(function(char)
             local hum=char:WaitForChild("Humanoid",5)
             local hrp=char:WaitForChild("HumanoidRootPart",5)
-            if pl.Parent and pl.Character==char then
-                PlayerCache[pl]={Char=char,Hum=hum,HRP=hrp}
-            end
+            if pl.Parent and pl.Character==char then PlayerCache[pl]={Char=char,Hum=hum,HRP=hrp} end
         end)
         table.insert(Registry.CharConns[pl],c1) RegConn(c1)
         local c2=pl.CharacterRemoving:Connect(function()
-            if PlayerCache[pl]then 
-                PlayerCache[pl]={Char=nil,Hum=nil,HRP=nil} 
-                if ESP[pl]then for _,d in pairs(ESP[pl])do if d and d.Remove then pcall(function()d:Remove()end)RemoveDraw(d)end end ESP[pl]=nil end -- ФИКС: Очистка ESP при смерти
-            end
+            if PlayerCache[pl]then PlayerCache[pl]={Char=nil,Hum=nil,HRP=nil} if ESP[pl]then for _,d in pairs(ESP[pl])do if d and d.Remove then pcall(function()d:Remove()end)RemoveDraw(d)end end ESP[pl]=nil end end
         end)
         table.insert(Registry.CharConns[pl],c2) RegConn(c2)
     end
 end
 for _,pl in ipairs(P:GetPlayers())do SetupCharTracker(pl)end
 RegConn(P.PlayerAdded:Connect(SetupCharTracker))
-
 local function GetCamera()local cam=W.CurrentCamera if cam and cam.Parent then return cam end return nil end
-local hasDrawing=pcall(function()
-    local s=Drawing.new("Square")local t=Drawing.new("Text")local tr=Drawing.new("Triangle")
-    if s then s:Remove()end -- ФИКС: Безопасное удаление
-    if t then t:Remove()end
-    if tr then tr:Remove()end
-    return true 
-end)
+local hasDrawing=pcall(function()local s=Drawing.new("Square")local t=Drawing.new("Text")local tr=Drawing.new("Triangle")if s then s:Remove()end if t then t:Remove()end if tr then tr:Remove()end return true end)
 local function SafeDrawing(class)if not hasDrawing then return nil end local ok,obj=pcall(function()return Drawing.new(class)end)return ok and RegDraw(obj)or nil end
 local function destroyESPEntry(e)if not e then return end for _,d in pairs(e)do if d and d.Remove then pcall(function()d:Remove()end)RemoveDraw(d)end end end
-
 local C={AimSelect=false,AimBot=false,AimPart="Head",Smooth=0.35,FOV=150,SilentAim=false,ESP=false,ESPBox=true,ESPName=true,ESPCharms=true,ESPDist=true,ESPColor=Color3.fromRGB(0,200,255),ShowFOV=false,Fullbright=false,XRay=false,NoDeco=false,SkyFon=false,FPSBoost=false,InfJump=false,AntiAFK=false}
 local ACC=Color3.fromRGB(0,170,255)local BG=Color3.fromRGB(15,15,20)local PANEL=Color3.fromRGB(22,22,30)local P2=Color3.fromRGB(30,30,40)local TXT=Color3.fromRGB(235,235,245)local SUB=Color3.fromRGB(150,150,165)local OFF=Color3.fromRGB(60,60,75)local STROKE=Color3.fromRGB(45,45,60)
 local function N(class,props,parent)local o=Instance.new(class)for k,v in pairs(props or{})do o[k]=v end if parent then o.Parent=parent end return o end
@@ -106,13 +82,17 @@ AV=N("ImageButton",{Size=UDim2.new(0,40,0,40),Position=UDim2.new(0,20,0.5,-20),B
 N("UIGradient",{Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(120,40,200)),ColorSequenceKeypoint.new(0.5,Color3.fromRGB(20,120,255)),ColorSequenceKeypoint.new(1,Color3.fromRGB(255,60,160))}),Rotation=45},AV)
 N("TextLabel",{Text="F",Font=Enum.Font.GothamBlack,TextSize=24,TextColor3=Color3.new(1,1,1),BackgroundTransparency=1,Size=UDim2.new(1,0,1,0),TextStrokeTransparency=0.4,ZIndex=51},AV)
 M=N("Frame",{Name="M",Size=UDim2.new(0,420,0,300),Position=UDim2.new(0.5,-210,0.5,-150),BackgroundColor3=BG,BorderSizePixel=0,Visible=false,ZIndex=40},SG)Round(M,12)Stroke(M,ACC,1)
-TB=N("Frame",{Size=UDim2.new(1,0,0,40),BackgroundColor3=PANEL,BorderSizePixel=0,ZIndex=41},M)Round(TB,12)
+if BG_IMAGE_ID ~= "" then
+    local BgImg = RegInst(N("ImageLabel",{Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,Image=BG_IMAGE_ID,ImageTransparency=0.3,ScaleType=Enum.ScaleType.Crop,ZIndex=1},M))
+    Round(BgImg,12)
+end
+TB=N("Frame",{Size=UDim2.new(1,0,0,40),BackgroundColor3=PANEL,BackgroundTransparency=0.2,BorderSizePixel=0,ZIndex=41},M)Round(TB,12)
 N("UIGradient",{Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(120,40,200)),ColorSequenceKeypoint.new(1,Color3.fromRGB(20,120,255))}),Rotation=30,Transparency=NumberSequence.new(0.55)},TB)
 N("TextLabel",{Text="  FerClient",Font=Enum.Font.GothamBold,TextSize=16,TextColor3=TXT,BackgroundTransparency=1,Size=UDim2.new(1,-100,1,0),TextXAlignment=Enum.TextXAlignment.Left,ZIndex=42},TB)
 local CL=N("TextButton",{Text="✕",Font=Enum.Font.GothamBold,TextSize=14,TextColor3=TXT,BackgroundColor3=Color3.fromRGB(220,50,70),Size=UDim2.new(0,26,0,26),Position=UDim2.new(1,-32,0.5,-13),BorderSizePixel=0,ZIndex=43},TB)Round(CL,6)
-local TBB=N("Frame",{Size=UDim2.new(0,100,1,-40),Position=UDim2.new(0,0,0,40),BackgroundColor3=BG,BorderSizePixel=0,ZIndex=41},M)
+local TBB=N("Frame",{Size=UDim2.new(0,100,1,-40),Position=UDim2.new(0,0,0,40),BackgroundColor3=BG,BackgroundTransparency=0.3,BorderSizePixel=0,ZIndex=41},M)
 N("UIListLayout",{FillDirection=Enum.FillDirection.Vertical,Padding=UDim.new(0,6),HorizontalAlignment=Enum.HorizontalAlignment.Center,VerticalAlignment=Enum.VerticalAlignment.Top},TBB)N("UIPadding",{PaddingTop=UDim.new(0,10)},TBB)
-CT=N("ScrollingFrame",{Size=UDim2.new(1,-110,1,-50),Position=UDim2.new(0,104,0,44),BackgroundColor3=PANEL,BorderSizePixel=0,ScrollBarThickness=3,ScrollBarImageColor3=ACC,CanvasSize=UDim2.new(0,0,0,0),ZIndex=41},M)Round(CT,8)
+CT=N("ScrollingFrame",{Size=UDim2.new(1,-110,1,-50),Position=UDim2.new(0,104,0,44),BackgroundColor3=PANEL,BackgroundTransparency=0.4,BorderSizePixel=0,ScrollBarThickness=3,ScrollBarImageColor3=ACC,CanvasSize=UDim2.new(0,0,0,0),ZIndex=41},M)Round(CT,8)
 CLL=N("UIListLayout",{Padding=UDim.new(0,6)},CT)N("UIPadding",{PaddingTop=UDim.new(0,8),PaddingLeft=UDim.new(0,8),PaddingRight=UDim.new(0,8),PaddingBottom=UDim.new(0,8)},CT)
 local function Label(text)N("TextLabel",{Text=text,Font=Enum.Font.GothamBold,TextSize=12,TextColor3=SUB,BackgroundTransparency=1,Size=UDim2.new(1,0,0,20),TextXAlignment=Enum.TextXAlignment.Left},CT)end
 local function Toggle(text,currentVal,cb)
