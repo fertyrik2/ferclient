@@ -1,4 +1,4 @@
---[[ FerClient v6.2 | Center FOV | No Silent Aim ]]
+--[[ FerClient v6.3 | Hit Sound (Anime) | Center FOV ]]
 local P=game:GetService("Players")local R=game:GetService("RunService")local U=game:GetService("UserInputService")local L=game:GetService("Lighting")local W=game:GetService("Workspace")local T=game:GetService("TweenService")local CG=game:GetService("CoreGui")
 local LP=P.LocalPlayer
 local BG_IMAGE_ID = "rbxassetid://70985600234581"
@@ -74,7 +74,7 @@ local function GetCamera()local cam=W.CurrentCamera if cam and cam.Parent then r
 local hasDrawing=pcall(function()local s=Drawing.new("Square")local t=Drawing.new("Text")local tr=Drawing.new("Triangle")if s then s:Remove()end if t then t:Remove()end if tr then tr:Remove()end return true end)
 local function SafeDrawing(class)if not hasDrawing then return nil end local ok,obj=pcall(function()return Drawing.new(class)end)return ok and RegDraw(obj)or nil end
 local function destroyESPEntry(e)if not e then return end for _,d in pairs(e)do if d and d.Remove then pcall(function()d:Remove()end)RemoveDraw(d)end end end
-local C={AimSelect=false,AimBot=false,AimPart="Head",Smooth=0.35,FOV=150,MaxDist=500,WallCheck=false,ESP=false,ESPBox=true,ESPName=true,ESPCharms=true,ESPDist=true,ESPColor=Color3.fromRGB(0,200,255),ShowFOV=false,Fullbright=false,XRay=false,NoDeco=false,SkyFon=false,FPSBoost=false,InfJump=false,AntiAFK=false}
+local C={AimSelect=false,AimBot=false,AimPart="Head",Smooth=0.35,FOV=150,MaxDist=500,WallCheck=false,ESP=false,ESPBox=true,ESPName=true,ESPCharms=true,ESPDist=true,ESPColor=Color3.fromRGB(0,200,255),ShowFOV=false,Fullbright=false,XRay=false,NoDeco=false,SkyFon=false,FPSBoost=false,InfJump=false,AntiAFK=false,HitSound=false}
 local ACC=Color3.fromRGB(0,170,255)local BG=Color3.fromRGB(15,15,20)local PANEL=Color3.fromRGB(22,22,30)local P2=Color3.fromRGB(30,30,40)local TXT=Color3.fromRGB(235,235,245)local SUB=Color3.fromRGB(150,150,165)local OFF=Color3.fromRGB(60,60,75)local STROKE=Color3.fromRGB(45,45,60)
 local function N(class,props,parent)local o=Instance.new(class)for k,v in pairs(props or{})do o[k]=v end if parent then o.Parent=parent end return o end
 local function Round(o,r)N("UICorner",{CornerRadius=UDim.new(0,r or 8)},o)end
@@ -139,7 +139,6 @@ N("UIListLayout",{Padding=UDim.new(0,2)},lst)N("UIPadding",{PaddingTop=UDim.new(
 for _,o in ipairs(opts)do local ob=N("TextButton",{Text=o,Font=Enum.Font.Gotham,TextSize=12,TextColor3=TXT,BackgroundColor3=P2,Size=UDim2.new(1,0,0,22),BorderSizePixel=0,ZIndex=61},lst)Round(ob,4)RegTabConn(ob.MouseButton1Click:Connect(function()if IsCleanedUp or not row.Parent then return end btn.Text=o.." ▼"lst.Visible=false if cb then cb(o)end end))end
 RegTabConn(btn.MouseButton1Click:Connect(function()if IsCleanedUp or not row.Parent then return end lst.Visible=not lst.Visible end))
 end
--- ЦЕНТРАЛЬНЫЙ КРУГ (БЕЗ СМЕЩЕНИЯ)
 local FOVCircle=RegInst(N("Frame",{BackgroundTransparency=1,AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.new(0.5,0,0.5,0),Visible=false,ZIndex=10},SG))
 N("UICorner",{CornerRadius=UDim.new(1,0)},FOVCircle)
 local FOVStroke=N("UIStroke",{Thickness=1.5,Color=Color3.new(1,1,1),ApplyStrokeMode=Enum.ApplyStrokeMode.Border},FOVCircle)
@@ -162,7 +161,6 @@ local function Nearest()
     local cam=GetCamera()
     if not cam then return nil end 
     local best,dist=nil,C.FOV 
-    -- Центр экрана (0 смещения)
     local cen=Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
     local myChar = LP.Character
     local myPos = myChar and myChar:FindFirstChild("HumanoidRootPart")
@@ -211,6 +209,30 @@ RegConn(U.InputBegan:Connect(function(input)
         end
     end
 end))
+-- ХИТ САУНД
+local function ApplyHitSound(tool)
+    if not tool or not tool:IsA("Tool") then return end
+    local bodyAttach = tool:FindFirstChild("BodyAttach")
+    if bodyAttach then
+        for _, sName in ipairs({"HitClient", "HeadShotClient", "HitCharacterClient"}) do
+            local snd = bodyAttach:FindFirstChild(sName)
+            if snd and snd:IsA("Sound") then
+                -- Аниме звук (ня)
+                snd.SoundId = "rbxassetid://9046912122"
+                snd.Volume = 2
+            end
+        end
+    end
+end
+local function OnCharAdded(char)
+    if C.HitSound then
+        task.wait(0.5)
+        for _, tool in pairs(char:GetChildren()) do ApplyHitSound(tool) end
+    end
+end
+RegConn(LP.CharacterAdded:Connect(OnCharAdded))
+if LP.Character then OnCharAdded(LP.Character) end
+
 local FB_Old={}local OldSky={}local XRayTab={}local FPSOff={}local NoDecoStore={}local SkyFolder=nil
 local function Fullbright(on)
     if on then for _,k in ipairs({"Brightness","ClockTime","FogEnd","GlobalShadows","Ambient"})do FB_Old[k]=L[k]end L.Brightness=2 L.ClockTime=14 L.FogEnd=100000 L.GlobalShadows=false L.Ambient=Color3.fromRGB(178,178,178)
@@ -318,7 +340,26 @@ Tabs.Combat=function()
     Slider("Aim FOV",10,400,150,function(v)C.FOV=v end)
     Slider("Max Dist",50,2000,500,function(v)C.MaxDist=v end)
 end
-Tabs.Visual=function()Label("VISUAL")Toggle("Show FOV",C.ShowFOV,function(v)C.ShowFOV=v end)Toggle("ESP",C.ESP,function(v)C.ESP=v if not v then for pl,e in pairs(ESP)do destroyESPEntry(e)ESP[pl]=nil end end end)Toggle("  Box",C.ESPBox,function(v)C.ESPBox=v end)Toggle("  Name",C.ESPName,function(v)C.ESPName=v end)Toggle("  Charms",C.ESPCharms,function(v)C.ESPCharms=v end)Toggle("  Distance",C.ESPDist,function(v)C.ESPDist=v end)Toggle("Fullbright",C.Fullbright,function(v)C.Fullbright=v Fullbright(v)end)Toggle("X-Ray",C.XRay,function(v)C.XRay=v XRay(v)end)Toggle("No Decoration",C.NoDeco,function(v)C.NoDeco=v NoDeco(v)end)Toggle("Sky Fon",C.SkyFon,function(v)C.SkyFon=v SkyFon(v)end)Toggle("FPS Boost",C.FPSBoost,function(v)C.FPSBoost=v FPS(v)end)end
+Tabs.Visual=function()
+    Label("VISUAL")
+    Toggle("Show FOV",C.ShowFOV,function(v)C.ShowFOV=v end)
+    Toggle("Hit Sound (Anime)",C.HitSound,function(v)
+        C.HitSound=v 
+        if v then 
+            if LP.Character then for _,tool in pairs(LP.Character:GetChildren())do ApplyHitSound(tool)end end
+        end
+    end)
+    Toggle("ESP",C.ESP,function(v)C.ESP=v if not v then for pl,e in pairs(ESP)do destroyESPEntry(e)ESP[pl]=nil end end end)
+    Toggle("  Box",C.ESPBox,function(v)C.ESPBox=v end)
+    Toggle("  Name",C.ESPName,function(v)C.ESPName=v end)
+    Toggle("  Charms",C.ESPCharms,function(v)C.ESPCharms=v end)
+    Toggle("  Distance",C.ESPDist,function(v)C.ESPDist=v end)
+    Toggle("Fullbright",C.Fullbright,function(v)C.Fullbright=v Fullbright(v)end)
+    Toggle("X-Ray",C.XRay,function(v)C.XRay=v XRay(v)end)
+    Toggle("No Decoration",C.NoDeco,function(v)C.NoDeco=v NoDeco(v)end)
+    Toggle("Sky Fon",C.SkyFon,function(v)C.SkyFon=v SkyFon(v)end)
+    Toggle("FPS Boost",C.FPSBoost,function(v)C.FPSBoost=v FPS(v)end)
+end
 Tabs.Misc=function()Label("MISC")Toggle("Inf Jump",C.InfJump,function(v)C.InfJump=v InfJump(v)end)Toggle("Anti AFK",C.AntiAFK,function(v)C.AntiAFK=v AFK(v)end)end
 Render("Combat")
 RegConn(CL.MouseButton1Click:Connect(function()if not IsCleanedUp and M then M.Visible=false end end))
