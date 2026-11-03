@@ -1,4 +1,4 @@
---[[ FerClient v6.3 | Hit Sound (Anime) | Center FOV ]]
+--[[ FerClient v6.4 | Fix Aim & HitSound | Instant Snap ]]
 local P=game:GetService("Players")local R=game:GetService("RunService")local U=game:GetService("UserInputService")local L=game:GetService("Lighting")local W=game:GetService("Workspace")local T=game:GetService("TweenService")local CG=game:GetService("CoreGui")
 local LP=P.LocalPlayer
 local BG_IMAGE_ID = "rbxassetid://70985600234581"
@@ -195,6 +195,8 @@ local function GetPredictedPos(targetPart)
     end
     return targetPart.Position + (velocity * 0.1)
 end
+
+-- ЖЕСТКИЙ ПОВОРОТ КАМЕРЫ ТОЛЬКО ПРИ ВЫСТРЕЛЕ
 RegConn(U.InputBegan:Connect(function(input)
     if IsCleanedUp then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -209,15 +211,22 @@ RegConn(U.InputBegan:Connect(function(input)
         end
     end
 end))
--- ХИТ САУНД
+
+-- ХИТ САУНД (ПЕРЕХВАТ НА ЛЕТУ)
+RegConn(W.DescendantAdded:Connect(function(desc)
+    if IsCleanedUp or not C.HitSound then return end
+    if desc:IsA("Sound") and (desc.Name == "HitClient" or desc.Name == "HeadShotClient") then
+        desc.SoundId = "rbxassetid://9046912122"
+        desc.Volume = 2
+    end
+end))
 local function ApplyHitSound(tool)
-    if not tool or not tool:IsA("Tool") then return end
+    if not tool or not tool:IsA("Tool") or not C.HitSound then return end
     local bodyAttach = tool:FindFirstChild("BodyAttach")
     if bodyAttach then
         for _, sName in ipairs({"HitClient", "HeadShotClient", "HitCharacterClient"}) do
             local snd = bodyAttach:FindFirstChild(sName)
             if snd and snd:IsA("Sound") then
-                -- Аниме звук (ня)
                 snd.SoundId = "rbxassetid://9046912122"
                 snd.Volume = 2
             end
@@ -315,7 +324,6 @@ end))
 RegConn(R.RenderStepped:Connect(function()
 if IsCleanedUp then return end local cam=GetCamera()
 if cam and FOVCircle then if C.ShowFOV then FOVCircle.Visible=true local size=C.FOV*2 FOVCircle.Size=UDim2.new(0,size,0,size)FOVStroke.Color=C.ESPColor else FOVCircle.Visible=false end end
-if cam and(C.AimBot or C.AimSelect)and CurrentAimTarget then local pt=CurrentAimTarget.Character and CurrentAimTarget.Character:FindFirstChild(C.AimPart)if pt then cam.CFrame=cam.CFrame:Lerp(CFrame.new(cam.CFrame.Position,GetPredictedPos(pt)),C.Smooth)end end
 end))
 local TabBtns,Tabs={},{}
 local function ClearC()for _,x in ipairs(CT:GetChildren())do if x:IsA("GuiObject")then x:Destroy()end end for i=#Registry.TabConnections,1,-1 do local c=Registry.TabConnections[i]if c and c.Connected then pcall(function()c:Disconnect()end)end end table.clear(Registry.TabConnections) end
@@ -345,9 +353,7 @@ Tabs.Visual=function()
     Toggle("Show FOV",C.ShowFOV,function(v)C.ShowFOV=v end)
     Toggle("Hit Sound (Anime)",C.HitSound,function(v)
         C.HitSound=v 
-        if v then 
-            if LP.Character then for _,tool in pairs(LP.Character:GetChildren())do ApplyHitSound(tool)end end
-        end
+        if v and LP.Character then for _,tool in pairs(LP.Character:GetChildren())do ApplyHitSound(tool)end end
     end)
     Toggle("ESP",C.ESP,function(v)C.ESP=v if not v then for pl,e in pairs(ESP)do destroyESPEntry(e)ESP[pl]=nil end end end)
     Toggle("  Box",C.ESPBox,function(v)C.ESPBox=v end)
