@@ -1,4 +1,4 @@
---[[ FerClient v6.7 | Ore & Crate ESP | Body Aim + Prediction ]]
+--[[ FerClient v6.8 | Skeleton + HP Bar + Tracers ]]
 local P=game:GetService("Players")local R=game:GetService("RunService")local U=game:GetService("UserInputService")local L=game:GetService("Lighting")local W=game:GetService("Workspace")local T=game:GetService("TweenService")local CG=game:GetService("CoreGui")
 local LP=P.LocalPlayer
 local BG_IMAGE_ID = "rbxassetid://70985600234581"
@@ -74,7 +74,11 @@ local function GetCamera()local cam=W.CurrentCamera if cam and cam.Parent then r
 local hasDrawing=pcall(function()local s=Drawing.new("Square")local t=Drawing.new("Text")local tr=Drawing.new("Triangle")if s then s:Remove()end if t then t:Remove()end if tr then tr:Remove()end return true end)
 local function SafeDrawing(class)if not hasDrawing then return nil end local ok,obj=pcall(function()return Drawing.new(class)end)return ok and RegDraw(obj)or nil end
 local function destroyESPEntry(e)if not e then return end for _,d in pairs(e)do if d and d.Remove then pcall(function()d:Remove()end)RemoveDraw(d)end end end
-local C={AimSelect=false,AimBot=false,AimPart="Head",Smooth=0.35,FOV=150,MaxDist=500,WallCheck=false,ESP=false,ESPBox=true,ESPName=true,ESPCharms=true,ESPDist=true,ESPColor=Color3.fromRGB(0,200,255),ShowFOV=false,Fullbright=false,XRay=false,NoDeco=false,SkyFon=false,FPSBoost=false,InfJump=false,AntiAFK=false,HitSound=false,
+local C={AimSelect=false,AimBot=false,AimPart="Head",Smooth=0.35,FOV=150,MaxDist=500,WallCheck=false,
+ESP=false,ESPBox=true,ESPName=true,ESPCharms=true,ESPDist=true,ESPSkeleton=false,ESPHP=false,ESPTracers=false,
+ESPColor=Color3.fromRGB(0,200,255),
+ShowFOV=false,Fullbright=false,XRay=false,NoDeco=false,SkyFon=false,FPSBoost=false,
+InfJump=false,AntiAFK=false,HitSound=false,
 OreESP=false, SulfurESP=false, IronESP=false, StoneESP=false, OreDist=500,
 CrateESP=false, MilitaryESP=false, EliteESP=false, FoodESP=false, CrateDist=500}
 local ACC=Color3.fromRGB(0,170,255)local BG=Color3.fromRGB(15,15,20)local PANEL=Color3.fromRGB(22,22,30)local P2=Color3.fromRGB(30,30,40)local TXT=Color3.fromRGB(235,235,245)local SUB=Color3.fromRGB(150,150,165)local OFF=Color3.fromRGB(60,60,75)local STROKE=Color3.fromRGB(45,45,60)
@@ -287,75 +291,21 @@ local function InfJump(on)if on then if not InfConn then InfConn=RegConn(U.JumpR
 local function AFK(on)if on then if not AFKConn then AFKConn=RegConn(LP.Idled:Connect(function()pcall(function()local v=game:GetService("VirtualUser")v:CaptureController()v:ClickButton2(Vector2.new())end)end))end elseif AFKConn then AFKConn:Disconnect()RemoveConn(AFKConn)AFKConn=nil end end
 -- ESP Ресурсов
 local function ApplyOreESP(obj, name, color)
-    if not obj:FindFirstChild("FerOreHighlight") then
-        local h = Instance.new("Highlight", obj)
-        h.Name = "FerOreHighlight"
-        h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    end
-    if not obj:FindFirstChild("FerOreTag") then
-        local bg = Instance.new("BillboardGui", obj)
-        bg.Name = "FerOreTag"
-        bg.AlwaysOnTop = true
-        bg.Size = UDim2.new(0, 100, 0, 40)
-        bg.ExtentsOffset = Vector3.new(0, 2, 0)
-        local label = Instance.new("TextLabel", bg)
-        label.Name = "Label"
-        label.BackgroundTransparency = 1
-        label.Size = UDim2.new(1, 0, 1, 0)
-        label.TextSize = 13
-        label.Font = Enum.Font.GothamBold
-        label.TextStrokeTransparency = 0
-    end
+    if not obj:FindFirstChild("FerOreHighlight") then local h = Instance.new("Highlight", obj) h.Name = "FerOreHighlight" h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop end
+    if not obj:FindFirstChild("FerOreTag") then local bg = Instance.new("BillboardGui", obj) bg.Name = "FerOreTag" bg.AlwaysOnTop = true bg.Size = UDim2.new(0, 100, 0, 40) bg.ExtentsOffset = Vector3.new(0, 2, 0) local label = Instance.new("TextLabel", bg) label.Name = "Label" label.BackgroundTransparency = 1 label.Size = UDim2.new(1, 0, 1, 0) label.TextSize = 13 label.Font = Enum.Font.GothamBold label.TextStrokeTransparency = 0 end
     local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-    if root then
-        local pos = obj:IsA("Model") and obj:GetModelCFrame().Position or obj.Position
-        local dist = math.floor((root.Position - pos).Magnitude)
-        if dist <= C.OreDist then
-            obj.FerOreTag.Enabled = true
-            obj.FerOreHighlight.Enabled = true
-            obj.FerOreTag.Label.Text = name:upper().."\n["..dist.."m]"
-            obj.FerOreTag.Label.TextColor3 = color
-            obj.FerOreHighlight.FillColor = color
-        else
-            obj.FerOreTag.Enabled = false
-            obj.FerOreHighlight.Enabled = false
-        end
+    if root then local pos = obj:IsA("Model") and obj:GetModelCFrame().Position or obj.Position local dist = math.floor((root.Position - pos).Magnitude)
+        if dist <= C.OreDist then obj.FerOreTag.Enabled = true obj.FerOreHighlight.Enabled = true obj.FerOreTag.Label.Text = name:upper().."\n["..dist.."m]" obj.FerOreTag.Label.TextColor3 = color obj.FerOreHighlight.FillColor = color
+        else obj.FerOreTag.Enabled = false obj.FerOreHighlight.Enabled = false end
     end
 end
 local function ApplyCrateESP(obj, name, color)
-    if not obj:FindFirstChild("FerCrateHighlight") then
-        local h = Instance.new("Highlight", obj)
-        h.Name = "FerCrateHighlight"
-        h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    end
-    if not obj:FindFirstChild("FerCrateTag") then
-        local bg = Instance.new("BillboardGui", obj)
-        bg.Name = "FerCrateTag"
-        bg.AlwaysOnTop = true
-        bg.Size = UDim2.new(0, 100, 0, 40)
-        bg.ExtentsOffset = Vector3.new(0, 2, 0)
-        local label = Instance.new("TextLabel", bg)
-        label.Name = "Label"
-        label.BackgroundTransparency = 1
-        label.Size = UDim2.new(1, 0, 1, 0)
-        label.TextSize = 13
-        label.Font = Enum.Font.GothamBold
-        label.TextStrokeTransparency = 0
-    end
+    if not obj:FindFirstChild("FerCrateHighlight") then local h = Instance.new("Highlight", obj) h.Name = "FerCrateHighlight" h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop end
+    if not obj:FindFirstChild("FerCrateTag") then local bg = Instance.new("BillboardGui", obj) bg.Name = "FerCrateTag" bg.AlwaysOnTop = true bg.Size = UDim2.new(0, 100, 0, 40) bg.ExtentsOffset = Vector3.new(0, 2, 0) local label = Instance.new("TextLabel", bg) label.Name = "Label" label.BackgroundTransparency = 1 label.Size = UDim2.new(1, 0, 1, 0) label.TextSize = 13 label.Font = Enum.Font.GothamBold label.TextStrokeTransparency = 0 end
     local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-    if root then
-        local pos = obj:IsA("Model") and obj:GetModelCFrame().Position or obj.Position
-        local dist = math.floor((root.Position - pos).Magnitude)
-        if dist <= C.CrateDist then
-            obj.FerCrateTag.Enabled = true
-            obj.FerCrateHighlight.Enabled = true
-            obj.FerCrateTag.Label.Text = name:upper().."\n["..dist.."m]"
-            obj.FerCrateTag.Label.TextColor3 = color
-            obj.FerCrateHighlight.FillColor = color
-        else
-            obj.FerCrateTag.Enabled = false
-            obj.FerCrateHighlight.Enabled = false
-        end
+    if root then local pos = obj:IsA("Model") and obj:GetModelCFrame().Position or obj.Position local dist = math.floor((root.Position - pos).Magnitude)
+        if dist <= C.CrateDist then obj.FerCrateTag.Enabled = true obj.FerCrateHighlight.Enabled = true obj.FerCrateTag.Label.Text = name:upper().."\n["..dist.."m]" obj.FerCrateTag.Label.TextColor3 = color obj.FerCrateHighlight.FillColor = color
+        else obj.FerCrateTag.Enabled = false obj.FerCrateHighlight.Enabled = false end
     end
 end
 
@@ -371,51 +321,78 @@ if cam and C.ESP and hasDrawing then
 for pl,data in pairs(PlayerCache)do 
 if not ESP[pl]then 
     local b=SafeDrawing("Square")local n=SafeDrawing("Text")local d=SafeDrawing("Text")local c=SafeDrawing("Triangle")
-    if b and n and d and c then 
-        ESP[pl]={b=b,n=n,d=d,c=c}
+    local sk=SafeDrawing("Line") local sk2=SafeDrawing("Line") local sk3=SafeDrawing("Line") local sk4=SafeDrawing("Line")
+    local hp=SafeDrawing("Line") local tr=SafeDrawing("Line")
+    if b and n and d and c and sk and sk2 and sk3 and sk4 and hp and tr then 
+        ESP[pl]={b=b,n=n,d=d,c=c,sk=sk,sk2=sk2,sk3=sk3,sk4=sk4,hp=hp,tr=tr}
         b.Thickness=1 b.Filled=false 
         n.Size=11 n.Center=true n.Outline=true n.Color=Color3.new(1,1,1)
         d.Size=10 d.Center=true d.Outline=true d.Color=C.ESPColor
         c.Thickness=1 c.Filled=true 
-    else if b then pcall(function()b:Remove()end)RemoveDraw(b)end if n then pcall(function()n:Remove()end)RemoveDraw(n)end if d then pcall(function()d:Remove()end)RemoveDraw(d)end if c then pcall(function()c:Remove()end)RemoveDraw(c)end end 
+        for _,l in pairs({sk,sk2,sk3,sk4})do l.Thickness=1 l.Color=C.ESPColor end
+        hp.Thickness=3 hp.Color=Color3.new(0,255,0)
+        tr.Thickness=1 tr.Color=C.ESPColor
+    else if b then pcall(function()b:Remove()end)RemoveDraw(b)end if n then pcall(function()n:Remove()end)RemoveDraw(n)end if d then pcall(function()d:Remove()end)RemoveDraw(d)end if c then pcall(function()c:Remove()end)RemoveDraw(c)end if sk then pcall(function()sk:Remove()end)end if sk2 then pcall(function()sk2:Remove()end)end if sk3 then pcall(function()sk3:Remove()end)end if sk4 then pcall(function()sk4:Remove()end)end if hp then pcall(function()hp:Remove()end)end if tr then pcall(function()tr:Remove()end)end end 
 end 
 local e=ESP[pl]if e then local hrp=data.HRP local hum=data.Hum
 if hrp and hrp.Parent and hum and hum.Health>0 then 
 local top=cam:WorldToViewportPoint(hrp.Position+Vector3.new(0,3,0))local bot=cam:WorldToViewportPoint(hrp.Position-Vector3.new(0,3,0))local pos,on=cam:WorldToViewportPoint(hrp.Position)
 if on then 
     local h=math.abs(top.Y-bot.Y)local w=h*0.55 
+    -- Box
     e.b.Size=Vector2.new(w,h)e.b.Position=Vector2.new(pos.X-w/2,top.Y)e.b.Color=C.ESPColor e.b.Visible=C.ESPBox 
+    -- Name & Dist
     e.n.Text=pl.Name e.n.Position=Vector2.new(pos.X,top.Y-14)e.n.Visible=C.ESPName 
     local LPH=LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")local dist=LPH and math.floor((LPH.Position-hrp.Position).Magnitude)or 0 
     e.d.Text="["..dist.."m]"e.d.Position=Vector2.new(pos.X,bot.Y+2)e.d.Visible=C.ESPDist 
+    -- Charms
     if C.ESPCharms then local cx=pos.X local cy=top.Y-24 e.c.PointA=Vector2.new(cx,cy)e.c.PointB=Vector2.new(cx-4,cy+8)e.c.PointC=Vector2.new(cx+4,cy+8)e.c.Color=C.ESPColor e.c.Visible=true else e.c.Visible=false end 
-else e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false end 
-else e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false end end end 
-elseif not C.ESP then for _,e in pairs(ESP)do if e.b then e.b.Visible=false end if e.n then e.n.Visible=false end if e.d then e.d.Visible=false end if e.c then e.c.Visible=false end end end
+    -- Health Bar
+    if C.ESPHP then
+        local hp_val = hum.Health / hum.MaxHealth
+        e.hp.From = Vector2.new(pos.X-w/2-6, top.Y + h)
+        e.hp.To = Vector2.new(pos.X-w/2-6, top.Y + h - (h * hp_val))
+        e.hp.Color = Color3.fromHSV(hp_val * 0.3, 1, 1)
+        e.hp.Visible = true
+    else e.hp.Visible = false end
+    -- Skeleton
+    if C.ESPSkeleton then
+        local head = data.Char:FindFirstChild("Head")
+        local larm = data.Char:FindFirstChild("Left Arm") or data.Char:FindFirstChild("LeftHand")
+        local rarm = data.Char:FindFirstChild("Right Arm") or data.Char:FindFirstChild("RightHand")
+        local lleg = data.Char:FindFirstChild("Left Leg") or data.Char:FindFirstChild("LeftFoot")
+        local rleg = data.Char:FindFirstChild("Right Leg") or data.Char:FindFirstChild("RightFoot")
+        local function to2d(part) if not part then return Vector2.new(0,0) end local sp,on2=Camera:WorldToViewportPoint(part.Position) return Vector2.new(sp.X, sp.Y) end
+        if head then
+            local hpos = to2d(head)
+            local rpos = to2d(hrp)
+            e.sk.From = hpos e.sk.To = rpos e.sk.Visible = true
+            if larm then e.sk2.From = rpos e.sk2.To = to2d(larm) e.sk2.Visible = true else e.sk2.Visible = false end
+            if rarm then e.sk3.From = rpos e.sk3.To = to2d(rarm) e.sk3.Visible = true else e.sk3.Visible = false end
+            if lleg then e.sk4.From = rpos e.sk4.To = to2d(lleg) e.sk4.Visible = true else e.sk4.Visible = false end
+            -- 4th line for right leg
+            e.tr.From = rpos e.tr.To = to2d(rleg) e.tr.Visible = true
+        else
+            e.sk.Visible = false e.sk2.Visible = false e.sk3.Visible = false e.sk4.Visible = false e.tr.Visible = false
+        end
+    else
+        e.sk.Visible = false e.sk2.Visible = false e.sk3.Visible = false e.sk4.Visible = false e.tr.Visible = false
+    end
+    -- Tracers
+    if C.ESPTracers then
+        e.tr.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+        e.tr.To = Vector2.new(pos.X, pos.Y)
+        e.tr.Visible = true
+    else e.tr.Visible = false end
+else e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false e.hp.Visible=false e.sk.Visible=false e.sk2.Visible=false e.sk3.Visible=false e.sk4.Visible=false e.tr.Visible=false end 
+else e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false e.hp.Visible=false e.sk.Visible=false e.sk2.Visible=false e.sk3.Visible=false e.sk4.Visible=false e.tr.Visible=false end end end 
+elseif not C.ESP then for _,e in pairs(ESP)do if e.b then e.b.Visible=false end if e.n then e.n.Visible=false end if e.d then e.d.Visible=false end if e.c then e.c.Visible=false end if e.hp then e.hp.Visible=false end if e.sk then e.sk.Visible=false end if e.sk2 then e.sk2.Visible=false end if e.sk3 then e.sk3.Visible=false end if e.sk4 then e.sk4.Visible=false end if e.tr then e.tr.Visible=false end end end
 
 -- ESP Ресурсов
 local ores = W:FindFirstChild("ores")
-if ores then
-    for _, ore in ipairs(ores:GetChildren()) do
-        local en = (ore.Name == "sulfur" and C.SulfurESP) or (ore.Name == "iron" and C.IronESP) or (ore.Name == "stone" and C.StoneESP)
-        local col = (ore.Name == "sulfur" and Color3.new(1,1,0)) or (ore.Name == "iron" and Color3.new(0.7,0.7,0.7)) or Color3.new(1,1,1)
-        if en then ApplyOreESP(ore, ore.Name, col)
-        elseif ore:FindFirstChild("FerOreTag") then ore.FerOreTag.Enabled, ore.FerOreHighlight.Enabled = false, false end
-    end
-end
-
+if ores then for _, ore in ipairs(ores:GetChildren()) do local en = (ore.Name == "sulfur" and C.SulfurESP) or (ore.Name == "iron" and C.IronESP) or (ore.Name == "stone" and C.StoneESP) local col = (ore.Name == "sulfur" and Color3.new(1,1,0)) or (ore.Name == "iron" and Color3.new(0.7,0.7,0.7)) or Color3.new(1,1,1) if en then ApplyOreESP(ore, ore.Name, col) elseif ore:FindFirstChild("FerOreTag") then ore.FerOreTag.Enabled, ore.FerOreHighlight.Enabled = false, false end end end
 local crates = W:FindFirstChild("Crates")
-if crates then
-    for _, crate in ipairs(crates:GetChildren()) do
-        local en, col = false, Color3.new(1,1,1)
-        if crate.Name == "Crate" then en = C.CrateESP; col = Color3.fromRGB(150, 75, 0)
-        elseif crate.Name == "MilitaryCrate" then en = C.MilitaryESP; col = Color3.fromRGB(0, 150, 0)
-        elseif crate.Name == "EliteCrate" then en = C.EliteESP; col = Color3.fromRGB(255, 0, 50)
-        elseif crate.Name == "FoodBox" or crate.Name == "ToolBox" then en = C.FoodESP; col = Color3.fromRGB(0, 200, 255) end
-        if en then ApplyCrateESP(crate, crate.Name, col)
-        elseif crate:FindFirstChild("FerCrateTag") then crate.FerCrateTag.Enabled, crate.FerCrateHighlight.Enabled = false, false end
-    end
-end
+if crates then for _, crate in ipairs(crates:GetChildren()) do local en, col = false, Color3.new(1,1,1) if crate.Name == "Crate" then en = C.CrateESP; col = Color3.fromRGB(150, 75, 0) elseif crate.Name == "MilitaryCrate" then en = C.MilitaryESP; col = Color3.fromRGB(0, 150, 0) elseif crate.Name == "EliteCrate" then en = C.EliteESP; col = Color3.fromRGB(255, 0, 50) elseif crate.Name == "FoodBox" or crate.Name == "ToolBox" then en = C.FoodESP; col = Color3.fromRGB(0, 200, 255) end if en then ApplyCrateESP(crate, crate.Name, col) elseif crate:FindFirstChild("FerCrateTag") then crate.FerCrateTag.Enabled, crate.FerCrateHighlight.Enabled = false, false end end end
 
 end
 end))
@@ -453,6 +430,9 @@ Tabs.Visual=function()
     Toggle("  Name",C.ESPName,function(v)C.ESPName=v end)
     Toggle("  Charms",C.ESPCharms,function(v)C.ESPCharms=v end)
     Toggle("  Distance",C.ESPDist,function(v)C.ESPDist=v end)
+    Toggle("  Skeleton",C.ESPSkeleton,function(v)C.ESPSkeleton=v end)
+    Toggle("  Health Bar",C.ESPHP,function(v)C.ESPHP=v end)
+    Toggle("  Tracers",C.ESPTracers,function(v)C.ESPTracers=v end)
     
     Label("RESOURCE VISUAL")
     Toggle("Sulfur ESP",C.SulfurESP,function(v)C.SulfurESP=v end)
@@ -496,155 +476,11 @@ local WM = RegInst(N("ScreenGui",{Name="FerWM",ResetOnSpawn=false,IgnoreGuiInset
 local WFrame = RegInst(N("Frame",{Size=UDim2.new(0,130,0,24),Position=UDim2.new(1,-140,1,-34),BackgroundColor3=BG,BackgroundTransparency=0.2,BorderSizePixel=0,ZIndex=10},WM))
 Round(WFrame,6) Stroke(WFrame,ACC,1)
 local WLabel = N("TextLabel",{Size=UDim2.new(1,-10,1,0),Position=UDim2.new(0,5,0,0),BackgroundTransparency=1,TextColor3=TXT,Font=Enum.Font.GothamBold,TextSize=11,TextXAlignment=Enum.TextXAlignment.Left,Text="FerClient | 60 FPS"},WFrame)
-local FPS_Last = tick()
-local FPS_Frames = 0
+local FPS_Last = tick() local FPS_Frames = 0
 RegConn(R.RenderStepped:Connect(function()
     if IsCleanedUp then return end
     FPS_Frames = FPS_Frames + 1
-    if tick() - FPS_Last >= 1 then
-        WLabel.Text = "FerClient | " .. FPS_Frames .. " FPS"
-        FPS_Frames = 0
-        FPS_Last = tick()
-    end
-end))
-
-local function Cleanup()
-    if IsCleanedUp then return end 
-    IsCleanedUp=true
-    pcall(Fullbright,false)
-    pcall(XRay,false)
-    pcall(NoDeco,false)
-    pcall(SkyFon,false)
-    pcall(FPS,false)
-    FlushRegistry()
-    table.clear(PlayerCache)
-    table.clear(ESP)
-    print("[FerClient] Cleanup complete. All resources released.")
-end
-_G.FerClientCleanup=Cleanup
-game:BindToClose(Cleanup)rrentSky currentSky.Parent=nil end 
-        local success=pcall(function()
-            SkyFolder=RegInst(N("Folder",{Name="FerSky"},L))
-            N("Sky",{Name="FerSkybox",SkyboxBk="rbxassetid://159454299",SkyboxDn="rbxassetid://159454296",SkyboxFt="rbxassetid://159454293",SkyboxLf="rbxassetid://159454286",SkyboxRt="rbxassetid://159454300",SkyboxUp="rbxassetid://159454288",StarCount=5000},SkyFolder)
-        end)
-        if not success then if SkyFolder then RemoveInst(SkyFolder)SkyFolder=nil end if OldSky[1]then OldSky[1].Parent=L table.clear(OldSky)end end 
-    else 
-        if SkyFolder then SkyFolder:Destroy()RemoveInst(SkyFolder)SkyFolder=nil end 
-        if OldSky[1]and OldSky[1].Parent==nil then pcall(function()OldSky[1].Parent=L end)end 
-        table.clear(OldSky)
-    end 
-end
-local function FPS(on)if on then for _,obj in ipairs(L:GetDescendants())do if obj:IsA("PostEffect")then FPSOff[obj]=obj.Enabled obj.Enabled=false end end else for obj,en in pairs(FPSOff)do if obj and obj.Parent then pcall(function()if obj.Enabled~=en then obj.Enabled=en end end)end end table.clear(FPSOff)end end
-local InfConn,AFKConn
-local function InfJump(on)if on then if not InfConn then InfConn=RegConn(U.JumpRequest:Connect(function()local h=LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")if h then h:ChangeState(Enum.HumanoidStateType.Jumping)end end))end elseif InfConn then InfConn:Disconnect()RemoveConn(InfConn)InfConn=nil end end
-local function AFK(on)if on then if not AFKConn then AFKConn=RegConn(LP.Idled:Connect(function()pcall(function()local v=game:GetService("VirtualUser")v:CaptureController()v:ClickButton2(Vector2.new())end)end))end elseif AFKConn then AFKConn:Disconnect()RemoveConn(AFKConn)AFKConn=nil end end
-RegConn(R.Heartbeat:Connect(function()
-if IsCleanedUp then return end
-local now=tick()
-if now-LastTargetUpdate>0.1 then LastTargetUpdate=now CurrentAimTarget=Nearest()end
-if now-LastESPUpdate>0.03 then 
-LastESPUpdate=now
-local cam=GetCamera()
-if cam and C.ESP and hasDrawing then 
-for pl,data in pairs(PlayerCache)do 
-if not ESP[pl]then 
-    local b=SafeDrawing("Square")local n=SafeDrawing("Text")local d=SafeDrawing("Text")local c=SafeDrawing("Triangle")
-    if b and n and d and c then 
-        ESP[pl]={b=b,n=n,d=d,c=c}
-        b.Thickness=1 b.Filled=false 
-        n.Size=11 n.Center=true n.Outline=true n.Color=Color3.new(1,1,1)
-        d.Size=10 d.Center=true d.Outline=true d.Color=C.ESPColor
-        c.Thickness=1 c.Filled=true 
-    else if b then pcall(function()b:Remove()end)RemoveDraw(b)end if n then pcall(function()n:Remove()end)RemoveDraw(n)end if d then pcall(function()d:Remove()end)RemoveDraw(d)end if c then pcall(function()c:Remove()end)RemoveDraw(c)end end 
-end 
-local e=ESP[pl]if e then local hrp=data.HRP local hum=data.Hum
-if hrp and hrp.Parent and hum and hum.Health>0 then 
-local top=cam:WorldToViewportPoint(hrp.Position+Vector3.new(0,3,0))local bot=cam:WorldToViewportPoint(hrp.Position-Vector3.new(0,3,0))local pos,on=cam:WorldToViewportPoint(hrp.Position)
-if on then 
-    local h=math.abs(top.Y-bot.Y)local w=h*0.55 
-    e.b.Size=Vector2.new(w,h)e.b.Position=Vector2.new(pos.X-w/2,top.Y)e.b.Color=C.ESPColor e.b.Visible=C.ESPBox 
-    e.n.Text=pl.Name e.n.Position=Vector2.new(pos.X,top.Y-14)e.n.Visible=C.ESPName 
-    local LPH=LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")local dist=LPH and math.floor((LPH.Position-hrp.Position).Magnitude)or 0 
-    e.d.Text="["..dist.."m]"e.d.Position=Vector2.new(pos.X,bot.Y+2)e.d.Visible=C.ESPDist 
-    if C.ESPCharms then local cx=pos.X local cy=top.Y-24 e.c.PointA=Vector2.new(cx,cy)e.c.PointB=Vector2.new(cx-4,cy+8)e.c.PointC=Vector2.new(cx+4,cy+8)e.c.Color=C.ESPColor e.c.Visible=true else e.c.Visible=false end 
-else e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false end 
-else e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false end end end 
-elseif not C.ESP then for _,e in pairs(ESP)do if e.b then e.b.Visible=false end if e.n then e.n.Visible=false end if e.d then e.d.Visible=false end if e.c then e.c.Visible=false end end end
-end
-end))
-RegConn(R.RenderStepped:Connect(function()
-if IsCleanedUp then return end local cam=GetCamera()
-if cam and FOVCircle then if C.ShowFOV then FOVCircle.Visible=true local size=C.FOV*2 FOVCircle.Size=UDim2.new(0,size,0,size)FOVStroke.Color=C.ESPColor else FOVCircle.Visible=false end end
-end))
-local TabBtns,Tabs={},{}
-local function ClearC()for _,x in ipairs(CT:GetChildren())do if x:IsA("GuiObject")then x:Destroy()end end for i=#Registry.TabConnections,1,-1 do local c=Registry.TabConnections[i]if c and c.Connected then pcall(function()c:Disconnect()end)end end table.clear(Registry.TabConnections) end
-local function UpdateCanvas()if CT and not IsCleanedUp then CT.CanvasSize=UDim2.new(0,0,0,CLL.AbsoluteContentSize.Y+16)end end
-local function Render(name)
-    ClearC()
-    for k,b in pairs(TabBtns)do b.BackgroundColor3=(k==name)and ACC or P2 b.TextColor3=(k==name)and Color3.new(1,1,1)or SUB end 
-    if Tabs[name]then Tabs[name]()end 
-    task.defer(function()
-        if IsCleanedUp then return end
-        UpdateCanvas()task.wait(0.05)if IsCleanedUp then return end UpdateCanvas()
-    end)
-end
-local function AddTab(name)local b=N("TextButton",{Text=name,Font=Enum.Font.GothamSemibold,TextSize=13,TextColor3=SUB,BackgroundColor3=P2,Size=UDim2.new(0,90,0,28),BorderSizePixel=0,AutoButtonColor=false},TBB)Round(b,6)TabBtns[name]=b RegConn(b.MouseButton1Click:Connect(function()if IsCleanedUp or not b.Parent then return end Render(name)end))end
-AddTab("Combat")AddTab("Visual")AddTab("Misc")
-Tabs.Combat=function()
-    Label("COMBAT")
-    Toggle("Aim Bot (Camera)",C.AimBot,function(v)C.AimBot=v end)
-    Toggle("Wall Check",C.WallCheck,function(v)C.WallCheck=v end)
-    Dropdown("Aim Part",{"Head","HumanoidRootPart","UpperTorso"},"Head",function(v)C.AimPart=v end)
-    Slider("Aim Smooth",1,100,35,function(v)C.Smooth=v/100 end)
-    Slider("Aim FOV",10,400,150,function(v)C.FOV=v end)
-    Slider("Max Dist",50,2000,500,function(v)C.MaxDist=v end)
-end
-Tabs.Visual=function()
-    Label("VISUAL")
-    Toggle("Show FOV",C.ShowFOV,function(v)C.ShowFOV=v end)
-    Toggle("Hit Sound (Anime)",C.HitSound,function(v)
-        C.HitSound=v 
-        if v and LP.Character then for _,tool in pairs(LP.Character:GetChildren())do ApplyHitSound(tool)end end
-    end)
-    Toggle("ESP",C.ESP,function(v)C.ESP=v if not v then for pl,e in pairs(ESP)do destroyESPEntry(e)ESP[pl]=nil end end end)
-    Toggle("  Box",C.ESPBox,function(v)C.ESPBox=v end)
-    Toggle("  Name",C.ESPName,function(v)C.ESPName=v end)
-    Toggle("  Charms",C.ESPCharms,function(v)C.ESPCharms=v end)
-    Toggle("  Distance",C.ESPDist,function(v)C.ESPDist=v end)
-    Toggle("Fullbright",C.Fullbright,function(v)C.Fullbright=v Fullbright(v)end)
-    Toggle("X-Ray",C.XRay,function(v)C.XRay=v XRay(v)end)
-    Toggle("No Decoration",C.NoDeco,function(v)C.NoDeco=v NoDeco(v)end)
-    Toggle("Sky Fon",C.SkyFon,function(v)C.SkyFon=v SkyFon(v)end)
-    Toggle("FPS Boost",C.FPSBoost,function(v)C.FPSBoost=v FPS(v)end)
-end
-Tabs.Misc=function()Label("MISC")Toggle("Inf Jump",C.InfJump,function(v)C.InfJump=v InfJump(v)end)Toggle("Anti AFK",C.AntiAFK,function(v)C.AntiAFK=v AFK(v)end)end
-Render("Combat")
-RegConn(CL.MouseButton1Click:Connect(function()if not IsCleanedUp and M then M.Visible=false end end))
-RegConn(AV.MouseButton1Click:Connect(function()if not IsCleanedUp and M then M.Visible=not M.Visible end end))
-local drag,ds,dp=false,nil,nil
-RegConn(AV.InputBegan:Connect(function(i)if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then drag=true ds=i.Position dp=AV.Position end end))
-RegConn(AV.InputEnded:Connect(function(i)if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then drag=false end end))
-RegConn(U.InputChanged:Connect(function(i)if IsCleanedUp or not AV then return end if drag and(i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch)then local d=i.Position-ds AV.Position=UDim2.new(dp.X.Scale,dp.X.Offset+d.X,dp.Y.Scale,dp.Y.Offset+d.Y)end end))
-local mdrag,mds,mdp=false,nil,nil
-RegConn(TB.InputBegan:Connect(function(i)if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then mdrag=true mds=i.Position mdp=M.Position end end))
-RegConn(TB.InputEnded:Connect(function(i)if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then mdrag=false end end))
-RegConn(U.InputChanged:Connect(function(i)if IsCleanedUp or not M then return end if mdrag and(i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch)then local d=i.Position-mds M.Position=UDim2.new(mdp.X.Scale,mdp.X.Offset+d.X,mdp.Y.Scale,mdp.Y.Offset+d.Y)end end))
-
--- МАЛЕНЬКИЙ WATERMARK
-local WM = RegInst(N("ScreenGui",{Name="FerWM",ResetOnSpawn=false,IgnoreGuiInset=true},CG))
-local WFrame = RegInst(N("Frame",{Size=UDim2.new(0,130,0,24),Position=UDim2.new(1,-140,1,-34),BackgroundColor3=BG,BackgroundTransparency=0.2,BorderSizePixel=0,ZIndex=10},WM))
-Round(WFrame,6) Stroke(WFrame,ACC,1)
-local WLabel = N("TextLabel",{Size=UDim2.new(1,-10,1,0),Position=UDim2.new(0,5,0,0),BackgroundTransparency=1,TextColor3=TXT,Font=Enum.Font.GothamBold,TextSize=11,TextXAlignment=Enum.TextXAlignment.Left,Text="FerClient | 60 FPS"},WFrame)
-local FPS_Last = tick()
-local FPS_Frames = 0
-RegConn(R.RenderStepped:Connect(function()
-    if IsCleanedUp then return end
-    FPS_Frames = FPS_Frames + 1
-    if tick() - FPS_Last >= 1 then
-        WLabel.Text = "FerClient | " .. FPS_Frames .. " FPS"
-        FPS_Frames = 0
-        FPS_Last = tick()
-    end
+    if tick() - FPS_Last >= 1 then WLabel.Text = "FerClient | " .. FPS_Frames .. " FPS" FPS_Frames = 0 FPS_Last = tick() end
 end))
 
 local function Cleanup()
