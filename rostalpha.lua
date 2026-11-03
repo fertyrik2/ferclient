@@ -1,4 +1,4 @@
---[[ FerClient v6.0 | Instant Camera Snap | Bypass Buffer ]]
+--[[ FerClient v6.2 | Center FOV | No Silent Aim ]]
 local P=game:GetService("Players")local R=game:GetService("RunService")local U=game:GetService("UserInputService")local L=game:GetService("Lighting")local W=game:GetService("Workspace")local T=game:GetService("TweenService")local CG=game:GetService("CoreGui")
 local LP=P.LocalPlayer
 local BG_IMAGE_ID = "rbxassetid://70985600234581"
@@ -74,7 +74,7 @@ local function GetCamera()local cam=W.CurrentCamera if cam and cam.Parent then r
 local hasDrawing=pcall(function()local s=Drawing.new("Square")local t=Drawing.new("Text")local tr=Drawing.new("Triangle")if s then s:Remove()end if t then t:Remove()end if tr then tr:Remove()end return true end)
 local function SafeDrawing(class)if not hasDrawing then return nil end local ok,obj=pcall(function()return Drawing.new(class)end)return ok and RegDraw(obj)or nil end
 local function destroyESPEntry(e)if not e then return end for _,d in pairs(e)do if d and d.Remove then pcall(function()d:Remove()end)RemoveDraw(d)end end end
-local C={AimSelect=false,AimBot=false,AimPart="Head",Smooth=0.35,FOV=150,MaxDist=500,WallCheck=false,SilentAim=false,ESP=false,ESPBox=true,ESPName=true,ESPCharms=true,ESPDist=true,ESPColor=Color3.fromRGB(0,200,255),ShowFOV=false,Fullbright=false,XRay=false,NoDeco=false,SkyFon=false,FPSBoost=false,InfJump=false,AntiAFK=false}
+local C={AimSelect=false,AimBot=false,AimPart="Head",Smooth=0.35,FOV=150,MaxDist=500,WallCheck=false,ESP=false,ESPBox=true,ESPName=true,ESPCharms=true,ESPDist=true,ESPColor=Color3.fromRGB(0,200,255),ShowFOV=false,Fullbright=false,XRay=false,NoDeco=false,SkyFon=false,FPSBoost=false,InfJump=false,AntiAFK=false}
 local ACC=Color3.fromRGB(0,170,255)local BG=Color3.fromRGB(15,15,20)local PANEL=Color3.fromRGB(22,22,30)local P2=Color3.fromRGB(30,30,40)local TXT=Color3.fromRGB(235,235,245)local SUB=Color3.fromRGB(150,150,165)local OFF=Color3.fromRGB(60,60,75)local STROKE=Color3.fromRGB(45,45,60)
 local function N(class,props,parent)local o=Instance.new(class)for k,v in pairs(props or{})do o[k]=v end if parent then o.Parent=parent end return o end
 local function Round(o,r)N("UICorner",{CornerRadius=UDim.new(0,r or 8)},o)end
@@ -139,7 +139,8 @@ N("UIListLayout",{Padding=UDim.new(0,2)},lst)N("UIPadding",{PaddingTop=UDim.new(
 for _,o in ipairs(opts)do local ob=N("TextButton",{Text=o,Font=Enum.Font.Gotham,TextSize=12,TextColor3=TXT,BackgroundColor3=P2,Size=UDim2.new(1,0,0,22),BorderSizePixel=0,ZIndex=61},lst)Round(ob,4)RegTabConn(ob.MouseButton1Click:Connect(function()if IsCleanedUp or not row.Parent then return end btn.Text=o.." ▼"lst.Visible=false if cb then cb(o)end end))end
 RegTabConn(btn.MouseButton1Click:Connect(function()if IsCleanedUp or not row.Parent then return end lst.Visible=not lst.Visible end))
 end
-local FOVCircle=RegInst(N("Frame",{BackgroundTransparency=1,AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.new(0.5,0,0.5,30),Visible=false,ZIndex=10},SG))
+-- ЦЕНТРАЛЬНЫЙ КРУГ (БЕЗ СМЕЩЕНИЯ)
+local FOVCircle=RegInst(N("Frame",{BackgroundTransparency=1,AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.new(0.5,0,0.5,0),Visible=false,ZIndex=10},SG))
 N("UICorner",{CornerRadius=UDim.new(1,0)},FOVCircle)
 local FOVStroke=N("UIStroke",{Thickness=1.5,Color=Color3.new(1,1,1),ApplyStrokeMode=Enum.ApplyStrokeMode.Border},FOVCircle)
 local function IsVisible(targetPart)
@@ -161,45 +162,55 @@ local function Nearest()
     local cam=GetCamera()
     if not cam then return nil end 
     local best,dist=nil,C.FOV 
-    local cen=Vector2.new(cam.ViewportSize.X/2, (cam.ViewportSize.Y/2) + 30)
+    -- Центр экрана (0 смещения)
+    local cen=Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
     local myChar = LP.Character
     local myPos = myChar and myChar:FindFirstChild("HumanoidRootPart")
     
     for pl,data in pairs(PlayerCache)do 
         local hrp=data.HRP 
         if hrp and hrp.Parent then 
-            if myPos and C.MaxDist > 0 then
-                if (myPos.Position - hrp.Position).Magnitude > C.MaxDist then continue end
-            end
+            local dist3D = myPos and (myPos.Position - hrp.Position).Magnitude or 9999
+            if dist3D > C.MaxDist then continue end
+            
             local sp,on=cam:WorldToViewportPoint(hrp.Position)
             if on then 
                 local d=(Vector2.new(sp.X,sp.Y)-cen).Magnitude 
                 if d<dist then 
                     local targetPart = data.Char:FindFirstChild(C.AimPart) or hrp
-                    if IsVisible(targetPart) then dist=d best=pl end
+                    if IsVisible(targetPart) then 
+                        dist=d 
+                        best=pl 
+                    end
                 end 
             end 
         end 
     end 
     return best 
 end
--- МГНОВЕННЫЙ ПОВОРОТ КАМЕРЫ ПРИ ВЫСТРЕЛЕ
+local function GetPredictedPos(targetPart)
+    local velocity = Vector3.new(0,0,0)
+    local character = targetPart.Parent
+    if character then
+        local hrp = character:FindFirstChild("HumanoidRootPart")
+        if hrp then velocity = hrp.AssemblyLinearVelocity end
+    end
+    return targetPart.Position + (velocity * 0.1)
+end
 RegConn(U.InputBegan:Connect(function(input)
     if IsCleanedUp then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        if C.SilentAim or C.AimBot or C.AimSelect then
+        if C.AimBot or C.AimSelect then
             local target = CurrentAimTarget
             if target and target.Character and target.Character:FindFirstChild(C.AimPart) then
                 local cam = GetCamera()
                 if cam then
-                    -- Мгновенно поворачиваем камеру на цель
-                    cam.CFrame = CFrame.new(cam.CFrame.Position, target.Character[C.AimPart].Position)
+                    cam.CFrame = CFrame.new(cam.CFrame.Position, GetPredictedPos(target.Character[C.AimPart]))
                 end
             end
         end
     end
 end))
-if hookmetamethod then local oldRay oldRay=hookmetamethod(game,"__namecall",newcclosure(function(self,...)local method=getnamecallmethod()if method=="Raycast" and self==W and C.SilentAim and not checkcaller()then local target=CurrentAimTarget if target and target.Character and target.Character:FindFirstChild(C.AimPart)then local args={...}local origin=args[1]local direction=args[2]local rayParams=args[3]if typeof(origin)=="Vector3" and typeof(direction)=="Vector3"then local mag=direction.Magnitude if mag>20 then return oldRay(self,origin,(target.Character[C.AimPart].Position-origin).Unit*mag,rayParams)end end end end return oldRay(self,...)end))end
 local FB_Old={}local OldSky={}local XRayTab={}local FPSOff={}local NoDecoStore={}local SkyFolder=nil
 local function Fullbright(on)
     if on then for _,k in ipairs({"Brightness","ClockTime","FogEnd","GlobalShadows","Ambient"})do FB_Old[k]=L[k]end L.Brightness=2 L.ClockTime=14 L.FogEnd=100000 L.GlobalShadows=false L.Ambient=Color3.fromRGB(178,178,178)
@@ -282,7 +293,7 @@ end))
 RegConn(R.RenderStepped:Connect(function()
 if IsCleanedUp then return end local cam=GetCamera()
 if cam and FOVCircle then if C.ShowFOV then FOVCircle.Visible=true local size=C.FOV*2 FOVCircle.Size=UDim2.new(0,size,0,size)FOVStroke.Color=C.ESPColor else FOVCircle.Visible=false end end
-if cam and(C.AimBot or C.AimSelect)and CurrentAimTarget then local pt=CurrentAimTarget.Character and CurrentAimTarget.Character:FindFirstChild(C.AimPart)if pt then cam.CFrame=cam.CFrame:Lerp(CFrame.new(cam.CFrame.Position,pt.Position),C.Smooth)end end
+if cam and(C.AimBot or C.AimSelect)and CurrentAimTarget then local pt=CurrentAimTarget.Character and CurrentAimTarget.Character:FindFirstChild(C.AimPart)if pt then cam.CFrame=cam.CFrame:Lerp(CFrame.new(cam.CFrame.Position,GetPredictedPos(pt)),C.Smooth)end end
 end))
 local TabBtns,Tabs={},{}
 local function ClearC()for _,x in ipairs(CT:GetChildren())do if x:IsA("GuiObject")then x:Destroy()end end for i=#Registry.TabConnections,1,-1 do local c=Registry.TabConnections[i]if c and c.Connected then pcall(function()c:Disconnect()end)end end table.clear(Registry.TabConnections) end
@@ -300,7 +311,6 @@ local function AddTab(name)local b=N("TextButton",{Text=name,Font=Enum.Font.Goth
 AddTab("Combat")AddTab("Visual")AddTab("Misc")
 Tabs.Combat=function()
     Label("COMBAT")
-    Toggle("Silent Aim (Raycast)",C.SilentAim,function(v)C.SilentAim=v end)
     Toggle("Aim Bot (Camera)",C.AimBot,function(v)C.AimBot=v end)
     Toggle("Wall Check",C.WallCheck,function(v)C.WallCheck=v end)
     Dropdown("Aim Part",{"Head","HumanoidRootPart","UpperTorso"},"Head",function(v)C.AimPart=v end)
