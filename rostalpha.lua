@@ -1,4 +1,4 @@
---[[ FerClient v5.4 | Compact ESP | WallCheck + MaxDist + Anime BG ]]
+--[[ FerClient v5.5 | Final Scope Fix | Anime BG ]]
 local P=game:GetService("Players")local R=game:GetService("RunService")local U=game:GetService("UserInputService")local L=game:GetService("Lighting")local W=game:GetService("Workspace")local T=game:GetService("TweenService")local CG=game:GetService("CoreGui")
 local LP=P.LocalPlayer
 local BG_IMAGE_ID = "rbxassetid://70985600234581"
@@ -6,6 +6,12 @@ if _G.FerClientCleanup then pcall(_G.FerClientCleanup)_G.FerClientCleanup=nil en
 pcall(function()if CG:FindFirstChild("FerUI")then CG.FerUI:Destroy()end end)
 local Registry={Connections={},Drawings={},Instances={},Tweens={},TabConnections={},CharConns={}}
 local IsCleanedUp=false
+-- ПРЕДВАРИТЕЛЬНОЕ ОБЪЯВЛЕНИЕ ФУНКЦИЙ (ФИКС 1)
+local RemoveConn, RemoveDraw, RemoveTween, RemoveInst
+function RemoveTween(t)if not t then return end local idx=table.find(Registry.Tweens,t)if idx then table.remove(Registry.Tweens,idx)end end
+function RemoveInst(i)if not i then return end local idx=table.find(Registry.Instances,i)if idx then table.remove(Registry.Instances,idx)end end
+function RemoveDraw(d)if not d then return end local idx=table.find(Registry.Drawings,d)if idx then table.remove(Registry.Drawings,idx)end end
+function RemoveConn(c)if not c then return end local idx=table.find(Registry.Connections,c)if idx then table.remove(Registry.Connections,idx)end end
 local function RegConn(c)if c then table.insert(Registry.Connections,c)end return c end
 local function RegTabConn(c)if c then table.insert(Registry.TabConnections,c)end return c end
 local function RegDraw(d)if d then table.insert(Registry.Drawings,d)end return d end
@@ -13,15 +19,12 @@ local function RegInst(i)if i then table.insert(Registry.Instances,i)end return 
 local function RegTween(t)
     if t then 
         table.insert(Registry.Tweens,t)
-        local c=t.Completed:Connect(function()local idx=table.find(Registry.Tweens,t)if idx then table.remove(Registry.Tweens,idx)end RemoveConn(c)end)
+        local c -- ФИКС 2: Предварительное объявление
+        c=t.Completed:Connect(function()local idx=table.find(Registry.Tweens,t)if idx then table.remove(Registry.Tweens,idx)end RemoveConn(c)end)
         table.insert(Registry.Connections,c)
     end 
     return t 
 end
-local function RemoveTween(t)if not t then return end local idx=table.find(Registry.Tweens,t)if idx then table.remove(Registry.Tweens,idx)end end
-local function RemoveInst(i)if not i then return end local idx=table.find(Registry.Instances,i)if idx then table.remove(Registry.Instances,idx)end end
-local function RemoveDraw(d)if not d then return end local idx=table.find(Registry.Drawings,d)if idx then table.remove(Registry.Drawings,idx)end end
-local function RemoveConn(c)if not c then return end local idx=table.find(Registry.Connections,c)if idx then table.remove(Registry.Connections,idx)end end
 local function FlushRegistry()
     for i=#Registry.Tweens,1,-1 do local t=Registry.Tweens[i]if t then pcall(function()t:Cancel()end)end end
     table.clear(Registry.Tweens)
@@ -69,7 +72,13 @@ end
 for _,pl in ipairs(P:GetPlayers())do SetupCharTracker(pl)end
 RegConn(P.PlayerAdded:Connect(SetupCharTracker))
 local function GetCamera()local cam=W.CurrentCamera if cam and cam.Parent then return cam end return nil end
-local hasDrawing=pcall(function()local s=Drawing.new("Square")local t=Drawing.new("Text")local tr=Drawing.new("Triangle")if s then s:Remove()end if t then t:Remove()end if tr then tr:Remove()end return true end)
+local hasDrawing=pcall(function()
+    local s=Drawing.new("Square") local t=Drawing.new("Text") local tr=Drawing.new("Triangle")
+    if s then s:Remove() end
+    if t then t:Remove() end
+    if tr then tr:Remove() end
+    return true 
+end)
 local function SafeDrawing(class)if not hasDrawing then return nil end local ok,obj=pcall(function()return Drawing.new(class)end)return ok and RegDraw(obj)or nil end
 local function destroyESPEntry(e)if not e then return end for _,d in pairs(e)do if d and d.Remove then pcall(function()d:Remove()end)RemoveDraw(d)end end end
 local C={AimSelect=false,AimBot=false,AimPart="Head",Smooth=0.35,FOV=150,MaxDist=500,WallCheck=false,SilentAim=false,ESP=false,ESPBox=true,ESPName=true,ESPCharms=true,ESPDist=true,ESPColor=Color3.fromRGB(0,200,255),ShowFOV=false,Fullbright=false,XRay=false,NoDeco=false,SkyFon=false,FPSBoost=false,InfJump=false,AntiAFK=false}
@@ -188,7 +197,24 @@ local function Fullbright(on)
     else for k,v in pairs(FB_Old)do pcall(function()if L[k]~=v then L[k]=v end end)end table.clear(FB_Old)end 
 end
 local function XRay(on)if on then for _,v in ipairs(W:GetDescendants())do if v:IsA("BasePart")and v.Transparency<1 then XRayTab[v]=v.Transparency v.Transparency=0.7 end end else for obj,tr in pairs(XRayTab)do if obj and obj.Parent then pcall(function()if obj.Transparency~=tr then obj.Transparency=tr end end)end end table.clear(XRayTab)end end
-local function NoDeco(on)if sethiddenproperty then local t=W:FindFirstChildOfClass("Terrain")if t then pcall(function()sethiddenproperty(t,"Decoration",not on)end)end else if on then for _,v in ipairs(W:GetDescendants())do if(v:IsA("Decal")or v:IsA("Texture"))and not NoDecoStore[v]then NoDecoStore[v]=v.Transparency v.Transparency=1 end end else for obj,tr in pairs(NoDecoStore)do if obj and obj.Parent then pcall(function()if obj.Transparency~=tr then obj.Transparency=tr end end)end end table.clear(NoDecoStore)end end end
+local OldTerrainDeco = true
+local function NoDeco(on)
+    if sethiddenproperty then 
+        local t=W:FindFirstChildOfClass("Terrain")
+        if t then 
+            if on then 
+                local ok, val = pcall(function() return gethiddenproperty(t, "Decoration") end)
+                if ok then OldTerrainDeco = val end
+                pcall(function() sethiddenproperty(t,"Decoration",false) end)
+            else 
+                pcall(function() sethiddenproperty(t,"Decoration",OldTerrainDeco) end)
+            end
+        end
+    else 
+        if on then for _,v in ipairs(W:GetDescendants())do if(v:IsA("Decal")or v:IsA("Texture"))and not NoDecoStore[v]then NoDecoStore[v]=v.Transparency v.Transparency=1 end end 
+        else for obj,tr in pairs(NoDecoStore)do if obj and obj.Parent then pcall(function()if obj.Transparency~=tr then obj.Transparency=tr end end)end end table.clear(NoDecoStore)end 
+    end 
+end
 local function SkyFon(on)
     local existing=L:FindFirstChild("FerSky")
     if on then 
@@ -201,7 +227,7 @@ local function SkyFon(on)
         end)
         if not success then if SkyFolder then RemoveInst(SkyFolder)SkyFolder=nil end if OldSky[1]then OldSky[1].Parent=L table.clear(OldSky)end end 
     else 
-        if existing then existing:Destroy()if SkyFolder then RemoveInst(SkyFolder)SkyFolder=nil end end 
+        if SkyFolder then SkyFolder:Destroy()RemoveInst(SkyFolder)SkyFolder=nil end 
         if OldSky[1]and OldSky[1].Parent==nil then pcall(function()OldSky[1].Parent=L end)end 
         table.clear(OldSky)
     end 
@@ -224,8 +250,8 @@ if not ESP[pl]then
     if b and n and d and c then 
         ESP[pl]={b=b,n=n,d=d,c=c}
         b.Thickness=1 b.Filled=false 
-        n.Size=11 n.Center=true n.Outline=true n.Color=Color3.new(1,1,1) -- УМЕНЬШЕН РАЗМЕР НИКА
-        d.Size=10 d.Center=true d.Outline=true d.Color=C.ESPColor -- УМЕНЬШЕН РАЗМЕР ДИСТАНЦИИ
+        n.Size=11 n.Center=true n.Outline=true n.Color=Color3.new(1,1,1)
+        d.Size=10 d.Center=true d.Outline=true d.Color=C.ESPColor
         c.Thickness=1 c.Filled=true 
     else if b then pcall(function()b:Remove()end)RemoveDraw(b)end if n then pcall(function()n:Remove()end)RemoveDraw(n)end if d then pcall(function()d:Remove()end)RemoveDraw(d)end if c then pcall(function()c:Remove()end)RemoveDraw(c)end end 
 end 
