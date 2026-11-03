@@ -1,4 +1,4 @@
---[[ FerClient v5.5 | Final Scope Fix | Anime BG ]]
+--[[ FerClient v6.0 | Instant Camera Snap | Bypass Buffer ]]
 local P=game:GetService("Players")local R=game:GetService("RunService")local U=game:GetService("UserInputService")local L=game:GetService("Lighting")local W=game:GetService("Workspace")local T=game:GetService("TweenService")local CG=game:GetService("CoreGui")
 local LP=P.LocalPlayer
 local BG_IMAGE_ID = "rbxassetid://70985600234581"
@@ -6,7 +6,6 @@ if _G.FerClientCleanup then pcall(_G.FerClientCleanup)_G.FerClientCleanup=nil en
 pcall(function()if CG:FindFirstChild("FerUI")then CG.FerUI:Destroy()end end)
 local Registry={Connections={},Drawings={},Instances={},Tweens={},TabConnections={},CharConns={}}
 local IsCleanedUp=false
--- ПРЕДВАРИТЕЛЬНОЕ ОБЪЯВЛЕНИЕ ФУНКЦИЙ (ФИКС 1)
 local RemoveConn, RemoveDraw, RemoveTween, RemoveInst
 function RemoveTween(t)if not t then return end local idx=table.find(Registry.Tweens,t)if idx then table.remove(Registry.Tweens,idx)end end
 function RemoveInst(i)if not i then return end local idx=table.find(Registry.Instances,i)if idx then table.remove(Registry.Instances,idx)end end
@@ -19,7 +18,7 @@ local function RegInst(i)if i then table.insert(Registry.Instances,i)end return 
 local function RegTween(t)
     if t then 
         table.insert(Registry.Tweens,t)
-        local c -- ФИКС 2: Предварительное объявление
+        local c
         c=t.Completed:Connect(function()local idx=table.find(Registry.Tweens,t)if idx then table.remove(Registry.Tweens,idx)end RemoveConn(c)end)
         table.insert(Registry.Connections,c)
     end 
@@ -72,13 +71,7 @@ end
 for _,pl in ipairs(P:GetPlayers())do SetupCharTracker(pl)end
 RegConn(P.PlayerAdded:Connect(SetupCharTracker))
 local function GetCamera()local cam=W.CurrentCamera if cam and cam.Parent then return cam end return nil end
-local hasDrawing=pcall(function()
-    local s=Drawing.new("Square") local t=Drawing.new("Text") local tr=Drawing.new("Triangle")
-    if s then s:Remove() end
-    if t then t:Remove() end
-    if tr then tr:Remove() end
-    return true 
-end)
+local hasDrawing=pcall(function()local s=Drawing.new("Square")local t=Drawing.new("Text")local tr=Drawing.new("Triangle")if s then s:Remove()end if t then t:Remove()end if tr then tr:Remove()end return true end)
 local function SafeDrawing(class)if not hasDrawing then return nil end local ok,obj=pcall(function()return Drawing.new(class)end)return ok and RegDraw(obj)or nil end
 local function destroyESPEntry(e)if not e then return end for _,d in pairs(e)do if d and d.Remove then pcall(function()d:Remove()end)RemoveDraw(d)end end end
 local C={AimSelect=false,AimBot=false,AimPart="Head",Smooth=0.35,FOV=150,MaxDist=500,WallCheck=false,SilentAim=false,ESP=false,ESPBox=true,ESPName=true,ESPCharms=true,ESPDist=true,ESPColor=Color3.fromRGB(0,200,255),ShowFOV=false,Fullbright=false,XRay=false,NoDeco=false,SkyFon=false,FPSBoost=false,InfJump=false,AntiAFK=false}
@@ -190,6 +183,22 @@ local function Nearest()
     end 
     return best 
 end
+-- МГНОВЕННЫЙ ПОВОРОТ КАМЕРЫ ПРИ ВЫСТРЕЛЕ
+RegConn(U.InputBegan:Connect(function(input)
+    if IsCleanedUp then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        if C.SilentAim or C.AimBot or C.AimSelect then
+            local target = CurrentAimTarget
+            if target and target.Character and target.Character:FindFirstChild(C.AimPart) then
+                local cam = GetCamera()
+                if cam then
+                    -- Мгновенно поворачиваем камеру на цель
+                    cam.CFrame = CFrame.new(cam.CFrame.Position, target.Character[C.AimPart].Position)
+                end
+            end
+        end
+    end
+end))
 if hookmetamethod then local oldRay oldRay=hookmetamethod(game,"__namecall",newcclosure(function(self,...)local method=getnamecallmethod()if method=="Raycast" and self==W and C.SilentAim and not checkcaller()then local target=CurrentAimTarget if target and target.Character and target.Character:FindFirstChild(C.AimPart)then local args={...}local origin=args[1]local direction=args[2]local rayParams=args[3]if typeof(origin)=="Vector3" and typeof(direction)=="Vector3"then local mag=direction.Magnitude if mag>20 then return oldRay(self,origin,(target.Character[C.AimPart].Position-origin).Unit*mag,rayParams)end end end end return oldRay(self,...)end))end
 local FB_Old={}local OldSky={}local XRayTab={}local FPSOff={}local NoDecoStore={}local SkyFolder=nil
 local function Fullbright(on)
