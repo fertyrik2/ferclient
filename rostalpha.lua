@@ -1,4 +1,4 @@
---[[ FerClient v6.4 | Fix Aim & HitSound | Instant Snap ]]
+--[[ FerClient v6.5 | Body Aim + Prediction + Anime Hit Sound ]]
 local P=game:GetService("Players")local R=game:GetService("RunService")local U=game:GetService("UserInputService")local L=game:GetService("Lighting")local W=game:GetService("Workspace")local T=game:GetService("TweenService")local CG=game:GetService("CoreGui")
 local LP=P.LocalPlayer
 local BG_IMAGE_ID = "rbxassetid://70985600234581"
@@ -195,8 +195,6 @@ local function GetPredictedPos(targetPart)
     end
     return targetPart.Position + (velocity * 0.1)
 end
-
--- ЖЕСТКИЙ ПОВОРОТ КАМЕРЫ ТОЛЬКО ПРИ ВЫСТРЕЛЕ
 RegConn(U.InputBegan:Connect(function(input)
     if IsCleanedUp then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -211,8 +209,7 @@ RegConn(U.InputBegan:Connect(function(input)
         end
     end
 end))
-
--- ХИТ САУНД (ПЕРЕХВАТ НА ЛЕТУ)
+-- ХИТ САУНД (С ПЕРЕХВАТОМ)
 RegConn(W.DescendantAdded:Connect(function(desc)
     if IsCleanedUp or not C.HitSound then return end
     if desc:IsA("Sound") and (desc.Name == "HitClient" or desc.Name == "HeadShotClient") then
