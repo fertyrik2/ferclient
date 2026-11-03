@@ -1,4 +1,4 @@
---[[ FerClient v7.1 | Damage Indicator + ESP Distance ]]
+--[[ FerClient v7.3 | Head Expander + Damage Indicator ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -9,18 +9,13 @@ local CoreGui = game:GetService("CoreGui")
 
 local LP = Players.LocalPlayer
 local BG_IMAGE_ID = "rbxassetid://70985600234581"
+local HeadExpanderSize = 2.0 -- Размер хитбокса головы (2 = x2)
 
 if _G.FerClientCleanup then pcall(_G.FerClientCleanup) _G.FerClientCleanup = nil end
 pcall(function() if CoreGui:FindFirstChild("FerUI") then CoreGui.FerUI:Destroy() end end)
 
 local Registry = {Connections={}, Drawings={}, Instances={}, Tweens={}, TabConnections={}, CharConns={}}
 local IsCleanedUp = false
-
-local RemoveConn, RemoveDraw, RemoveTween, RemoveInst
-function RemoveTween(t) if not t then return end local idx = table.find(Registry.Tweens, t) if idx then table.remove(Registry.Tweens, idx) end end
-function RemoveInst(i) if not i then return end local idx = table.find(Registry.Instances, i) if idx then table.remove(Registry.Instances, idx) end end
-function RemoveDraw(d) if not d then return end local idx = table.find(Registry.Drawings, d) if idx then table.remove(Registry.Drawings, idx) end end
-function RemoveConn(c) if not c then return end local idx = table.find(Registry.Connections, c) if idx then table.remove(Registry.Connections, idx) end end
 
 local function RegConn(c) if c then table.insert(Registry.Connections, c) end return c end
 local function RegTabConn(c) if c then table.insert(Registry.TabConnections, c) end return c end
@@ -34,7 +29,7 @@ local function RegTween(t)
         c = t.Completed:Connect(function()
             local idx = table.find(Registry.Tweens, t)
             if idx then table.remove(Registry.Tweens, idx) end
-            RemoveConn(c)
+            if c and c.Connected then c:Disconnect() end
         end)
         table.insert(Registry.Connections, c)
     end 
@@ -72,8 +67,8 @@ for _, pl in ipairs(Players:GetPlayers()) do CachePlayer(pl) end
 RegConn(Players.PlayerAdded:Connect(CachePlayer))
 RegConn(Players.PlayerRemoving:Connect(function(pl)
     PlayerCache[pl] = nil 
-    if Registry.CharConns[pl] then for _, c in ipairs(Registry.CharConns[pl]) do if c and c.Connected then pcall(function() c:Disconnect() end) RemoveConn(c) end end Registry.CharConns[pl] = nil end
-    if ESP[pl] then for _, d in pairs(ESP[pl]) do if d and d.Remove then pcall(function() d:Remove() end) RemoveDraw(d) end end ESP[pl] = nil end 
+    if Registry.CharConns[pl] then for _, c in ipairs(Registry.CharConns[pl]) do if c and c.Connected then pcall(function() c:Disconnect() end) end end Registry.CharConns[pl] = nil end
+    if ESP[pl] then for _, d in pairs(ESP[pl]) do if d and d.Remove then pcall(function() d:Remove() end) end end ESP[pl] = nil end 
 end))
 
 local function SetupCharTracker(pl)
@@ -87,7 +82,7 @@ local function SetupCharTracker(pl)
         end)
         table.insert(Registry.CharConns[pl], c1) RegConn(c1)
         local c2 = pl.CharacterRemoving:Connect(function()
-            if PlayerCache[pl] then PlayerCache[pl] = {Char=nil, Hum=nil, HRP=nil} if ESP[pl] then for _, d in pairs(ESP[pl]) do if d and d.Remove then pcall(function() d:Remove() end) RemoveDraw(d) end end ESP[pl] = nil end end
+            if PlayerCache[pl] then PlayerCache[pl] = {Char=nil, Hum=nil, HRP=nil} if ESP[pl] then for _, d in pairs(ESP[pl]) do if d and d.Remove then pcall(function() d:Remove() end) end end ESP[pl] = nil end end
         end)
         table.insert(Registry.CharConns[pl], c2) RegConn(c2)
     end
@@ -98,17 +93,16 @@ RegConn(Players.PlayerAdded:Connect(SetupCharTracker))
 local function GetCamera() local cam = Workspace.CurrentCamera if cam and cam.Parent then return cam end return nil end
 local hasDrawing = pcall(function() local s=Drawing.new("Square") local t=Drawing.new("Text") local tr=Drawing.new("Triangle") if s then s:Remove() end if t then t:Remove() end if tr then tr:Remove() end return true end)
 local function SafeDrawing(class) if not hasDrawing then return nil end local ok, obj = pcall(function() return Drawing.new(class) end) return ok and RegDraw(obj) or nil end
-local function destroyESPEntry(e) if not e then return end for _, d in pairs(e) do if d and d.Remove then pcall(function() d:Remove() end) RemoveDraw(d) end end end
+local function destroyESPEntry(e) if not e then return end for _, d in pairs(e) do if d and d.Remove then pcall(function() d:Remove() end) end end end
 
 local C = {
-    AimSelect=false, AimBot=false, AimPart="Head", Smooth=0.35, FOV=150, MaxDist=500, WallCheck=false, TeamCheck=false,
+    AimBot=false, AimPart="Head", Smooth=0.35, FOV=150, MaxDist=500, WallCheck=false, TeamCheck=false,
     ESP=false, ESPBox=true, ESPName=true, ESPCharms=true, ESPDist=true, ESPSkeleton=false, ESPHP=false, ESPTracers=false, ESPMaxDist=1000,
     ESPColor=Color3.fromRGB(0,200,255),
     ShowFOV=false, Fullbright=false, XRay=false, NoDeco=false, SkyFon=false, FPSBoost=false,
     InfJump=false, AntiAFK=false, HitSound=false,
-    OreESP=false, SulfurESP=false, IronESP=false, StoneESP=false, OreDist=500,
-    CrateESP=false, MilitaryESP=false, EliteESP=false, FoodESP=false, CrateDist=500,
-    DamageIndicator=false
+    DamageIndicator=false,
+    HeadExpander=false
 }
 
 local ACC=Color3.fromRGB(0,170,255) local BG=Color3.fromRGB(15,15,20) local PANEL=Color3.fromRGB(22,22,30) local P2=Color3.fromRGB(30,30,40)
@@ -152,7 +146,7 @@ local function Toggle(text, currentVal, cb)
         if IsCleanedUp or not row.Parent then return end 
         st = not st 
         sw.BackgroundColor3 = st and ACC or OFF 
-        if activeTween then activeTween:Cancel() RemoveTween(activeTween) end 
+        if activeTween then activeTween:Cancel() end 
         activeTween = RegTween(TweenService:Create(kn, TweenInfo.new(0.15), {Position = st and UDim2.new(1,-16,0.5,-7) or UDim2.new(0,2,0.5,-7)}))
         activeTween:Play()
         if cb then cb(st) end 
@@ -176,23 +170,58 @@ local function Slider(text, mn, mx, def, cb)
     RegTabConn(c1) RegTabConn(c2) RegTabConn(c3)
     RegTabConn(row.Destroying:Connect(function() for _, c in ipairs({c1,c2,c3}) do if c and c.Connected then pcall(function() c:Disconnect() end) end end end))
 end
-local function Dropdown(text, opts, def, cb)
-    local row = N("Frame", {Size=UDim2.new(1,0,0,30), BackgroundColor3=P2, BorderSizePixel=0}, CT) Round(row,6)
-    N("TextLabel", {Text="  "..text, Font=Enum.Font.Gotham, TextSize=13, TextColor3=TXT, BackgroundTransparency=1, Size=UDim2.new(0.5,0,1,0), TextXAlignment=Enum.TextXAlignment.Left}, row)
-    local btn = N("TextButton", {Text=def.." ▼", Font=Enum.Font.Gotham, TextSize=12, TextColor3=ACC, BackgroundTransparency=1, Size=UDim2.new(0,100,1,0), Position=UDim2.new(1,-100,0,0)}, row)
-    local lst = N("Frame", {Size=UDim2.new(1,0,0,#opts*24), Position=UDim2.new(0,0,1,2), BackgroundColor3=PANEL, BorderSizePixel=0, Visible=false, ZIndex=60}, row) Round(lst,6) Stroke(lst, ACC, 1)
-    N("UIListLayout", {Padding=UDim.new(0,2)}, lst) N("UIPadding", {PaddingTop=UDim.new(0,4), PaddingLeft=UDim.new(0,4), PaddingRight=UDim.new(0,4), PaddingBottom=UDim.new(0,4)}, lst)
-    for _, o in ipairs(opts) do
-        local ob = N("TextButton", {Text=o, Font=Enum.Font.Gotham, TextSize=12, TextColor3=TXT, BackgroundColor3=P2, Size=UDim2.new(1,0,0,22), BorderSizePixel=0, ZIndex=61}, lst) Round(ob,4)
-        RegTabConn(ob.MouseButton1Click:Connect(function() if IsCleanedUp or not row.Parent then return end btn.Text = o.." ▼" lst.Visible = false if cb then cb(o) end end))
-    end
-    RegTabConn(btn.MouseButton1Click:Connect(function() if IsCleanedUp or not row.Parent then return end lst.Visible = not lst.Visible end))
-end
 
--- FOV Circle
 local FOVCircle = RegInst(N("Frame", {BackgroundTransparency=1, AnchorPoint=Vector2.new(0.5,0.5), Position=UDim2.new(0.5,0,0.5,0), Visible=false, ZIndex=10}, SG))
 N("UICorner", {CornerRadius=UDim.new(1,0)}, FOVCircle)
 local FOVStroke = N("UIStroke", {Thickness=1.5, Color=Color3.new(1,1,1), ApplyStrokeMode=Enum.ApplyStrokeMode.Border}, FOVCircle)
+
+-- HEAD EXPANDER (УВЕЛИЧЕНИЕ ХИТБОКСА)
+local HeadExpanderParts = {}
+local function SetupHeadExpander(pl)
+    local char = pl.Character
+    if not char then return end
+    local head = char:FindFirstChild("Head")
+    if not head then return end
+    if HeadExpanderParts[pl] then return end
+
+    -- Создаем невидимую сферу (хитбокс)
+    local hitbox = Instance.new("Part")
+    hitbox.Name = "FerHeadHitbox"
+    hitbox.Size = Vector3.new(HeadExpanderSize, HeadExpanderSize, HeadExpanderSize)
+    hitbox.Transparency = 1
+    hitbox.CanCollide = false
+    hitbox.CanQuery = true -- Важно: чтобы лучи попадали
+    hitbox.Massless = true
+    hitbox.Parent = char
+
+    -- Привязываем к голове
+    local weld = Instance.new("WeldConstraint")
+    weld.Part0 = head
+    weld.Part1 = hitbox
+    weld.Parent = hitbox
+
+    -- Позиционируем (Weld сделает это автоматически, но на всякий случай)
+    hitbox.CFrame = head.CFrame
+
+    HeadExpanderParts[pl] = hitbox
+end
+
+local function RemoveHeadExpander(pl)
+    if HeadExpanderParts[pl] then
+        pcall(function() HeadExpanderParts[pl]:Destroy() end)
+        HeadExpanderParts[pl] = nil
+    end
+end
+
+-- Подключаем на респавн
+for _, pl in ipairs(Players:GetPlayers()) do
+    if pl ~= LP then
+        RegConn(pl.CharacterAdded:Connect(function() task.wait(1) if C.HeadExpander then SetupHeadExpander(pl) end end))
+        if C.HeadExpander then SetupHeadExpander(pl) end
+    end
+end
+RegConn(Players.PlayerAdded:Connect(function(pl) if pl ~= LP then RegConn(pl.CharacterAdded:Connect(function() task.wait(1) if C.HeadExpander then SetupHeadExpander(pl) end end)) end end))
+RegConn(Players.PlayerRemoving:Connect(function(pl) RemoveHeadExpander(pl) end))
 
 local function IsVisible(targetPart)
     if not C.WallCheck then return true end
@@ -247,7 +276,7 @@ end
 RegConn(UserInputService.InputBegan:Connect(function(input)
     if IsCleanedUp then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        if C.AimBot or C.AimSelect then
+        if C.AimBot then
             local target = CurrentAimTarget
             if target and target.Character and target.Character:FindFirstChild(C.AimPart) then
                 local cam = GetCamera()
@@ -358,28 +387,8 @@ local function SkyFon(on)
 end
 local function FPS(on) if on then for _, obj in ipairs(Lighting:GetDescendants()) do if obj:IsA("PostEffect") then FPSOff[obj]=obj.Enabled obj.Enabled=false end end else for obj, en in pairs(FPSOff) do if obj and obj.Parent then pcall(function() if obj.Enabled ~= en then obj.Enabled=en end end) end end table.clear(FPSOff) end end
 local InfConn, AFKConn
-local function InfJump(on) if on then if not InfConn then InfConn=RegConn(UserInputService.JumpRequest:Connect(function() local h=LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end end)) end elseif InfConn then InfConn:Disconnect() RemoveConn(InfConn) InfConn=nil end end
-local function AFK(on) if on then if not AFKConn then AFKConn=RegConn(LP.Idled:Connect(function() pcall(function() local v=game:GetService("VirtualUser") v:CaptureController() v:ClickButton2(Vector2.new()) end) end)) end elseif AFKConn then AFKConn:Disconnect() RemoveConn(AFKConn) AFKConn=nil end end end
-
--- ESP РЕСУРСОВ
-local function ApplyOreESP(obj, name, color)
-    if not obj:FindFirstChild("FerOreHighlight") then local h = Instance.new("Highlight", obj) h.Name = "FerOreHighlight" h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop end
-    if not obj:FindFirstChild("FerOreTag") then local bg = Instance.new("BillboardGui", obj) bg.Name = "FerOreTag" bg.AlwaysOnTop = true bg.Size = UDim2.new(0, 100, 0, 40) bg.ExtentsOffset = Vector3.new(0, 2, 0) local label = Instance.new("TextLabel", bg) label.Name = "Label" label.BackgroundTransparency = 1 label.Size = UDim2.new(1, 0, 1, 0) label.TextSize = 13 label.Font = Enum.Font.GothamBold label.TextStrokeTransparency = 0 end
-    local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-    if root then local pos = obj:IsA("Model") and obj:GetModelCFrame().Position or obj.Position local dist = math.floor((root.Position - pos).Magnitude)
-        if dist <= C.OreDist then obj.FerOreTag.Enabled = true obj.FerOreHighlight.Enabled = true obj.FerOreTag.Label.Text = name:upper().."\n["..dist.."m]" obj.FerOreTag.Label.TextColor3 = color obj.FerOreHighlight.FillColor = color
-        else obj.FerOreTag.Enabled = false obj.FerOreHighlight.Enabled = false end
-    end
-end
-local function ApplyCrateESP(obj, name, color)
-    if not obj:FindFirstChild("FerCrateHighlight") then local h = Instance.new("Highlight", obj) h.Name = "FerCrateHighlight" h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop end
-    if not obj:FindFirstChild("FerCrateTag") then local bg = Instance.new("BillboardGui", obj) bg.Name = "FerCrateTag" bg.AlwaysOnTop = true bg.Size = UDim2.new(0, 100, 0, 40) bg.ExtentsOffset = Vector3.new(0, 2, 0) local label = Instance.new("TextLabel", bg) label.Name = "Label" label.BackgroundTransparency = 1 label.Size = UDim2.new(1, 0, 1, 0) label.TextSize = 13 label.Font = Enum.Font.GothamBold label.TextStrokeTransparency = 0 end
-    local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-    if root then local pos = obj:IsA("Model") and obj:GetModelCFrame().Position or obj.Position local dist = math.floor((root.Position - pos).Magnitude)
-        if dist <= C.CrateDist then obj.FerCrateTag.Enabled = true obj.FerCrateHighlight.Enabled = true obj.FerCrateTag.Label.Text = name:upper().."\n["..dist.."m]" obj.FerCrateTag.Label.TextColor3 = color obj.FerCrateHighlight.FillColor = color
-        else obj.FerCrateTag.Enabled = false obj.FerCrateHighlight.Enabled = false end
-    end
-end
+local function InfJump(on) if on then if not InfConn then InfConn=RegConn(UserInputService.JumpRequest:Connect(function() local h=LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end end)) end elseif InfConn then InfConn:Disconnect() InfConn=nil end end
+local function AFK(on) if on then if not AFKConn then AFKConn=RegConn(LP.Idled:Connect(function() pcall(function() local v=game:GetService("VirtualUser") v:CaptureController() v:ClickButton2(Vector2.new()) end) end)) end elseif AFKConn then AFKConn:Disconnect() AFKConn=nil end end end
 
 -- ОСНОВНОЙ ЦИКЛ
 RegConn(RunService.Heartbeat:Connect(function()
@@ -387,7 +396,7 @@ RegConn(RunService.Heartbeat:Connect(function()
     local now = tick()
     if now - LastTargetUpdate > 0.1 then LastTargetUpdate = now CurrentAimTarget = Nearest() end
     
-    -- Отрисовка Damage Indicator
+    -- Damage Indicator
     for i = #activeDamageLabels, 1, -1 do
         local data = activeDamageLabels[i]
         local cam = GetCamera()
@@ -404,6 +413,25 @@ RegConn(RunService.Heartbeat:Connect(function()
                 data.d.Visible = false
             end
         end
+    end
+
+    -- Head Expander логика (следим за тем, чтобы хитбокс был на голове)
+    if C.HeadExpander then
+        for pl, hitbox in pairs(HeadExpanderParts) do
+            local char = pl.Character
+            local head = char and char:FindFirstChild("Head")
+            if not head or not hitbox or not hitbox.Parent then
+                RemoveHeadExpander(pl)
+            else
+                -- Weld держит позицию, но можно обновить размер на лету
+                if hitbox.Size.X ~= HeadExpanderSize then
+                    hitbox.Size = Vector3.new(HeadExpanderSize, HeadExpanderSize, HeadExpanderSize)
+                end
+            end
+        end
+    else
+        -- Если выключили, удаляем все хитбоксы
+        for pl, _ in pairs(HeadExpanderParts) do RemoveHeadExpander(pl) end
     end
 
     if now - LastESPUpdate > 0.033 then 
@@ -425,10 +453,10 @@ RegConn(RunService.Heartbeat:Connect(function()
                         hp.Thickness=3 hp.Color=Color3.new(0,255,0)
                         tr.Thickness=1 tr.Color=C.ESPColor
                     else 
-                        if b then pcall(function() b:Remove() end) RemoveDraw(b) end 
-                        if n then pcall(function() n:Remove() end) RemoveDraw(n) end 
-                        if d then pcall(function() d:Remove() end) RemoveDraw(d) end 
-                        if c then pcall(function() c:Remove() end) RemoveDraw(c) end
+                        if b then pcall(function() b:Remove() end) end 
+                        if n then pcall(function() n:Remove() end) end 
+                        if d then pcall(function() d:Remove() end) end 
+                        if c then pcall(function() c:Remove() end) end
                         if sk then pcall(function() sk:Remove() end) end
                         if sk2 then pcall(function() sk2:Remove() end) end
                         if sk3 then pcall(function() sk3:Remove() end) end
@@ -470,12 +498,8 @@ RegConn(RunService.Heartbeat:Connect(function()
                                 else e.sk.Visible = false e.sk2.Visible = false e.sk3.Visible = false e.sk4.Visible = false e.tr.Visible = false end
                             else e.sk.Visible = false e.sk2.Visible = false e.sk3.Visible = false e.sk4.Visible = false e.tr.Visible = false end
                             if C.ESPTracers then e.tr.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y) e.tr.To = Vector2.new(pos.X, pos.Y) e.tr.Visible = true else e.tr.Visible = false end
-                        else 
-                            e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false e.hp.Visible=false e.sk.Visible=false e.sk2.Visible=false e.sk3.Visible=false e.sk4.Visible=false e.tr.Visible=false 
-                        end 
-                    else 
-                        e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false e.hp.Visible=false e.sk.Visible=false e.sk2.Visible=false e.sk3.Visible=false e.sk4.Visible=false e.tr.Visible=false 
-                    end 
+                        else e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false e.hp.Visible=false e.sk.Visible=false e.sk2.Visible=false e.sk3.Visible=false e.sk4.Visible=false e.tr.Visible=false end 
+                    else e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false e.hp.Visible=false e.sk.Visible=false e.sk2.Visible=false e.sk3.Visible=false e.sk4.Visible=false e.tr.Visible=false end 
                 end 
             end 
         elseif not C.ESP then 
@@ -492,28 +516,6 @@ RegConn(RunService.Heartbeat:Connect(function()
                 if e.tr then e.tr.Visible=false end 
             end 
         end
-        -- ESP Ресурсов
-        local ores = Workspace:FindFirstChild("ores")
-        if ores then 
-            for _, ore in ipairs(ores:GetChildren()) do 
-                local en = (ore.Name == "sulfur" and C.SulfurESP) or (ore.Name == "iron" and C.IronESP) or (ore.Name == "stone" and C.StoneESP) 
-                local col = (ore.Name == "sulfur" and Color3.new(1,1,0)) or (ore.Name == "iron" and Color3.new(0.7,0.7,0.7)) or Color3.new(1,1,1) 
-                if en then ApplyOreESP(ore, ore.Name, col) 
-                elseif ore:FindFirstChild("FerOreTag") then ore.FerOreTag.Enabled, ore.FerOreHighlight.Enabled = false, false end 
-            end 
-        end
-        local crates = Workspace:FindFirstChild("Crates")
-        if crates then 
-            for _, crate in ipairs(crates:GetChildren()) do 
-                local en, col = false, Color3.new(1,1,1) 
-                if crate.Name == "Crate" then en = C.CrateESP; col = Color3.fromRGB(150, 75, 0) 
-                elseif crate.Name == "MilitaryCrate" then en = C.MilitaryESP; col = Color3.fromRGB(0, 150, 0) 
-                elseif crate.Name == "EliteCrate" then en = C.EliteESP; col = Color3.fromRGB(255, 0, 50) 
-                elseif crate.Name == "FoodBox" or crate.Name == "ToolBox" then en = C.FoodESP; col = Color3.fromRGB(0, 200, 255) end 
-                if en then ApplyCrateESP(crate, crate.Name, col) 
-                elseif crate:FindFirstChild("FerCrateTag") then crate.FerCrateTag.Enabled, crate.FerCrateHighlight.Enabled = false, false end 
-            end 
-        end
     end
 end))
 
@@ -521,12 +523,7 @@ RegConn(RunService.RenderStepped:Connect(function()
     if IsCleanedUp then return end 
     local cam = GetCamera()
     if cam and FOVCircle then 
-        if C.ShowFOV then 
-            FOVCircle.Visible=true 
-            local size=C.FOV*2 
-            FOVCircle.Size=UDim2.new(0,size,0,size) 
-            FOVStroke.Color=C.ESPColor 
-        else FOVCircle.Visible=false end 
+        if C.ShowFOV then FOVCircle.Visible=true local size=C.FOV*2 FOVCircle.Size=UDim2.new(0,size,0,size) FOVStroke.Color=C.ESPColor else FOVCircle.Visible=false end 
     end
 end))
 
@@ -553,10 +550,19 @@ Tabs.Combat = function()
     Toggle("Aim Bot (Camera)", C.AimBot, function(v) C.AimBot = v end)
     Toggle("Team Check", C.TeamCheck, function(v) C.TeamCheck = v end)
     Toggle("Wall Check", C.WallCheck, function(v) C.WallCheck = v end)
-    Dropdown("Aim Part", {"Head","HumanoidRootPart","UpperTorso"}, "Head", function(v) C.AimPart = v end)
     Slider("Aim Smooth", 1, 100, 35, function(v) C.Smooth = v/100 end)
     Slider("Aim FOV", 10, 400, 150, function(v) C.FOV = v end)
     Slider("Max Dist", 50, 2000, 500, function(v) C.MaxDist = v end)
+    
+    Label("EXPLOITS")
+    Toggle("Head Expander", C.HeadExpander, function(v) 
+        C.HeadExpander = v 
+        if v then
+            for _, pl in ipairs(Players:GetPlayers()) do if pl ~= LP then SetupHeadExpander(pl) end end
+        else
+            for pl, _ in pairs(HeadExpanderParts) do RemoveHeadExpander(pl) end
+        end
+    end)
 end
 
 Tabs.Visual = function()
@@ -571,20 +577,7 @@ Tabs.Visual = function()
     Toggle("  Health Bar", C.ESPHP, function(v) C.ESPHP = v end)
     Toggle("  Tracers", C.ESPTracers, function(v) C.ESPTracers = v end)
     Toggle("  Damage Indicator", C.DamageIndicator, function(v) C.DamageIndicator = v end)
-
-    Label("RESOURCE VISUAL")
-    Toggle("Sulfur ESP", C.SulfurESP, function(v) C.SulfurESP = v end)
-    Toggle("Iron ESP", C.IronESP, function(v) C.IronESP = v end)
-    Toggle("Stone ESP", C.StoneESP, function(v) C.StoneESP = v end)
-    Slider("Ore Max Dist", 50, 2000, 500, function(v) C.OreDist = v end)
-
-    Label("CRATE VISUAL")
-    Toggle("Crate ESP", C.CrateESP, function(v) C.CrateESP = v end)
-    Toggle("Military Crate", C.MilitaryESP, function(v) C.MilitaryESP = v end)
-    Toggle("Elite Crate", C.EliteESP, function(v) C.EliteESP = v end)
-    Toggle("Food Box", C.FoodESP, function(v) C.FoodESP = v end)
-    Slider("Crate Max Dist", 50, 2000, 500, function(v) C.CrateDist = v end)
-
+    
     Label("WORLD VISUAL")
     Toggle("Show FOV", C.ShowFOV, function(v) C.ShowFOV = v end)
     Toggle("Fullbright", C.Fullbright, function(v) C.Fullbright = v Fullbright(v) end)
@@ -640,6 +633,8 @@ local function Cleanup()
     FlushRegistry()
     table.clear(PlayerCache)
     table.clear(ESP)
+    -- Удаляем все хитбоксы при очистке
+    for pl, _ in pairs(HeadExpanderParts) do RemoveHeadExpander(pl) end
     print("[FerClient] Cleanup complete. All resources released.")
 end
 _G.FerClientCleanup = Cleanup
