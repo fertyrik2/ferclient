@@ -1,4 +1,4 @@
---[[ FerClient v6.9 | Online Fix | Skeleton + HP + Tracers ]]
+--[[ FerClient v7.0 | Team Check + Rust Opt | Skeleton + HP + Tracers ]]
 local P=game:GetService("Players")local R=game:GetService("RunService")local U=game:GetService("UserInputService")local L=game:GetService("Lighting")local W=game:GetService("Workspace")local T=game:GetService("TweenService")local CG=game:GetService("CoreGui")
 local LP=P.LocalPlayer
 local BG_IMAGE_ID = "rbxassetid://70985600234581"
@@ -74,7 +74,7 @@ local function GetCamera()local cam=W.CurrentCamera if cam and cam.Parent then r
 local hasDrawing=pcall(function()local s=Drawing.new("Square")local t=Drawing.new("Text")local tr=Drawing.new("Triangle")if s then s:Remove()end if t then t:Remove()end if tr then tr:Remove()end return true end)
 local function SafeDrawing(class)if not hasDrawing then return nil end local ok,obj=pcall(function()return Drawing.new(class)end)return ok and RegDraw(obj)or nil end
 local function destroyESPEntry(e)if not e then return end for _,d in pairs(e)do if d and d.Remove then pcall(function()d:Remove()end)RemoveDraw(d)end end end
-local C={AimSelect=false,AimBot=false,AimPart="Head",Smooth=0.35,FOV=150,MaxDist=500,WallCheck=false,
+local C={AimSelect=false,AimBot=false,AimPart="Head",Smooth=0.35,FOV=150,MaxDist=500,WallCheck=false,TeamCheck=false,
 ESP=false,ESPBox=true,ESPName=true,ESPCharms=true,ESPDist=true,ESPSkeleton=false,ESPHP=false,ESPTracers=false,
 ESPColor=Color3.fromRGB(0,200,255),
 ShowFOV=false,Fullbright=false,XRay=false,NoDeco=false,SkyFon=false,FPSBoost=false,
@@ -174,16 +174,16 @@ local function Nearest()
     for pl,data in pairs(PlayerCache)do 
         local hrp=data.HRP 
         if hrp and hrp.Parent then 
-            -- ФИКС: Сначала быстрая проверка дистанции (без рендера)
+            -- ФИКС: Проверка на тиммейтов
+            if C.TeamCheck and pl.Team == LP.Team then continue end
+            
             local dist3D = myPos and (myPos.Position - hrp.Position).Magnitude or 9999
             if dist3D > C.MaxDist then continue end
             
-            -- ФИКС: Проверка только для тех, кто рядом
             local sp,on=cam:WorldToViewportPoint(hrp.Position)
             if on then 
                 local d=(Vector2.new(sp.X,sp.Y)-cen).Magnitude 
                 if d<dist then 
-                    -- ФИКС: WallCheck только для текущего кандидата (экономит FPS)
                     local targetPart = data.Char:FindFirstChild(C.AimPart) or hrp
                     if IsVisible(targetPart) then 
                         dist=d 
@@ -315,10 +315,8 @@ end
 RegConn(R.Heartbeat:Connect(function()
 if IsCleanedUp then return end
 local now=tick()
--- Поиск цели: 10 раз в секунду (оптимизировано под 35+ игроков)
 if now-LastTargetUpdate>0.1 then LastTargetUpdate=now CurrentAimTarget=Nearest()end
--- ESP: 30 раз в секунду
-if now-LastESPUpdate>0.033 then 
+if now-LastESPUpdate>0.03 then 
 LastESPUpdate=now
 local cam=GetCamera()
 -- ESP Игроков
@@ -421,6 +419,7 @@ AddTab("Combat")AddTab("Visual")AddTab("Misc")
 Tabs.Combat=function()
     Label("COMBAT")
     Toggle("Aim Bot (Camera)",C.AimBot,function(v)C.AimBot=v end)
+    Toggle("Team Check",C.TeamCheck,function(v)C.TeamCheck=v end)
     Toggle("Wall Check",C.WallCheck,function(v)C.WallCheck=v end)
     Dropdown("Aim Part",{"Head","HumanoidRootPart","UpperTorso"},"Head",function(v)C.AimPart=v end)
     Slider("Aim Smooth",1,100,35,function(v)C.Smooth=v/100 end)
