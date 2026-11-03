@@ -1,4 +1,4 @@
---[[ FerClient v7.3 | Head Expander + Damage Indicator ]]
+--[[ FerClient v7.4 | Bug Fixes + Head Expander + Damage Indicator ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -9,7 +9,7 @@ local CoreGui = game:GetService("CoreGui")
 
 local LP = Players.LocalPlayer
 local BG_IMAGE_ID = "rbxassetid://70985600234581"
-local HeadExpanderSize = 2.0 -- Размер хитбокса головы (2 = x2)
+local HeadExpanderSize = 1.5 -- Множитель (1.5 = +50% к размеру)
 
 if _G.FerClientCleanup then pcall(_G.FerClientCleanup) _G.FerClientCleanup = nil end
 pcall(function() if CoreGui:FindFirstChild("FerUI") then CoreGui.FerUI:Destroy() end end)
@@ -175,34 +175,33 @@ local FOVCircle = RegInst(N("Frame", {BackgroundTransparency=1, AnchorPoint=Vect
 N("UICorner", {CornerRadius=UDim.new(1,0)}, FOVCircle)
 local FOVStroke = N("UIStroke", {Thickness=1.5, Color=Color3.new(1,1,1), ApplyStrokeMode=Enum.ApplyStrokeMode.Border}, FOVCircle)
 
--- HEAD EXPANDER (УВЕЛИЧЕНИЕ ХИТБОКСА)
+-- HEAD EXPANDER (FIXED)
 local HeadExpanderParts = {}
 local function SetupHeadExpander(pl)
     local char = pl.Character
     if not char then return end
     local head = char:FindFirstChild("Head")
     if not head then return end
-    if HeadExpanderParts[pl] then return end
-
-    -- Создаем невидимую сферу (хитбокс)
+    if HeadExpanderParts[pl] and HeadExpanderParts[pl].Parent then return end
+    
     local hitbox = Instance.new("Part")
     hitbox.Name = "FerHeadHitbox"
-    hitbox.Size = Vector3.new(HeadExpanderSize, HeadExpanderSize, HeadExpanderSize)
+    -- ФИКС: Размер считается от размера головы, а не фиксированный
+    hitbox.Size = head.Size * HeadExpanderSize
     hitbox.Transparency = 1
     hitbox.CanCollide = false
-    hitbox.CanQuery = true -- Важно: чтобы лучи попадали
+    hitbox.CanQuery = true
     hitbox.Massless = true
+    
+    -- ФИКС: Сначала CFrame, потом Weld
+    hitbox.CFrame = head.CFrame
     hitbox.Parent = char
-
-    -- Привязываем к голове
+    
     local weld = Instance.new("WeldConstraint")
     weld.Part0 = head
     weld.Part1 = hitbox
     weld.Parent = hitbox
-
-    -- Позиционируем (Weld сделает это автоматически, но на всякий случай)
-    hitbox.CFrame = head.CFrame
-
+    
     HeadExpanderParts[pl] = hitbox
 end
 
@@ -213,14 +212,20 @@ local function RemoveHeadExpander(pl)
     end
 end
 
--- Подключаем на респавн
 for _, pl in ipairs(Players:GetPlayers()) do
     if pl ~= LP then
         RegConn(pl.CharacterAdded:Connect(function() task.wait(1) if C.HeadExpander then SetupHeadExpander(pl) end end))
+        -- ФИКС: Удаление хитбокса при смерти
+        RegConn(pl.CharacterRemoving:Connect(function() RemoveHeadExpander(pl) end)) 
         if C.HeadExpander then SetupHeadExpander(pl) end
     end
 end
-RegConn(Players.PlayerAdded:Connect(function(pl) if pl ~= LP then RegConn(pl.CharacterAdded:Connect(function() task.wait(1) if C.HeadExpander then SetupHeadExpander(pl) end end)) end end))
+RegConn(Players.PlayerAdded:Connect(function(pl) 
+    if pl ~= LP then 
+        RegConn(pl.CharacterAdded:Connect(function() task.wait(1) if C.HeadExpander then SetupHeadExpander(pl) end end)) 
+        RegConn(pl.CharacterRemoving:Connect(function() RemoveHeadExpander(pl) end))
+    end 
+end))
 RegConn(Players.PlayerRemoving:Connect(function(pl) RemoveHeadExpander(pl) end))
 
 local function IsVisible(targetPart)
@@ -308,12 +313,10 @@ local function OnCharAdded(char) if C.HitSound then task.wait(0.5) for _, tool i
 RegConn(LP.CharacterAdded:Connect(OnCharAdded))
 if LP.Character then OnCharAdded(LP.Character) end
 
--- DAMAGE INDICATOR
+-- DAMAGE INDICATOR (FIXED)
 local activeDamageLabels = {}
-local function CreateDamageIndicator(targetHum, amount)
+local function CreateDamageIndicator(targetHum, amount, pos)
     if not hasDrawing then return end
-    local head = targetHum.Parent:FindFirstChild("Head")
-    if not head then return end
     local d = Drawing.new("Text")
     d.Text = "-" .. math.floor(amount)
     d.Color = Color3.fromRGB(255, 50, 50)
@@ -323,7 +326,7 @@ local function CreateDamageIndicator(targetHum, amount)
     d.OutlineColor = Color3.new(0,0,0)
     d.Font = 2
     d.Position = Vector2.new(0, 0)
-    table.insert(activeDamageLabels, {d=d, pos=head.Position, time=tick()})
+    table.insert(activeDamageLabels, {d=d, pos=pos, time=tick()})
 end
 
 local healthConnections = {}
@@ -334,19 +337,36 @@ local function HookHealth(pl)
     if not hum then return end
     if healthConnections[hum] then return end
     local lastHealth = hum.Health
+    
+    -- ФИКС: Отключаем старое соединение при смерти
+    RegConn(hum.Destroying:Connect(function() 
+        if healthConnections[hum] then 
+            pcall(function() healthConnections[hum]:Disconnect() end) 
+            healthConnections[hum] = nil 
+        end 
+    end))
+
     healthConnections[hum] = hum.HealthChanged:Connect(function(newHealth)
         if IsCleanedUp or not C.DamageIndicator then return end
         local diff = lastHealth - newHealth
-        if diff > 0 and diff < 1000 then CreateDamageIndicator(hum, diff) end
+        -- Показываем только если урон положительный и меньше 1000
+        if diff > 0 and diff < 1000 then 
+            local head = char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
+            if head then CreateDamageIndicator(hum, diff, head) end
+        end
         lastHealth = newHealth
     end)
 end
+-- ФИКС: Хукаем игроков, зашедших позже
 for _, pl in ipairs(Players:GetPlayers()) do 
     if pl ~= LP then
         HookHealth(pl)
         RegConn(pl.CharacterAdded:Connect(function() task.wait(1) HookHealth(pl) end))
     end
 end
+RegConn(Players.PlayerAdded:Connect(function(pl) 
+    if pl ~= LP then RegConn(pl.CharacterAdded:Connect(function() task.wait(1) HookHealth(pl) end)) end 
+end))
 
 -- ВИЗУАЛ
 local FB_Old={} local OldSky={} local XRayTab={} local FPSOff={} local NoDecoStore={} local SkyFolder=nil
@@ -378,9 +398,13 @@ local function SkyFon(on)
             SkyFolder = RegInst(N("Folder", {Name="FerSky"}, Lighting))
             N("Sky", {Name="FerSkybox", SkyboxBk="rbxassetid://159454299", SkyboxDn="rbxassetid://159454296", SkyboxFt="rbxassetid://159454293", SkyboxLf="rbxassetid://159454286", SkyboxRt="rbxassetid://159454300", SkyboxUp="rbxassetid://159454288", StarCount=5000}, SkyFolder)
         end)
-        if not success then if SkyFolder then RemoveInst(SkyFolder) SkyFolder=nil end if OldSky[1] then OldSky[1].Parent=Lighting table.clear(OldSky) end end 
+        -- ФИКС: Убран RemoveInst, используем Destroy
+        if not success then 
+            if SkyFolder then SkyFolder:Destroy() SkyFolder=nil end 
+            if OldSky[1] then OldSky[1].Parent=Lighting table.clear(OldSky) end 
+        end 
     else 
-        if SkyFolder then SkyFolder:Destroy() RemoveInst(SkyFolder) SkyFolder=nil end 
+        if SkyFolder then SkyFolder:Destroy() SkyFolder=nil end 
         if OldSky[1] and OldSky[1].Parent == nil then pcall(function() OldSky[1].Parent=Lighting end) end 
         table.clear(OldSky)
     end 
@@ -396,15 +420,17 @@ RegConn(RunService.Heartbeat:Connect(function()
     local now = tick()
     if now - LastTargetUpdate > 0.1 then LastTargetUpdate = now CurrentAimTarget = Nearest() end
     
-    -- Damage Indicator
+    -- Damage Indicator (ФИКС: Следим за головой)
     for i = #activeDamageLabels, 1, -1 do
         local data = activeDamageLabels[i]
         local cam = GetCamera()
-        if not cam or now - data.time > 1 then
+        if not cam or now - data.time > 1 or not data.pos or not data.pos.Parent then
             pcall(function() data.d:Remove() end)
             table.remove(activeDamageLabels, i)
         else
-            local screenPos, onScreen = cam:WorldToViewportPoint(data.pos + Vector3.new(0, (now - data.time) * 3, 0))
+            -- Обновляем позицию каждый кадр, чтобы текст летел за головой
+            local pos = data.pos.Position + Vector3.new(0, (now - data.time) * 2, 0) 
+            local screenPos, onScreen = cam:WorldToViewportPoint(pos)
             if onScreen and C.DamageIndicator then
                 data.d.Visible = true
                 data.d.Position = Vector2.new(screenPos.X, screenPos.Y)
@@ -415,22 +441,17 @@ RegConn(RunService.Heartbeat:Connect(function()
         end
     end
 
-    -- Head Expander логика (следим за тем, чтобы хитбокс был на голове)
+    -- Head Expander логика
     if C.HeadExpander then
         for pl, hitbox in pairs(HeadExpanderParts) do
             local char = pl.Character
             local head = char and char:FindFirstChild("Head")
             if not head or not hitbox or not hitbox.Parent then
                 RemoveHeadExpander(pl)
-            else
-                -- Weld держит позицию, но можно обновить размер на лету
-                if hitbox.Size.X ~= HeadExpanderSize then
-                    hitbox.Size = Vector3.new(HeadExpanderSize, HeadExpanderSize, HeadExpanderSize)
-                end
+                if head then SetupHeadExpander(pl) end -- Пересоздаем
             end
         end
     else
-        -- Если выключили, удаляем все хитбоксы
         for pl, _ in pairs(HeadExpanderParts) do RemoveHeadExpander(pl) end
     end
 
@@ -442,16 +463,17 @@ RegConn(RunService.Heartbeat:Connect(function()
                 if not ESP[pl] then 
                     local b = SafeDrawing("Square") local n = SafeDrawing("Text") local d = SafeDrawing("Text") local c = SafeDrawing("Triangle")
                     local sk = SafeDrawing("Line") local sk2 = SafeDrawing("Line") local sk3 = SafeDrawing("Line") local sk4 = SafeDrawing("Line")
-                    local hp = SafeDrawing("Line") local tr = SafeDrawing("Line")
-                    if b and n and d and c and sk and sk2 and sk3 and sk4 and hp and tr then 
-                        ESP[pl] = {b=b, n=n, d=d, c=c, sk=sk, sk2=sk2, sk3=sk3, sk4=sk4, hp=hp, tr=tr}
+                    local hp = SafeDrawing("Line") local tracer = SafeDrawing("Line") -- ФИКС: Отдельный Line для трассера
+                    
+                    if b and n and d and c and sk and sk2 and sk3 and sk4 and hp and tracer then 
+                        ESP[pl] = {b=b, n=n, d=d, c=c, sk=sk, sk2=sk2, sk3=sk3, sk4=sk4, hp=hp, tr=tracer}
                         b.Thickness=1 b.Filled=false 
                         n.Size=11 n.Center=true n.Outline=true n.Color=Color3.new(1,1,1)
                         d.Size=10 d.Center=true d.Outline=true d.Color=C.ESPColor
                         c.Thickness=1 c.Filled=true 
                         for _, l in pairs({sk,sk2,sk3,sk4}) do l.Thickness=1 l.Color=C.ESPColor end
                         hp.Thickness=3 hp.Color=Color3.new(0,255,0)
-                        tr.Thickness=1 tr.Color=C.ESPColor
+                        tracer.Thickness=1 tracer.Color=C.ESPColor
                     else 
                         if b then pcall(function() b:Remove() end) end 
                         if n then pcall(function() n:Remove() end) end 
@@ -462,14 +484,18 @@ RegConn(RunService.Heartbeat:Connect(function()
                         if sk3 then pcall(function() sk3:Remove() end) end
                         if sk4 then pcall(function() sk4:Remove() end) end
                         if hp then pcall(function() hp:Remove() end) end
-                        if tr then pcall(function() tr:Remove() end) end
+                        if tracer then pcall(function() tracer:Remove() end) end
                     end 
                 end 
                 local e = ESP[pl]
                 if e then 
                     local hrp = data.HRP 
                     local hum = data.Hum
-                    if hrp and hrp.Parent and hum and hum.Health > 0 then 
+                    -- ФИКС: Фильтрация по ESPMaxDist
+                    local LPH = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+                    local dist = LPH and hrp and math.floor((LPH.Position-hrp.Position).Magnitude) or 0 
+                    
+                    if hrp and hrp.Parent and hum and hum.Health > 0 and dist <= C.ESPMaxDist then 
                         local top = cam:WorldToViewportPoint(hrp.Position + Vector3.new(0,3,0))
                         local bot = cam:WorldToViewportPoint(hrp.Position - Vector3.new(0,3,0))
                         local pos, on = cam:WorldToViewportPoint(hrp.Position)
@@ -478,8 +504,6 @@ RegConn(RunService.Heartbeat:Connect(function()
                             local w = h * 0.55 
                             e.b.Size=Vector2.new(w,h) e.b.Position=Vector2.new(pos.X-w/2,top.Y) e.b.Color=C.ESPColor e.b.Visible=C.ESPBox 
                             e.n.Text=pl.Name e.n.Position=Vector2.new(pos.X,top.Y-14) e.n.Visible=C.ESPName 
-                            local LPH = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-                            local dist = LPH and math.floor((LPH.Position-hrp.Position).Magnitude) or 0 
                             e.d.Text="["..dist.."m]" e.d.Position=Vector2.new(pos.X,bot.Y+2) e.d.Visible=C.ESPDist 
                             if C.ESPCharms then local cx=pos.X local cy=top.Y-24 e.c.PointA=Vector2.new(cx,cy) e.c.PointB=Vector2.new(cx-4,cy+8) e.c.PointC=Vector2.new(cx+4,cy+8) e.c.Color=C.ESPColor e.c.Visible=true else e.c.Visible=false end 
                             if C.ESPHP then local hp_val = hum.Health / hum.MaxHealth e.hp.From = Vector2.new(pos.X-w/2-6, top.Y + h) e.hp.To = Vector2.new(pos.X-w/2-6, top.Y + h - (h * hp_val)) e.hp.Color = Color3.fromHSV(hp_val * 0.3, 1, 1) e.hp.Visible = true else e.hp.Visible = false end
@@ -489,15 +513,18 @@ RegConn(RunService.Heartbeat:Connect(function()
                                 local rarm = data.Char:FindFirstChild("Right Arm") or data.Char:FindFirstChild("RightHand")
                                 local lleg = data.Char:FindFirstChild("Left Leg") or data.Char:FindFirstChild("LeftFoot")
                                 local rleg = data.Char:FindFirstChild("Right Leg") or data.Char:FindFirstChild("RightFoot")
-                                local function to2d(part) if not part then return Vector2.new(0,0) end local sp,on2=Camera:WorldToViewportPoint(part.Position) return Vector2.new(sp.X, sp.Y) end
+                                local function to2d(part) if not part then return Vector2.new(0,0) end local sp,on2=cam:WorldToViewportPoint(part.Position) return Vector2.new(sp.X, sp.Y) end
                                 if head then local hpos = to2d(head) local rpos = to2d(hrp) e.sk.From = hpos e.sk.To = rpos e.sk.Visible = true
                                     if larm then e.sk2.From = rpos e.sk2.To = to2d(larm) e.sk2.Visible = true else e.sk2.Visible = false end
                                     if rarm then e.sk3.From = rpos e.sk3.To = to2d(rarm) e.sk3.Visible = true else e.sk3.Visible = false end
                                     if lleg then e.sk4.From = rpos e.sk4.To = to2d(lleg) e.sk4.Visible = true else e.sk4.Visible = false end
-                                    e.tr.From = rpos e.tr.To = to2d(rleg) e.tr.Visible = true
-                                else e.sk.Visible = false e.sk2.Visible = false e.sk3.Visible = false e.sk4.Visible = false e.tr.Visible = false end
-                            else e.sk.Visible = false e.sk2.Visible = false e.sk3.Visible = false e.sk4.Visible = false e.tr.Visible = false end
-                            if C.ESPTracers then e.tr.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y) e.tr.To = Vector2.new(pos.X, pos.Y) e.tr.Visible = true else e.tr.Visible = false end
+                                    -- ФИКС: Больше не используем e.tr для ноги, так как он для трассера
+                                    e.sk.Visible = true 
+                                else e.sk.Visible = false e.sk2.Visible = false e.sk3.Visible = false e.sk4.Visible = false end
+                            else e.sk.Visible = false e.sk2.Visible = false e.sk3.Visible = false e.sk4.Visible = false end
+                            
+                            -- ФИКС: Трассер теперь использует отдельный объект e.tr
+                            if C.ESPTracers then e.tr.From = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y) e.tr.To = Vector2.new(pos.X, pos.Y) e.tr.Visible = true else e.tr.Visible = false end
                         else e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false e.hp.Visible=false e.sk.Visible=false e.sk2.Visible=false e.sk3.Visible=false e.sk4.Visible=false e.tr.Visible=false end 
                     else e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false e.hp.Visible=false e.sk.Visible=false e.sk2.Visible=false e.sk3.Visible=false e.sk4.Visible=false e.tr.Visible=false end 
                 end 
@@ -630,11 +657,25 @@ local function Cleanup()
     pcall(NoDeco, false)
     pcall(SkyFon, false)
     pcall(FPS, false)
+    
+    -- ФИКС: Очистка Damage Labels
+    for i = #activeDamageLabels, 1, -1 do
+        pcall(function() activeDamageLabels[i].d:Remove() end)
+    end
+    table.clear(activeDamageLabels)
+
+    -- ФИКС: Отключение HealthChanged
+    for hum, conn in pairs(healthConnections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    table.clear(healthConnections)
+
     FlushRegistry()
     table.clear(PlayerCache)
     table.clear(ESP)
-    -- Удаляем все хитбоксы при очистке
+    
     for pl, _ in pairs(HeadExpanderParts) do RemoveHeadExpander(pl) end
+    
     print("[FerClient] Cleanup complete. All resources released.")
 end
 _G.FerClientCleanup = Cleanup
