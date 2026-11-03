@@ -1,4 +1,4 @@
---[[ FerClient v6.5 | Body Aim + Prediction + Anime Hit Sound ]]
+--[[ FerClient v6.6 | Mini Watermark | Body Aim + Prediction ]]
 local P=game:GetService("Players")local R=game:GetService("RunService")local U=game:GetService("UserInputService")local L=game:GetService("Lighting")local W=game:GetService("Workspace")local T=game:GetService("TweenService")local CG=game:GetService("CoreGui")
 local LP=P.LocalPlayer
 local BG_IMAGE_ID = "rbxassetid://70985600234581"
@@ -209,7 +209,6 @@ RegConn(U.InputBegan:Connect(function(input)
         end
     end
 end))
--- ХИТ САУНД (С ПЕРЕХВАТОМ)
 RegConn(W.DescendantAdded:Connect(function(desc)
     if IsCleanedUp or not C.HitSound then return end
     if desc:IsA("Sound") and (desc.Name == "HitClient" or desc.Name == "HeadShotClient") then
@@ -375,6 +374,24 @@ local mdrag,mds,mdp=false,nil,nil
 RegConn(TB.InputBegan:Connect(function(i)if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then mdrag=true mds=i.Position mdp=M.Position end end))
 RegConn(TB.InputEnded:Connect(function(i)if IsCleanedUp then return end if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then mdrag=false end end))
 RegConn(U.InputChanged:Connect(function(i)if IsCleanedUp or not M then return end if mdrag and(i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch)then local d=i.Position-mds M.Position=UDim2.new(mdp.X.Scale,mdp.X.Offset+d.X,mdp.Y.Scale,mdp.Y.Offset+d.Y)end end))
+
+-- МАЛЕНЬКИЙ WATERMARK
+local WM = RegInst(N("ScreenGui",{Name="FerWM",ResetOnSpawn=false,IgnoreGuiInset=true},CG))
+local WFrame = RegInst(N("Frame",{Size=UDim2.new(0,130,0,24),Position=UDim2.new(1,-140,1,-34),BackgroundColor3=BG,BackgroundTransparency=0.2,BorderSizePixel=0,ZIndex=10},WM))
+Round(WFrame,6) Stroke(WFrame,ACC,1)
+local WLabel = N("TextLabel",{Size=UDim2.new(1,-10,1,0),Position=UDim2.new(0,5,0,0),BackgroundTransparency=1,TextColor3=TXT,Font=Enum.Font.GothamBold,TextSize=11,TextXAlignment=Enum.TextXAlignment.Left,Text="FerClient | 60 FPS"},WFrame)
+local FPS_Last = tick()
+local FPS_Frames = 0
+RegConn(R.RenderStepped:Connect(function()
+    if IsCleanedUp then return end
+    FPS_Frames = FPS_Frames + 1
+    if tick() - FPS_Last >= 1 then
+        WLabel.Text = "FerClient | " .. FPS_Frames .. " FPS"
+        FPS_Frames = 0
+        FPS_Last = tick()
+    end
+end))
+
 local function Cleanup()
     if IsCleanedUp then return end 
     IsCleanedUp=true
