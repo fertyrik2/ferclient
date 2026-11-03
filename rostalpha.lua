@@ -1,4 +1,4 @@
---[[ FerClient v6.8 | Skeleton + HP Bar + Tracers ]]
+--[[ FerClient v6.9 | Online Fix | Skeleton + HP + Tracers ]]
 local P=game:GetService("Players")local R=game:GetService("RunService")local U=game:GetService("UserInputService")local L=game:GetService("Lighting")local W=game:GetService("Workspace")local T=game:GetService("TweenService")local CG=game:GetService("CoreGui")
 local LP=P.LocalPlayer
 local BG_IMAGE_ID = "rbxassetid://70985600234581"
@@ -174,13 +174,16 @@ local function Nearest()
     for pl,data in pairs(PlayerCache)do 
         local hrp=data.HRP 
         if hrp and hrp.Parent then 
+            -- ФИКС: Сначала быстрая проверка дистанции (без рендера)
             local dist3D = myPos and (myPos.Position - hrp.Position).Magnitude or 9999
             if dist3D > C.MaxDist then continue end
             
+            -- ФИКС: Проверка только для тех, кто рядом
             local sp,on=cam:WorldToViewportPoint(hrp.Position)
             if on then 
                 local d=(Vector2.new(sp.X,sp.Y)-cen).Magnitude 
                 if d<dist then 
+                    -- ФИКС: WallCheck только для текущего кандидата (экономит FPS)
                     local targetPart = data.Char:FindFirstChild(C.AimPart) or hrp
                     if IsVisible(targetPart) then 
                         dist=d 
@@ -312,8 +315,10 @@ end
 RegConn(R.Heartbeat:Connect(function()
 if IsCleanedUp then return end
 local now=tick()
+-- Поиск цели: 10 раз в секунду (оптимизировано под 35+ игроков)
 if now-LastTargetUpdate>0.1 then LastTargetUpdate=now CurrentAimTarget=Nearest()end
-if now-LastESPUpdate>0.03 then 
+-- ESP: 30 раз в секунду
+if now-LastESPUpdate>0.033 then 
 LastESPUpdate=now
 local cam=GetCamera()
 -- ESP Игроков
@@ -370,7 +375,6 @@ if on then
             if larm then e.sk2.From = rpos e.sk2.To = to2d(larm) e.sk2.Visible = true else e.sk2.Visible = false end
             if rarm then e.sk3.From = rpos e.sk3.To = to2d(rarm) e.sk3.Visible = true else e.sk3.Visible = false end
             if lleg then e.sk4.From = rpos e.sk4.To = to2d(lleg) e.sk4.Visible = true else e.sk4.Visible = false end
-            -- 4th line for right leg
             e.tr.From = rpos e.tr.To = to2d(rleg) e.tr.Visible = true
         else
             e.sk.Visible = false e.sk2.Visible = false e.sk3.Visible = false e.sk4.Visible = false e.tr.Visible = false
