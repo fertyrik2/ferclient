@@ -1,4 +1,4 @@
---[[ FerClient v5.0 | WallCheck + MaxDist + Small FOV | Anime BG ]]
+--[[ FerClient v5.4 | Compact ESP | WallCheck + MaxDist + Anime BG ]]
 local P=game:GetService("Players")local R=game:GetService("RunService")local U=game:GetService("UserInputService")local L=game:GetService("Lighting")local W=game:GetService("Workspace")local T=game:GetService("TweenService")local CG=game:GetService("CoreGui")
 local LP=P.LocalPlayer
 local BG_IMAGE_ID = "rbxassetid://70985600234581"
@@ -137,7 +137,7 @@ N("UIListLayout",{Padding=UDim.new(0,2)},lst)N("UIPadding",{PaddingTop=UDim.new(
 for _,o in ipairs(opts)do local ob=N("TextButton",{Text=o,Font=Enum.Font.Gotham,TextSize=12,TextColor3=TXT,BackgroundColor3=P2,Size=UDim2.new(1,0,0,22),BorderSizePixel=0,ZIndex=61},lst)Round(ob,4)RegTabConn(ob.MouseButton1Click:Connect(function()if IsCleanedUp or not row.Parent then return end btn.Text=o.." ▼"lst.Visible=false if cb then cb(o)end end))end
 RegTabConn(btn.MouseButton1Click:Connect(function()if IsCleanedUp or not row.Parent then return end lst.Visible=not lst.Visible end))
 end
-local FOVCircle=RegInst(N("Frame",{BackgroundTransparency=1,AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.new(0.5,0,0.5,0),Visible=false,ZIndex=10},SG))
+local FOVCircle=RegInst(N("Frame",{BackgroundTransparency=1,AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.new(0.5,0,0.5,30),Visible=false,ZIndex=10},SG))
 N("UICorner",{CornerRadius=UDim.new(1,0)},FOVCircle)
 local FOVStroke=N("UIStroke",{Thickness=1.5,Color=Color3.new(1,1,1),ApplyStrokeMode=Enum.ApplyStrokeMode.Border},FOVCircle)
 local function IsVisible(targetPart)
@@ -159,7 +159,7 @@ local function Nearest()
     local cam=GetCamera()
     if not cam then return nil end 
     local best,dist=nil,C.FOV 
-    local cen=Vector2.new(cam.ViewportSize.X/2,cam.ViewportSize.Y/2)
+    local cen=Vector2.new(cam.ViewportSize.X/2, (cam.ViewportSize.Y/2) + 30)
     local myChar = LP.Character
     local myPos = myChar and myChar:FindFirstChild("HumanoidRootPart")
     
@@ -221,13 +221,24 @@ if cam and C.ESP and hasDrawing then
 for pl,data in pairs(PlayerCache)do 
 if not ESP[pl]then 
     local b=SafeDrawing("Square")local n=SafeDrawing("Text")local d=SafeDrawing("Text")local c=SafeDrawing("Triangle")
-    if b and n and d and c then ESP[pl]={b=b,n=n,d=d,c=c}b.Thickness=1 b.Filled=false n.Size=14 n.Center=true n.Outline=true n.Color=Color3.new(1,1,1)d.Size=12 d.Center=true d.Outline=true d.Color=C.ESPColor c.Thickness=1 c.Filled=true 
+    if b and n and d and c then 
+        ESP[pl]={b=b,n=n,d=d,c=c}
+        b.Thickness=1 b.Filled=false 
+        n.Size=11 n.Center=true n.Outline=true n.Color=Color3.new(1,1,1) -- УМЕНЬШЕН РАЗМЕР НИКА
+        d.Size=10 d.Center=true d.Outline=true d.Color=C.ESPColor -- УМЕНЬШЕН РАЗМЕР ДИСТАНЦИИ
+        c.Thickness=1 c.Filled=true 
     else if b then pcall(function()b:Remove()end)RemoveDraw(b)end if n then pcall(function()n:Remove()end)RemoveDraw(n)end if d then pcall(function()d:Remove()end)RemoveDraw(d)end if c then pcall(function()c:Remove()end)RemoveDraw(c)end end 
 end 
 local e=ESP[pl]if e then local hrp=data.HRP local hum=data.Hum
 if hrp and hrp.Parent and hum and hum.Health>0 then 
 local top=cam:WorldToViewportPoint(hrp.Position+Vector3.new(0,3,0))local bot=cam:WorldToViewportPoint(hrp.Position-Vector3.new(0,3,0))local pos,on=cam:WorldToViewportPoint(hrp.Position)
-if on then local h=math.abs(top.Y-bot.Y)local w=h*0.55 e.b.Size=Vector2.new(w,h)e.b.Position=Vector2.new(pos.X-w/2,top.Y)e.b.Color=C.ESPColor e.b.Visible=C.ESPBox e.n.Text=pl.Name e.n.Position=Vector2.new(pos.X,top.Y-18)e.n.Visible=C.ESPName local LPH=LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")local dist=LPH and math.floor((LPH.Position-hrp.Position).Magnitude)or 0 e.d.Text="["..dist.."m]"e.d.Position=Vector2.new(pos.X,bot.Y+2)e.d.Visible=C.ESPDist if C.ESPCharms then local cx=pos.X local cy=top.Y-30 e.c.PointA=Vector2.new(cx,cy)e.c.PointB=Vector2.new(cx-6,cy+10)e.c.PointC=Vector2.new(cx+6,cy+10)e.c.Color=C.ESPColor e.c.Visible=true else e.c.Visible=false end 
+if on then 
+    local h=math.abs(top.Y-bot.Y)local w=h*0.55 
+    e.b.Size=Vector2.new(w,h)e.b.Position=Vector2.new(pos.X-w/2,top.Y)e.b.Color=C.ESPColor e.b.Visible=C.ESPBox 
+    e.n.Text=pl.Name e.n.Position=Vector2.new(pos.X,top.Y-14)e.n.Visible=C.ESPName 
+    local LPH=LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")local dist=LPH and math.floor((LPH.Position-hrp.Position).Magnitude)or 0 
+    e.d.Text="["..dist.."m]"e.d.Position=Vector2.new(pos.X,bot.Y+2)e.d.Visible=C.ESPDist 
+    if C.ESPCharms then local cx=pos.X local cy=top.Y-24 e.c.PointA=Vector2.new(cx,cy)e.c.PointB=Vector2.new(cx-4,cy+8)e.c.PointC=Vector2.new(cx+4,cy+8)e.c.Color=C.ESPColor e.c.Visible=true else e.c.Visible=false end 
 else e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false end 
 else e.b.Visible=false e.n.Visible=false e.d.Visible=false e.c.Visible=false end end end 
 elseif not C.ESP then for _,e in pairs(ESP)do if e.b then e.b.Visible=false end if e.n then e.n.Visible=false end if e.d then e.d.Visible=false end if e.c then e.c.Visible=false end end end
@@ -259,7 +270,7 @@ Tabs.Combat=function()
     Toggle("Wall Check",C.WallCheck,function(v)C.WallCheck=v end)
     Dropdown("Aim Part",{"Head","HumanoidRootPart","UpperTorso"},"Head",function(v)C.AimPart=v end)
     Slider("Aim Smooth",1,100,35,function(v)C.Smooth=v/100 end)
-    Slider("Aim FOV",10,400,150,function(v)C.FOV=v end) -- ИЗМЕНЕНО: Минимум 10
+    Slider("Aim FOV",10,400,150,function(v)C.FOV=v end)
     Slider("Max Dist",50,2000,500,function(v)C.MaxDist=v end)
 end
 Tabs.Visual=function()Label("VISUAL")Toggle("Show FOV",C.ShowFOV,function(v)C.ShowFOV=v end)Toggle("ESP",C.ESP,function(v)C.ESP=v if not v then for pl,e in pairs(ESP)do destroyESPEntry(e)ESP[pl]=nil end end end)Toggle("  Box",C.ESPBox,function(v)C.ESPBox=v end)Toggle("  Name",C.ESPName,function(v)C.ESPName=v end)Toggle("  Charms",C.ESPCharms,function(v)C.ESPCharms=v end)Toggle("  Distance",C.ESPDist,function(v)C.ESPDist=v end)Toggle("Fullbright",C.Fullbright,function(v)C.Fullbright=v Fullbright(v)end)Toggle("X-Ray",C.XRay,function(v)C.XRay=v XRay(v)end)Toggle("No Decoration",C.NoDeco,function(v)C.NoDeco=v NoDeco(v)end)Toggle("Sky Fon",C.SkyFon,function(v)C.SkyFon=v SkyFon(v)end)Toggle("FPS Boost",C.FPSBoost,function(v)C.FPSBoost=v FPS(v)end)end
