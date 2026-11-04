@@ -1,4 +1,4 @@
---[[ FerClient v8.1 | Full Features + Delta Fix ]]
+--[[ FerClient v8.2 | Black Screen Fix ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -8,358 +8,198 @@ local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 local LP = Players.LocalPlayer
 
-local Core = {Destroyed = false, Registry = {Connections = {}, Instances = {}, Tweens = {}}}
-function Core.SafeCall(cb, ...) local ok, res = pcall(cb, ...) if not ok then warn("[FerClient Error]", res) end return ok, res end
-function Core.RegisterConnection(c) if Core.Destroyed then Core.SafeCall(function() c:Disconnect() end) return nil end table.insert(Core.Registry.Connections, c) return c end
-function Core.RegisterInstance(i) if Core.Destroyed then Core.SafeCall(function() i:Destroy() end) return nil end table.insert(Core.Registry.Instances, i) return i end
-function Core.RegisterTween(t) if Core.Destroyed then Core.SafeCall(function() t:Cancel() end) return nil end table.insert(Core.Registry.Tweens, t) return t end
-function Core.Cleanup()
-    if Core.Destroyed then return end
-    Core.Destroyed = true
-    for _, t in ipairs(Core.Registry.Tweens) do Core.SafeCall(function() t:Cancel() end) end
-    for _, c in ipairs(Core.Registry.Connections) do Core.SafeCall(function() c:Disconnect() end) end
-    for _, i in ipairs(Core.Registry.Instances) do Core.SafeCall(function() i:Destroy() end) end
-    table.clear(Core.Registry.Tweens) table.clear(Core.Registry.Connections) table.clear(Core.Registry.Instances)
-    print("[FerClient] Cleanup completed")
+-- Безопасная камера
+local function GetCamera()
+    local cam = Workspace.CurrentCamera
+    if cam and cam.Parent then return cam end
+    return nil
 end
-_G.FerClientCleanup = Core.Cleanup
 
+-- Конфиг
 local C = {
     AimBot=false, AimPart="Head", Smooth=0.35, FOV=150, MaxDist=500, WallCheck=false, TeamCheck=false,
-    ESP=false, ESPBox=true, ESPName=true, ESPCharms=true, ESPDist=true, ESPSkeleton=false, ESPHP=false, ESPTracers=false, ESPMaxDist=1000,
+    ESP=false, ESPBox=true, ESPName=true, ESPDist=true, ESPMaxDist=1000,
     ESPColor=Color3.fromRGB(0,200,255), ShowFOV=false,
     Fullbright=false, XRay=false, NoDeco=false, SkyFon=false, FPSBoost=false,
-    InfJump=false, AntiAFK=false, HitSound=false, DamageIndicator=false,
-    SulfurESP=false, IronESP=false, StoneESP=false, OreDist=500,
-    CrateESP=false, MilitaryESP=false, EliteESP=false, FoodESP=false, CrateDist=500
+    InfJump=false, AntiAFK=false, HitSound=false
 }
 
+-- Кэш
 local PlayerCache = {}
-local ESPData = {}
-local ActiveDamageLabels = {}
-local HealthConnections = {}
-local CurrentTarget = nil
+for _, pl in ipairs(Players:GetPlayers()) do
+    if pl ~= LP then PlayerCache[pl] = {Char=pl.Character, HRP=pl.Character and pl.Character:FindFirstChild("HumanoidRootPart")} end
+end
+Players.PlayerAdded:Connect(function(pl) if pl ~= LP then PlayerCache[pl] = {Char=pl.Character, HRP=pl.Character and pl.Character:FindFirstChild("HumanoidRootPart")} end end)
+Players.PlayerRemoving:Connect(function(pl) PlayerCache[pl] = nil end)
 
-local function N(class, props, parent) local o = Instance.new(class) for k, v in pairs(props or {}) do o[k] = v end if parent then o.Parent = parent end return o end
-local function GetCamera() local cam = Workspace.CurrentCamera if cam and cam.Parent then return cam end return nil end
-local hasDrawing = pcall(function() local t = Drawing.new("Square"); t:Remove(); return true end)
-local function SafeDrawing(class) if not hasDrawing then return nil end local ok, obj = pcall(function() return Drawing.new(class) end) if ok and obj then table.insert(Core.Registry.Instances, obj) return obj end return nil end
+-- UI
+local ACC = Color3.fromRGB(0,170,255)
+local BG = Color3.fromRGB(15,15,20)
+local P2 = Color3.fromRGB(30,30,40)
+local TXT = Color3.fromRGB(235,235,245)
+local SUB = Color3.fromRGB(150,150,165)
+local OFF = Color3.fromRGB(60,60,75)
 
--- === UI ===
-local ACC = Color3.fromRGB(0,170,255) local BG = Color3.fromRGB(15,15,20) local PANEL = Color3.fromRGB(22,22,30)
-local P2 = Color3.fromRGB(30,30,40) local TXT = Color3.fromRGB(235,235,245) local SUB = Color3.fromRGB(150,150,165) local OFF = Color3.fromRGB(60,60,75)
-local UI = {SG = nil, Main = nil, TabBtns = {}, Tabs = {}}
+local function N(class, props, parent)
+    local o = Instance.new(class)
+    for k, v in pairs(props or {}) do o[k] = v end
+    if parent then o.Parent = parent end
+    return o
+end
 
-local function CreateUI()
-    UI.SG = N("ScreenGui", {Name="FerUI", ResetOnSpawn=false, IgnoreGuiInset=true}, CoreGui)
-    Core.RegisterInstance(UI.SG)
-    local AV = N("ImageButton", {Size=UDim2.new(0,40,0,40), Position=UDim2.new(0,20,0.5,-20), BackgroundColor3=BG, AutoButtonColor=false, BorderSizePixel=0, ZIndex=50}, UI.SG)
-    N("UICorner", {CornerRadius=UDim.new(1,0)}, AV) N("UIStroke", {Color=ACC, Thickness=2}, AV)
-    N("TextLabel", {Text="F", Font=Enum.Font.GothamBlack, TextSize=24, TextColor3=Color3.new(1,1,1), BackgroundTransparency=1, Size=UDim2.new(1,0,1,0)}, AV)
+local SG = N("ScreenGui", {Name="FerUI", ResetOnSpawn=false, IgnoreGuiInset=true}, CoreGui)
+local AV = N("ImageButton", {Size=UDim2.new(0,40,0,40), Position=UDim2.new(0,20,0.5,-20), BackgroundColor3=BG, BorderSizePixel=0}, SG)
+N("UICorner", {CornerRadius=UDim.new(1,0)}, AV)
+N("TextLabel", {Text="F", Font=Enum.Font.GothamBlack, TextSize=24, TextColor3=Color3.new(1,1,1), BackgroundTransparency=1, Size=UDim2.new(1,0,1,0)}, AV)
 
-    UI.Main = N("Frame", {Size=UDim2.new(0,420,0,300), Position=UDim2.new(0.5,-210,0.5,-150), BackgroundColor3=BG, BorderSizePixel=0, Visible=false, ZIndex=40}, UI.SG)
-    N("UICorner", {CornerRadius=UDim.new(0,12)}, UI.Main) N("UIStroke", {Color=ACC, Thickness=1}, UI.Main)
-    
-    local TB = N("Frame", {Size=UDim2.new(1,0,0,40), BackgroundColor3=PANEL, BorderSizePixel=0, ZIndex=41}, UI.Main)
-    N("UICorner", {CornerRadius=UDim.new(0,12)}, TB)
-    N("TextLabel", {Text="  FerClient v8.1", Font=Enum.Font.GothamBold, TextSize=16, TextColor3=TXT, BackgroundTransparency=1, Size=UDim2.new(1,-50,1,0), TextXAlignment=Enum.TextXAlignment.Left}, TB)
-    local CL = N("TextButton", {Text="✕", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=TXT, BackgroundColor3=Color3.fromRGB(220,50,70), Size=UDim2.new(0,26,0,26), Position=UDim2.new(1,-32,0.5,-13), BorderSizePixel=0}, TB)
-    N("UICorner", {CornerRadius=UDim.new(0,6)}, CL)
+local M = N("Frame", {Size=UDim2.new(0,420,0,300), Position=UDim2.new(0.5,-210,0.5,-150), BackgroundColor3=BG, BorderSizePixel=0, Visible=false}, SG)
+N("UICorner", {CornerRadius=UDim.new(0,12)}, M)
+N("UIStroke", {Color=ACC, Thickness=1}, M)
 
-    local TBB = N("Frame", {Size=UDim2.new(0,100,1,-40), Position=UDim2.new(0,0,0,40), BackgroundColor3=BG, BorderSizePixel=0, ZIndex=41}, UI.Main)
-    N("UIListLayout", {FillDirection=Enum.FillDirection.Vertical, Padding=UDim.new(0,6), HorizontalAlignment=Enum.HorizontalAlignment.Center, VerticalAlignment=Enum.VerticalAlignment.Top}, TBB)
-    local CT = N("ScrollingFrame", {Size=UDim2.new(1,-110,1,-50), Position=UDim2.new(0,104,0,44), BackgroundColor3=PANEL, BorderSizePixel=0, ScrollBarThickness=3, CanvasSize=UDim2.new(0,0,0,0), ZIndex=41}, UI.Main)
-    N("UICorner", {CornerRadius=UDim.new(0,8)}, CT)
-    local CLL = N("UIListLayout", {Padding=UDim.new(0,6)}, CT)
-    N("UIPadding", {PaddingTop=UDim.new(0,8), PaddingLeft=UDim.new(0,8), PaddingRight=UDim.new(0,8), PaddingBottom=UDim.new(0,8)}, CT)
+local TB = N("Frame", {Size=UDim2.new(1,0,0,40), BackgroundColor3=P2, BorderSizePixel=0}, M)
+N("UICorner", {CornerRadius=UDim.new(0,12)}, TB)
+N("TextLabel", {Text="  FerClient v8.2", Font=Enum.Font.GothamBold, TextSize=16, TextColor3=TXT, BackgroundTransparency=1, Size=UDim2.new(1,-50,1,0), TextXAlignment=Enum.TextXAlignment.Left}, TB)
+local CL = N("TextButton", {Text="✕", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=TXT, BackgroundColor3=Color3.fromRGB(220,50,70), Size=UDim2.new(0,26,0,26), Position=UDim2.new(1,-32,0.5,-13), BorderSizePixel=0}, TB)
+N("UICorner", {CornerRadius=UDim.new(0,6)}, CL)
 
-    local function Label(text) N("TextLabel", {Text=text, Font=Enum.Font.GothamBold, TextSize=12, TextColor3=SUB, BackgroundTransparency=1, Size=UDim2.new(1,0,0,20), TextXAlignment=Enum.TextXAlignment.Left}, CT) end
-    local function Toggle(text, val, cb)
-        local row = N("Frame", {Size=UDim2.new(1,0,0,30), BackgroundColor3=P2, BorderSizePixel=0}, CT) N("UICorner", {CornerRadius=UDim.new(0,6)}, row)
-        N("TextLabel", {Text="  "..text, Font=Enum.Font.Gotham, TextSize=13, TextColor3=TXT, BackgroundTransparency=1, Size=UDim2.new(1,-50,1,0), TextXAlignment=Enum.TextXAlignment.Left}, row)
-        local sw = N("Frame", {Size=UDim2.new(0,34,0,18), Position=UDim2.new(1,-42,0.5,-9), BackgroundColor3=val and ACC or OFF, BorderSizePixel=0}, row) N("UICorner", {CornerRadius=UDim.new(1,0)}, sw)
-        local kn = N("Frame", {Size=UDim2.new(0,14,0,14), Position=val and UDim2.new(1,-16,0.5,-7) or UDim2.new(0,2,0.5,-7), BackgroundColor3=Color3.new(1,1,1), BorderSizePixel=0}, sw) N("UICorner", {CornerRadius=UDim.new(1,0)}, kn)
-        local st = val
-        local btn = N("TextButton", {Text="", BackgroundTransparency=1, Size=UDim2.new(1,0,1,0)}, row)
-        btn.MouseButton1Click:Connect(function()
-            if Core.Destroyed then return end
-            st = not st sw.BackgroundColor3 = st and ACC or OFF
-            local t = TweenService:Create(kn, TweenInfo.new(0.15), {Position = st and UDim2.new(1,-16,0.5,-7) or UDim2.new(0,2,0.5,-7)})
-            Core.RegisterTween(t) t:Play()
-            if cb then cb(st) end
-        end)
-    end
+local TBB = N("Frame", {Size=UDim2.new(0,100,1,-40), Position=UDim2.new(0,0,0,40), BackgroundColor3=BG, BorderSizePixel=0}, M)
+N("UIListLayout", {FillDirection=Enum.FillDirection.Vertical, Padding=UDim.new(0,6), HorizontalAlignment=Enum.HorizontalAlignment.Center, VerticalAlignment=Enum.VerticalAlignment.Top}, TBB)
 
-    local function Slider(text, mn, mx, def, cb)
-        local row = N("Frame", {Size=UDim2.new(1,0,0,48), BackgroundColor3=P2, BorderSizePixel=0}, CT) N("UICorner", {CornerRadius=UDim.new(0,6)}, row)
-        N("TextLabel", {Text="  "..text, Font=Enum.Font.Gotham, TextSize=13, TextColor3=TXT, BackgroundTransparency=1, Size=UDim2.new(1,-50,0,22), TextXAlignment=Enum.TextXAlignment.Left}, row)
-        local vl = N("TextLabel", {Text=tostring(def), Font=Enum.Font.GothamBold, TextSize=13, TextColor3=ACC, BackgroundTransparency=1, Size=UDim2.new(0,50,0,22), Position=UDim2.new(1,-55,0,0), TextXAlignment=Enum.TextXAlignment.Right}, row)
-        local tr = N("Frame", {Size=UDim2.new(1,-20,0,4), Position=UDim2.new(0,10,0,32), BackgroundColor3=OFF, BorderSizePixel=0}, row) N("UICorner", {CornerRadius=UDim.new(0,2)}, tr)
-        local fl = N("Frame", {Size=UDim2.new((def-mn)/(mx-mn),0,1,0), BackgroundColor3=ACC, BorderSizePixel=0}, tr) N("UICorner", {CornerRadius=UDim.new(0,2)}, fl)
-        local inp = N("TextButton", {Text="", BackgroundTransparency=1, Size=UDim2.new(1,0,1,0)}, row)
-        local dragging = false
-        local function setVal(x)
-            if Core.Destroyed or not tr or not tr.Parent or tr.AbsoluteSize.X == 0 then return end
-            local r = math.clamp((x - tr.AbsolutePosition.X) / tr.AbsoluteSize.X, 0, 1)
+local CT = N("ScrollingFrame", {Size=UDim2.new(1,-110,1,-50), Position=UDim2.new(0,104,0,44), BackgroundColor3=PANEL, BorderSizePixel=0, ScrollBarThickness=3, CanvasSize=UDim2.new(0,0,0,0)}, M)
+N("UICorner", {CornerRadius=UDim.new(0,8)}, CT)
+local CLL = N("UIListLayout", {Padding=UDim.new(0,6)}, CT)
+N("UIPadding", {PaddingTop=UDim.new(0,8), PaddingLeft=UDim.new(0,8), PaddingRight=UDim.new(0,8), PaddingBottom=UDim.new(0,8)}, CT)
+
+local function Label(text)
+    N("TextLabel", {Text=text, Font=Enum.Font.GothamBold, TextSize=12, TextColor3=SUB, BackgroundTransparency=1, Size=UDim2.new(1,0,0,20), TextXAlignment=Enum.TextXAlignment.Left}, CT)
+end
+
+local function Toggle(text, val, cb)
+    local row = N("Frame", {Size=UDim2.new(1,0,0,30), BackgroundColor3=P2, BorderSizePixel=0}, CT)
+    N("UICorner", {CornerRadius=UDim.new(0,6)}, row)
+    N("TextLabel", {Text="  "..text, Font=Enum.Font.Gotham, TextSize=13, TextColor3=TXT, BackgroundTransparency=1, Size=UDim2.new(1,-50,1,0), TextXAlignment=Enum.TextXAlignment.Left}, row)
+    local sw = N("Frame", {Size=UDim2.new(0,34,0,18), Position=UDim2.new(1,-42,0.5,-9), BackgroundColor3=val and ACC or OFF, BorderSizePixel=0}, row)
+    N("UICorner", {CornerRadius=UDim.new(1,0)}, sw)
+    local st = val
+    local btn = N("TextButton", {Text="", BackgroundTransparency=1, Size=UDim2.new(1,0,1,0)}, row)
+    btn.MouseButton1Click:Connect(function()
+        st = not st
+        sw.BackgroundColor3 = st and ACC or OFF
+        if cb then cb(st) end
+    end)
+end
+
+local function Slider(text, mn, mx, def, cb)
+    local row = N("Frame", {Size=UDim2.new(1,0,0,48), BackgroundColor3=P2, BorderSizePixel=0}, CT)
+    N("UICorner", {CornerRadius=UDim.new(0,6)}, row)
+    N("TextLabel", {Text="  "..text, Font=Enum.Font.Gotham, TextSize=13, TextColor3=TXT, BackgroundTransparency=1, Size=UDim2.new(1,-50,0,22), TextXAlignment=Enum.TextXAlignment.Left}, row)
+    local vl = N("TextLabel", {Text=tostring(def), Font=Enum.Font.GothamBold, TextSize=13, TextColor3=ACC, BackgroundTransparency=1, Size=UDim2.new(0,50,0,22), Position=UDim2.new(1,-55,0,0), TextXAlignment=Enum.TextXAlignment.Right}, row)
+    local tr = N("Frame", {Size=UDim2.new(1,-20,0,4), Position=UDim2.new(0,10,0,32), BackgroundColor3=OFF, BorderSizePixel=0}, row)
+    N("UICorner", {CornerRadius=UDim.new(0,2)}, tr)
+    local fl = N("Frame", {Size=UDim2.new((def-mn)/(mx-mn),0,1,0), BackgroundColor3=ACC, BorderSizePixel=0}, tr)
+    local inp = N("TextButton", {Text="", BackgroundTransparency=1, Size=UDim2.new(1,0,1,0)}, row)
+    local dragging = false
+    inp.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = true end end)
+    inp.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end end)
+    UserInputService.InputChanged:Connect(function(i)
+        if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+            local r = math.clamp((i.Position.X - tr.AbsolutePosition.X) / tr.AbsoluteSize.X, 0, 1)
             local v = math.floor(mn + (mx - mn) * r + 0.5)
-            vl.Text = tostring(v) fl.Size = UDim2.new(r, 0, 1, 0)
+            vl.Text = tostring(v)
+            fl.Size = UDim2.new(r, 0, 1, 0)
             if cb then cb(v) end
         end
-        inp.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = true setVal(i.Position.X) end end)
-        inp.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end end)
-        UserInputService.InputChanged:Connect(function(i) if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then setVal(i.Position.X) end end)
-    end
-
-    local function AddTab(name)
-        local b = N("TextButton", {Text=name, Font=Enum.Font.GothamSemibold, TextSize=13, TextColor3=SUB, BackgroundColor3=P2, Size=UDim2.new(0,90,0,28), BorderSizePixel=0}, TBB) N("UICorner", {CornerRadius=UDim.new(0,6)}, b)
-        UI.TabBtns[name] = b
-        b.MouseButton1Click:Connect(function()
-            if Core.Destroyed then return end
-            for k, v in pairs(UI.TabBtns) do v.BackgroundColor3 = (k == name) and ACC or P2 v.TextColor3 = (k == name) and Color3.new(1,1,1) or SUB end
-            for _, obj in ipairs(CT:GetChildren()) do if obj:IsA("GuiObject") then obj:Destroy() end end
-            if UI.Tabs[name] then UI.Tabs[name]() end
-            task.defer(function() if not Core.Destroyed and CT then CT.CanvasSize = UDim2.new(0,0,0,CLL.AbsoluteContentSize.Y + 16) end end)
-        end)
-    end
-
-    AddTab("Combat") AddTab("Visual") AddTab("Misc")
-
-    UI.Tabs.Combat = function()
-        Label("COMBAT")
-        Toggle("Aim Bot", C.AimBot, function(v) C.AimBot = v end)
-        Toggle("Team Check", C.TeamCheck, function(v) C.TeamCheck = v end)
-        Toggle("Wall Check", C.WallCheck, function(v) C.WallCheck = v end)
-        Slider("Smooth", 1, 100, 35, function(v) C.Smooth = v/100 end)
-        Slider("FOV", 10, 400, 150, function(v) C.FOV = v end)
-        Slider("Max Dist", 50, 2000, 500, function(v) C.MaxDist = v end)
-    end
-
-    UI.Tabs.Visual = function()
-        Label("PLAYER ESP")
-        Toggle("ESP", C.ESP, function(v) C.ESP = v end)
-        Toggle("  Box", C.ESPBox, function(v) C.ESPBox = v end)
-        Toggle("  Name", C.ESPName, function(v) C.ESPName = v end)
-        Toggle("  Charms", C.ESPCharms, function(v) C.ESPCharms = v end)
-        Toggle("  Distance", C.ESPDist, function(v) C.ESPDist = v end)
-        Toggle("  Skeleton", C.ESPSkeleton, function(v) C.ESPSkeleton = v end)
-        Toggle("  Health Bar", C.ESPHP, function(v) C.ESPHP = v end)
-        Toggle("  Tracers", C.ESPTracers, function(v) C.ESPTracers = v end)
-        Toggle("  Damage Indicator", C.DamageIndicator, function(v) C.DamageIndicator = v end)
-        Slider("ESP Max Dist", 50, 5000, 1000, function(v) C.ESPMaxDist = v end)
-
-        Label("RESOURCES")
-        Toggle("Sulfur ESP", C.SulfurESP, function(v) C.SulfurESP = v end)
-        Toggle("Iron ESP", C.IronESP, function(v) C.IronESP = v end)
-        Toggle("Stone ESP", C.StoneESP, function(v) C.StoneESP = v end)
-        Slider("Ore Max Dist", 50, 2000, 500, function(v) C.OreDist = v end)
-        Toggle("Crate ESP", C.CrateESP, function(v) C.CrateESP = v end)
-        Toggle("Military Crate", C.MilitaryESP, function(v) C.MilitaryESP = v end)
-        Toggle("Elite Crate", C.EliteESP, function(v) C.EliteESP = v end)
-        Toggle("Food Box", C.FoodESP, function(v) C.FoodESP = v end)
-        Slider("Crate Max Dist", 50, 2000, 500, function(v) C.CrateDist = v end)
-
-        Label("WORLD")
-        Toggle("Show FOV", C.ShowFOV, function(v) C.ShowFOV = v end)
-        Toggle("Fullbright", C.Fullbright, function(v) C.Fullbright = v end)
-        Toggle("X-Ray", C.XRay, function(v) C.XRay = v end)
-        Toggle("No Deco", C.NoDeco, function(v) C.NoDeco = v end)
-        Toggle("Sky Fon", C.SkyFon, function(v) C.SkyFon = v end)
-        Toggle("FPS Boost", C.FPSBoost, function(v) C.FPSBoost = v end)
-        Toggle("Hit Sound", C.HitSound, function(v) C.HitSound = v end)
-    end
-
-    UI.Tabs.Misc = function()
-        Label("MISC")
-        Toggle("Inf Jump", C.InfJump, function(v) C.InfJump = v end)
-        Toggle("Anti AFK", C.AntiAFK, function(v) C.AntiAFK = v end)
-    end
-
-    UI.Tabs.Combat()
-
-    local mdrag, mds, mdp = false, nil, nil
-    TB.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then mdrag = true mds = i.Position mdp = UI.Main.Position end end)
-    TB.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then mdrag = false end end)
-    UserInputService.InputChanged:Connect(function(i) if mdrag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then local d = i.Position - mds UI.Main.Position = UDim2.new(mdp.X.Scale, mdp.X.Offset + d.X, mdp.Y.Scale, mdp.Y.Offset + d.Y) end end)
-    AV.MouseButton1Click:Connect(function() if not Core.Destroyed then UI.Main.Visible = not UI.Main.Visible end end)
-    CL.MouseButton1Click:Connect(function() if not Core.Destroyed then UI.Main.Visible = false end end)
+    end)
 end
 
--- === GAME LOGIC ===
-local function GetPredictedPos(part)
-    local vel = Vector3.new(0,0,0)
-    if part.Parent and part.Parent:FindFirstChild("HumanoidRootPart") then vel = part.Parent.HumanoidRootPart.AssemblyLinearVelocity end
-    return part.Position + (vel * 0.1)
+local function AddTab(name)
+    local b = N("TextButton", {Text=name, Font=Enum.Font.GothamSemibold, TextSize=13, TextColor3=SUB, BackgroundColor3=P2, Size=UDim2.new(0,90,0,28), BorderSizePixel=0}, TBB)
+    N("UICorner", {CornerRadius=UDim.new(0,6)}, b)
+    b.MouseButton1Click:Connect(function()
+        for _, obj in ipairs(CT:GetChildren()) do if obj:IsA("GuiObject") then obj:Destroy() end end
+        if name == "Combat" then
+            Label("COMBAT")
+            Toggle("Aim Bot", C.AimBot, function(v) C.AimBot = v end)
+            Toggle("Team Check", C.TeamCheck, function(v) C.TeamCheck = v end)
+            Toggle("Wall Check", C.WallCheck, function(v) C.WallCheck = v end)
+            Slider("Smooth", 1, 100, 35, function(v) C.Smooth = v/100 end)
+            Slider("FOV", 10, 400, 150, function(v) C.FOV = v end)
+        elseif name == "Visual" then
+            Label("PLAYER VISUAL")
+            Toggle("ESP", C.ESP, function(v) C.ESP = v end)
+            Toggle("  Box", C.ESPBox, function(v) C.ESPBox = v end)
+            Toggle("  Name", C.ESPName, function(v) C.ESPName = v end)
+            Toggle("  Distance", C.ESPDist, function(v) C.ESPDist = v end)
+            Slider("Max Dist", 50, 5000, 1000, function(v) C.ESPMaxDist = v end)
+            Toggle("Show FOV", C.ShowFOV, function(v) C.ShowFOV = v end)
+            Toggle("Fullbright", C.Fullbright, function(v) C.Fullbright = v end)
+            Toggle("X-Ray", C.XRay, function(v) C.XRay = v end)
+            Toggle("FPS Boost", C.FPSBoost, function(v) C.FPSBoost = v end)
+        elseif name == "Misc" then
+            Label("MISC")
+            Toggle("Inf Jump", C.InfJump, function(v) C.InfJump = v end)
+            Toggle("Anti AFK", C.AntiAFK, function(v) C.AntiAFK = v end)
+            Toggle("Hit Sound", C.HitSound, function(v) C.HitSound = v end)
+        end
+    end)
 end
 
-local function IsVisible(part)
-    if not C.WallCheck then return true end
-    local cam = GetCamera() if not cam then return false end
-    local params = RaycastParams.new() params.FilterType = Enum.RaycastFilterType.Exclude params.FilterDescendantsInstances = {LP.Character}
-    local ray = Workspace:Raycast(cam.CFrame.Position, (part.Position - cam.CFrame.Position), params)
-    return ray == nil or ray.Instance:IsDescendantOf(part.Parent)
-end
+AddTab("Combat") AddTab("Visual") AddTab("Misc")
 
-local function GetNearest()
-    local cam = GetCamera() if not cam then return nil end
-    local best, dist = nil, C.FOV
-    local cen = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
+AV.MouseButton1Click:Connect(function() M.Visible = not M.Visible end)
+CL.MouseButton1Click:Connect(function() M.Visible = false end)
+
+-- Отрисовка ESP (безопасная)
+local Drawing_OK = pcall(function() local t = Drawing.new("Square") t:Remove() end)
+local Drawings = {}
+
+RunService.RenderStepped:Connect(function()
+    local cam = GetCamera()
+    if not cam then return end
+    
+    if not Drawing_OK then return end
+
     for pl, data in pairs(PlayerCache) do
+        if not Drawings[pl] then
+            local b = Drawing.new("Square")
+            b.Thickness = 1
+            b.Filled = false
+            local n = Drawing.new("Text")
+            n.Size = 12
+            n.Center = true
+            n.Outline = true
+            n.Color = Color3.new(1,1,1)
+            Drawings[pl] = {b = b, n = n}
+        end
+        
+        local d = Drawings[pl]
         local hrp = data.HRP
-        if hrp and hrp.Parent then
-            if C.TeamCheck and pl.Team == LP.Team then continue end
-            local sp, on = cam:WorldToViewportPoint(hrp.Position)
+        
+        if C.ESP and hrp and hrp.Parent then
+            local top = cam:WorldToViewportPoint(hrp.Position + Vector3.new(0,3,0))
+            local bot = cam:WorldToViewportPoint(hrp.Position - Vector3.new(0,3,0))
+            local pos, on = cam:WorldToViewportPoint(hrp.Position)
+            
             if on then
-                local d = (Vector2.new(sp.X, sp.Y) - cen).Magnitude
-                if d < dist then
-                    local part = data.Char:FindFirstChild(C.AimPart) or hrp
-                    if IsVisible(part) then dist = d best = pl end
-                end
+                local h = math.abs(top.Y - bot.Y)
+                local w = h * 0.55
+                d.b.Size = Vector2.new(w, h)
+                d.b.Position = Vector2.new(pos.X - w/2, top.Y)
+                d.b.Color = C.ESPColor
+                d.b.Visible = C.ESPBox
+                
+                d.n.Text = pl.Name
+                d.n.Position = Vector2.new(pos.X, top.Y - 14)
+                d.n.Visible = C.ESPName
+            else
+                d.b.Visible = false
+                d.n.Visible = false
             end
+        else
+            d.b.Visible = false
+            d.n.Visible = false
         end
     end
-    return best
-end
+end)
 
-local FB_Old, OldSky, XRayTab, FPSOff, NoDecoStore, SkyFolder = {}, nil, {}, {}, {}, nil
-local function Fullbright(on)
-    if on then for _, k in ipairs({"Brightness","ClockTime","FogEnd","GlobalShadows","Ambient"}) do FB_Old[k]=Lighting[k] end Lighting.Brightness=2 Lighting.ClockTime=14 Lighting.FogEnd=100000 Lighting.GlobalShadows=false Lighting.Ambient=Color3.fromRGB(178,178,178)
-    else for k, v in pairs(FB_Old) do pcall(function() if Lighting[k] ~= v then Lighting[k]=v end end) end table.clear(FB_Old) end
-end
-local function XRay(on)
-    if on then for _, v in ipairs(Workspace:GetDescendants()) do if v:IsA("BasePart") and v.Transparency < 1 then XRayTab[v]=v.Transparency v.Transparency=0.7 end end
-    else for obj, tr in pairs(XRayTab) do if obj and obj.Parent then pcall(function() obj.Transparency=tr end) end end table.clear(XRayTab) end
-end
-local function NoDeco(on)
-    if sethiddenproperty then local t=Workspace:FindFirstChildOfClass("Terrain") if t then pcall(function() sethiddenproperty(t,"Decoration",not on) end) end
-    else if on then for _, v in ipairs(Workspace:GetDescendants()) do if (v:IsA("Decal") or v:IsA("Texture")) and not NoDecoStore[v] then NoDecoStore[v]=v.Transparency v.Transparency=1 end end
-    else for obj, tr in pairs(NoDecoStore) do if obj and obj.Parent then pcall(function() obj.Transparency=tr end) end end table.clear(NoDecoStore) end end
-end
-local function SkyFon(on)
-    local existing = Lighting:FindFirstChild("FerSky")
-    if on then if existing then return end local currentSky = Lighting:FindFirstChildOfClass("Sky") if currentSky then OldSky=currentSky currentSky.Parent=nil end
-        SkyFolder = N("Folder", {Name="FerSky"}, Lighting)
-        N("Sky", {Name="FerSkybox", SkyboxBk="rbxassetid://159454299", SkyboxDn="rbxassetid://159454296", SkyboxFt="rbxassetid://159454293", SkyboxLf="rbxassetid://159454286", SkyboxRt="rbxassetid://159454300", SkyboxUp="rbxassetid://159454288", StarCount=5000}, SkyFolder)
-    else if SkyFolder then SkyFolder:Destroy() SkyFolder=nil end if OldSky and OldSky.Parent == nil then OldSky.Parent=Lighting end OldSky=nil end
-end
-local function FPS(on)
-    if on then for _, obj in ipairs(Lighting:GetDescendants()) do if obj:IsA("PostEffect") then FPSOff[obj]=obj.Enabled obj.Enabled=false end end
-    else for obj, en in pairs(FPSOff) do if obj and obj.Parent then pcall(function() obj.Enabled=en end) end end table.clear(FPSOff) end
-end
-
-local InfConn, AFKConn
-local function InfJump(on) if on then if not InfConn then InfConn=Core.RegisterConnection(UserInputService.JumpRequest:Connect(function() local h=LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end end)) end elseif InfConn then InfConn:Disconnect() InfConn=nil end end
-local function AFK(on) if on then if not AFKConn then AFKConn=Core.RegisterConnection(LP.Idled:Connect(function() pcall(function() local v=game:GetService("VirtualUser") v:CaptureController() v:ClickButton2(Vector2.new()) end) end)) end elseif AFKConn then AFKConn:Disconnect() AFKConn=nil end end
-
-local function Init()
-    Core.SafeCall(CreateUI)
-    local function CachePlayer(pl)
-        if pl ~= LP then PlayerCache[pl] = {Char = pl.Character, Hum = pl.Character and pl.Character:FindFirstChildOfClass("Humanoid"), HRP = pl.Character and pl.Character:FindFirstChild("HumanoidRootPart")} end
-    end
-    for _, pl in ipairs(Players:GetPlayers()) do CachePlayer(pl) end
-    Core.RegisterConnection(Players.PlayerAdded:Connect(CachePlayer))
-    Core.RegisterConnection(Players.PlayerRemoving:Connect(function(pl) PlayerCache[pl] = nil end))
-
-    -- Aim
-    Core.RegisterConnection(UserInputService.InputBegan:Connect(function(input)
-        if Core.Destroyed then return end
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            if C.AimBot and CurrentTarget then
-                if CurrentTarget.Character and CurrentTarget.Character:FindFirstChild(C.AimPart) then
-                    local cam = GetCamera()
-                    if cam then cam.CFrame = CFrame.new(cam.CFrame.Position, GetPredictedPos(CurrentTarget.Character[C.AimPart])) end
-                end
-            end
-        end
-    end))
-
-    -- Heartbeat for aim & visuals (heavy stuff)
-    local LastTarget = 0
-    local LastESP = 0
-    Core.RegisterConnection(RunService.Heartbeat:Connect(function()
-        if Core.Destroyed then return end
-        local now = tick()
-        if now - LastTarget > 0.1 then LastTarget = now CurrentTarget = GetNearest() end
-        if now - LastESP > 0.1 then
-            LastESP = now
-            -- Damage Indicator loop
-            for i = #ActiveDamageLabels, 1, -1 do
-                local data = ActiveDamageLabels[i]
-                local cam = GetCamera()
-                if not cam or now - data.time > 1 or not data.pos or not data.pos.Parent then
-                    pcall(function() data.d:Remove() end) table.remove(ActiveDamageLabels, i)
-                else
-                    local pos = data.pos.Position + Vector3.new(0, (now - data.time) * 2, 0)
-                    local sp, on = cam:WorldToViewportPoint(pos)
-                    if on and C.DamageIndicator then data.d.Visible = true data.d.Position = Vector2.new(sp.X, sp.Y) data.d.Transparency = 1 - (now - data.time) else data.d.Visible = false end
-                end
-            end
-            -- Toggles logic
-            if C.Fullbright then pcall(Fullbright, true) end
-            if C.XRay then pcall(XRay, true) end
-            if C.NoDeco then pcall(NoDeco, true) end
-            if C.SkyFon then pcall(SkyFon, true) end
-            if C.FPSBoost then pcall(FPS, true) end
-            if C.InfJump then pcall(InfJump, true) end
-            if C.AntiAFK then pcall(AFK, true) end
-        end
-    end))
-
-    -- RenderStepped for Drawing ESP (light)
-    Core.RegisterConnection(RunService.RenderStepped:Connect(function()
-        if Core.Destroyed then return end
-        local cam = GetCamera() if not cam then return end
-        -- Show FOV Circle
-        if C.ShowFOV then
-            if not UI.FOVCircle then UI.FOVCircle = SafeDrawing("Circle") end
-            if UI.FOVCircle then UI.FOVCircle.Visible = true UI.FOVCircle.Position = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2) UI.FOVCircle.Radius = C.FOV UI.FOVCircle.Color = C.ESPColor end
-        elseif UI.FOVCircle then UI.FOVCircle.Visible = false end
-
-        -- Player ESP
-        if C.ESP and hasDrawing then
-            for pl, data in pairs(PlayerCache) do
-                if not ESPData[pl] then
-                    local b=SafeDrawing("Square") local n=SafeDrawing("Text") local d=SafeDrawing("Text")
-                    if b and n and d then
-                        ESPData[pl] = {b=b, n=n, d=d}
-                        b.Thickness=1 b.Filled=false
-                        n.Size=11 n.Center=true n.Outline=true n.Color=Color3.new(1,1,1)
-                        d.Size=10 d.Center=true d.Outline=true d.Color=C.ESPColor
-                    end
-                end
-                local e = ESPData[pl]
-                if e then
-                    local hrp = data.HRP local hum = data.Hum
-                    local LPH = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-                    local dist = LPH and hrp and (LPH.Position - hrp.Position).Magnitude or 0
-                    if hrp and hrp.Parent and hum and hum.Health > 0 and dist <= C.ESPMaxDist then
-                        local top = cam:WorldToViewportPoint(hrp.Position + Vector3.new(0,3,0))
-                        local bot = cam:WorldToViewportPoint(hrp.Position - Vector3.new(0,3,0))
-                        local pos, on = cam:WorldToViewportPoint(hrp.Position)
-                        if on then
-                            local h = math.abs(top.Y - bot.Y) local w = h * 0.55
-                            e.b.Size = Vector2.new(w,h) e.b.Position = Vector2.new(pos.X-w/2, top.Y) e.b.Color = C.ESPColor e.b.Visible = C.ESPBox
-                            e.n.Text = pl.Name e.n.Position = Vector2.new(pos.X, top.Y-14) e.n.Visible = C.ESPName
-                            e.d.Text = "["..math.floor(dist).."m]" e.d.Position = Vector2.new(pos.X, bot.Y+2) e.d.Visible = C.ESPDist
-                        else e.b.Visible=false e.n.Visible=false e.d.Visible=false end
-                    else e.b.Visible=false e.n.Visible=false e.d.Visible=false end
-                end
-            end
-        elseif not C.ESP then
-            for _, e in pairs(ESPData) do if e.b then e.b.Visible=false end if e.n then e.n.Visible=false end if e.d then e.d.Visible=false end end
-        end
-
-        -- Ore / Crate ESP
-        local ores = Workspace:FindFirstChild("ores")
-        if ores then for _, ore in ipairs(ores:GetChildren()) do
-            local en = (ore.Name == "sulfur" and C.SulfurESP) or (ore.Name == "iron" and C.IronESP) or (ore.Name == "stone" and C.StoneESP)
-            local col = (ore.Name == "sulfur" and Color3.new(1,1,0)) or (ore.Name == "iron" and Color3.new(0.7,0.7,0.7)) or Color3.new(1,1,1)
-            if en then
-                if not ore:FindFirstChild("FerOreTag") then local bg=N("BillboardGui",{Name="FerOreTag",AlwaysOnTop=true,Size=UDim2.new(0,100,0,40),ExtentsOffset=Vector3.new(0,2,0)},ore) N("TextLabel",{Name="Label",BackgroundTransparency=1,Size=UDim2.new(1,0,1,0),TextSize=13,Font=Enum.Font.GothamBold},bg) end
-                local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-                if root then local dist=(root.Position-ore.Position).Magnitude if dist <= C.OreDist then ore.FerOreTag.Enabled=true ore.FerOreTag.Label.Text=ore.Name:upper().."\n["..math.floor(dist).."m]" ore.FerOreTag.Label.TextColor3=col else ore.FerOreTag.Enabled=false end end
-            elseif ore:FindFirstChild("FerOreTag") then ore.FerOreTag.Enabled=false end
-        end end
-    end))
-end
-
-Init()
+print("[FerClient v8.2] Успешно загружен!")
