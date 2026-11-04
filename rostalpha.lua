@@ -1,94 +1,39 @@
---[[ FerClient v8.0 | Clean Modular Architecture ]]
+--[[ FerClient v8.0 | Delta Fix ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
-
 local LP = Players.LocalPlayer
 
--- ==========================================
--- 1. CORE CONTROLLER
--- ==========================================
-local Core = {}
-Core.Destroyed = false
-Core.Registry = { Connections = {}, Instances = {}, Tweens = {} }
-
-function Core.SafeCall(callback, ...)
-    local ok, result = pcall(callback, ...)
-    if not ok then warn("[FerClient Error]", result) end
-    return ok, result
-end
-
-function Core.RegisterConnection(conn)
-    if Core.Destroyed then Core.SafeCall(function() conn:Disconnect() end) return nil end
-    table.insert(Core.Registry.Connections, conn)
-    return conn
-end
-
-function Core.RegisterInstance(inst)
-    if Core.Destroyed then Core.SafeCall(function() inst:Destroy() end) return nil end
-    table.insert(Core.Registry.Instances, inst)
-    return inst
-end
-
-function Core.RegisterTween(tween)
-    if Core.Destroyed then Core.SafeCall(function() tween:Cancel() end) return nil end
-    table.insert(Core.Registry.Tweens, tween)
-    return tween
-end
-
+local Core = {Destroyed = false, Registry = {Connections = {}, Instances = {}, Tweens = {}}}
+function Core.SafeCall(cb, ...) local ok, res = pcall(cb, ...) if not ok then warn("[FerClient Error]", res) end return ok, res end
+function Core.RegisterConnection(c) if Core.Destroyed then Core.SafeCall(function() c:Disconnect() end) return nil end table.insert(Core.Registry.Connections, c) return c end
+function Core.RegisterInstance(i) if Core.Destroyed then Core.SafeCall(function() i:Destroy() end) return nil end table.insert(Core.Registry.Instances, i) return i end
+function Core.RegisterTween(t) if Core.Destroyed then Core.SafeCall(function() t:Cancel() end) return nil end table.insert(Core.Registry.Tweens, t) return t end
 function Core.Cleanup()
     if Core.Destroyed then return end
     Core.Destroyed = true
-
     for _, t in ipairs(Core.Registry.Tweens) do Core.SafeCall(function() t:Cancel() end) end
     for _, c in ipairs(Core.Registry.Connections) do Core.SafeCall(function() c:Disconnect() end) end
     for _, i in ipairs(Core.Registry.Instances) do Core.SafeCall(function() i:Destroy() end) end
-    
-    table.clear(Core.Registry.Tweens)
-    table.clear(Core.Registry.Connections)
-    table.clear(Core.Registry.Instances)
-
+    table.clear(Core.Registry.Tweens) table.clear(Core.Registry.Connections) table.clear(Core.Registry.Instances)
     print("[FerClient] Cleanup completed")
 end
 _G.FerClientCleanup = Core.Cleanup
-game:BindToClose(Core.Cleanup)
 
--- ==========================================
--- 2. CONFIG
--- ==========================================
 local Config = {
     AimBot = false, AimPart = "Head", Smooth = 0.35, FOV = 150, MaxDist = 500, WallCheck = false, TeamCheck = false,
     ESP = false, ESPBox = true, ESPName = true, ESPDist = true, ESPMaxDist = 1000, ShowFOV = false
 }
-
 local PlayerCache = {}
-local ESPData = {}
 local CurrentTarget = nil
 
--- ==========================================
--- 3. HELPERS
--- ==========================================
-local function N(class, props, parent)
-    local o = Instance.new(class)
-    for k, v in pairs(props or {}) do o[k] = v end
-    if parent then o.Parent = parent end
-    return o
-end
+local function N(class, props, parent) local o = Instance.new(class) for k, v in pairs(props or {}) do o[k] = v end if parent then o.Parent = parent end return o end
+local function GetCamera() local cam = Workspace.CurrentCamera if cam and cam.Parent then return cam end return nil end
 
-local function GetCamera()
-    local cam = Workspace.CurrentCamera
-    if cam and cam.Parent then return cam end
-    return nil
-end
-
--- ==========================================
--- 4. UI CREATION
--- ==========================================
-local UI = { SG = nil, Main = nil, TabBtns = {}, Tabs = {} }
+local UI = {SG = nil, Main = nil, TabBtns = {}, Tabs = {}}
 local ACC = Color3.fromRGB(0,170,255)
 local BG = Color3.fromRGB(15,15,20)
 local PANEL = Color3.fromRGB(22,22,30)
@@ -101,35 +46,29 @@ local function CreateUI()
     UI.SG = N("ScreenGui", {Name="FerUI", ResetOnSpawn=false, IgnoreGuiInset=true, ZIndexBehavior=Enum.ZIndexBehavior.Sibling}, CoreGui)
     Core.RegisterInstance(UI.SG)
 
-    -- Avatar
     local AV = N("ImageButton", {Size=UDim2.new(0,40,0,40), Position=UDim2.new(0,20,0.5,-20), BackgroundColor3=BG, AutoButtonColor=false, BorderSizePixel=0, ZIndex=50}, UI.SG)
     N("UICorner", {CornerRadius=UDim.new(1,0)}, AV)
     N("UIStroke", {Color=ACC, Thickness=2}, AV)
     N("TextLabel", {Text="F", Font=Enum.Font.GothamBlack, TextSize=24, TextColor3=Color3.new(1,1,1), BackgroundTransparency=1, Size=UDim2.new(1,0,1,0)}, AV)
 
-    -- Main
     UI.Main = N("Frame", {Size=UDim2.new(0,420,0,300), Position=UDim2.new(0.5,-210,0.5,-150), BackgroundColor3=BG, BorderSizePixel=0, Visible=false, ZIndex=40}, UI.SG)
     N("UICorner", {CornerRadius=UDim.new(0,12)}, UI.Main)
     N("UIStroke", {Color=ACC, Thickness=1}, UI.Main)
     
-    -- Top Bar
     local TB = N("Frame", {Size=UDim2.new(1,0,0,40), BackgroundColor3=PANEL, BorderSizePixel=0, ZIndex=41}, UI.Main)
     N("UICorner", {CornerRadius=UDim.new(0,12)}, TB)
     N("TextLabel", {Text="  FerClient v8.0", Font=Enum.Font.GothamBold, TextSize=16, TextColor3=TXT, BackgroundTransparency=1, Size=UDim2.new(1,-50,1,0), TextXAlignment=Enum.TextXAlignment.Left}, TB)
     local CL = N("TextButton", {Text="✕", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=TXT, BackgroundColor3=Color3.fromRGB(220,50,70), Size=UDim2.new(0,26,0,26), Position=UDim2.new(1,-32,0.5,-13), BorderSizePixel=0}, TB)
     N("UICorner", {CornerRadius=UDim.new(0,6)}, CL)
 
-    -- Tabs Panel
     local TBB = N("Frame", {Size=UDim2.new(0,100,1,-40), Position=UDim2.new(0,0,0,40), BackgroundColor3=BG, BorderSizePixel=0, ZIndex=41}, UI.Main)
     N("UIListLayout", {FillDirection=Enum.FillDirection.Vertical, Padding=UDim.new(0,6), HorizontalAlignment=Enum.HorizontalAlignment.Center, VerticalAlignment=Enum.VerticalAlignment.Top}, TBB)
     
-    -- Content
     local CT = N("ScrollingFrame", {Size=UDim2.new(1,-110,1,-50), Position=UDim2.new(0,104,0,44), BackgroundColor3=PANEL, BorderSizePixel=0, ScrollBarThickness=3, CanvasSize=UDim2.new(0,0,0,0), ZIndex=41}, UI.Main)
     N("UICorner", {CornerRadius=UDim.new(0,8)}, CT)
     local CLL = N("UIListLayout", {Padding=UDim.new(0,6)}, CT)
     N("UIPadding", {PaddingTop=UDim.new(0,8), PaddingLeft=UDim.new(0,8), PaddingRight=UDim.new(0,8), PaddingBottom=UDim.new(0,8)}, CT)
 
-    -- Toggle Component
     local function Toggle(text, val, cb)
         local row = N("Frame", {Size=UDim2.new(1,0,0,30), BackgroundColor3=P2, BorderSizePixel=0}, CT)
         N("UICorner", {CornerRadius=UDim.new(0,6)}, row)
@@ -151,7 +90,6 @@ local function CreateUI()
         end)
     end
 
-    -- Slider Component
     local function Slider(text, mn, mx, def, cb)
         local row = N("Frame", {Size=UDim2.new(1,0,0,48), BackgroundColor3=P2, BorderSizePixel=0}, CT)
         N("UICorner", {CornerRadius=UDim.new(0,6)}, row)
@@ -176,7 +114,6 @@ local function CreateUI()
         UserInputService.InputChanged:Connect(function(i) if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then setVal(i.Position.X) end end)
     end
 
-    -- Add Tab Function
     local function AddTab(name)
         local b = N("TextButton", {Text=name, Font=Enum.Font.GothamSemibold, TextSize=13, TextColor3=SUB, BackgroundColor3=P2, Size=UDim2.new(0,90,0,28), BorderSizePixel=0}, TBB)
         N("UICorner", {CornerRadius=UDim.new(0,6)}, b)
@@ -201,7 +138,6 @@ local function CreateUI()
     AddTab("Visual")
     AddTab("Misc")
 
-    -- Tab Contents
     UI.Tabs.Combat = function()
         N("TextLabel", {Text="COMBAT", Font=Enum.Font.GothamBold, TextSize=12, TextColor3=SUB, BackgroundTransparency=1, Size=UDim2.new(1,0,0,20), TextXAlignment=Enum.TextXAlignment.Left}, CT)
         Toggle("Aim Bot", Config.AimBot, function(v) Config.AimBot = v end)
@@ -225,10 +161,8 @@ local function CreateUI()
         N("TextLabel", {Text="MISC", Font=Enum.Font.GothamBold, TextSize=12, TextColor3=SUB, BackgroundTransparency=1, Size=UDim2.new(1,0,0,20), TextXAlignment=Enum.TextXAlignment.Left}, CT)
     end
 
-    -- Start with Combat
     UI.Tabs.Combat()
 
-    -- Drag Main
     local mdrag, mds, mdp = false, nil, nil
     TB.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then mdrag = true mds = i.Position mdp = UI.Main.Position end end)
     TB.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then mdrag = false end end)
@@ -239,7 +173,6 @@ local function CreateUI()
         end 
     end)
 
-    -- Toggle Menu
     AV.MouseButton1Click:Connect(function() 
         if not Core.Destroyed then UI.Main.Visible = not UI.Main.Visible end 
     end)
@@ -248,27 +181,17 @@ local function CreateUI()
     end)
 end
 
--- ==========================================
--- 5. MAIN INITIALIZATION
--- ==========================================
 local function Init()
     Core.SafeCall(CreateUI)
-
-    -- Cache Players
     local function CachePlayer(pl)
         if pl ~= LP then
-            PlayerCache[pl] = {
-                Char = pl.Character, 
-                Hum = pl.Character and pl.Character:FindFirstChildOfClass("Humanoid"), 
-                HRP = pl.Character and pl.Character:FindFirstChild("HumanoidRootPart")
-            }
+            PlayerCache[pl] = {Char = pl.Character, Hum = pl.Character and pl.Character:FindFirstChildOfClass("Humanoid"), HRP = pl.Character and pl.Character:FindFirstChild("HumanoidRootPart")}
         end
     end
     for _, pl in ipairs(Players:GetPlayers()) do CachePlayer(pl) end
     Core.RegisterConnection(Players.PlayerAdded:Connect(CachePlayer))
     Core.RegisterConnection(Players.PlayerRemoving:Connect(function(pl) PlayerCache[pl] = nil end))
 
-    -- Aim Logic
     Core.RegisterConnection(UserInputService.InputBegan:Connect(function(input)
         if Core.Destroyed then return end
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -285,7 +208,6 @@ local function Init()
         end
     end))
 
-    -- Heartbeat for Target Search
     local LastTargetUpdate = 0
     Core.RegisterConnection(RunService.Heartbeat:Connect(function()
         if Core.Destroyed then return end
