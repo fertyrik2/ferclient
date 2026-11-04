@@ -1,4 +1,4 @@
---[[ FerClient v8.6 | Full ESP Fix ]]
+--[[ FerClient v8.7 | FOV in Combat + Full ESP ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -13,8 +13,9 @@ end
 
 local C = {
     AimBot=false, AimPart="Head", Smooth=0.35, FOV=150, MaxDist=500, WallCheck=false, TeamCheck=false,
-    ESP=false, ESPBox=true, ESPName=true, ESPDist=true, ESPMaxDist=1000, ESPColor=Color3.fromRGB(0,200,255),
-    ShowFOV=false, Fullbright=false, InfJump=false, AntiAFK=false
+    ESP=false, ESPBox=true, ESPName=true, ESPDist=true, ESPSkeleton=false, ESPHP=false, ESPTracers=false, ESPMaxDist=1000,
+    ESPColor=Color3.fromRGB(0,200,255), ShowFOV=false,
+    Fullbright=false, InfJump=false, AntiAFK=false
 }
 
 local PlayerCache = {}
@@ -50,7 +51,7 @@ N("UIStroke", {Color=ACC, Thickness=1}, M)
 
 local TB = N("Frame", {Size=UDim2.new(1,0,0,40), BackgroundColor3=P2, BorderSizePixel=0}, M)
 N("UICorner", {CornerRadius=UDim.new(0,12)}, TB)
-N("TextLabel", {Text="  FerClient v8.6", Font=Enum.Font.GothamBold, TextSize=16, TextColor3=TXT, BackgroundTransparency=1, Size=UDim2.new(1,-50,1,0), TextXAlignment=Enum.TextXAlignment.Left}, TB)
+N("TextLabel", {Text="  FerClient v8.7", Font=Enum.Font.GothamBold, TextSize=16, TextColor3=TXT, BackgroundTransparency=1, Size=UDim2.new(1,-50,1,0), TextXAlignment=Enum.TextXAlignment.Left}, TB)
 local CL = N("TextButton", {Text="✕", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=TXT, BackgroundColor3=Color3.fromRGB(220,50,70), Size=UDim2.new(0,26,0,26), Position=UDim2.new(1,-32,0.5,-13), BorderSizePixel=0}, TB)
 N("UICorner", {CornerRadius=UDim.new(0,6)}, CL)
 
@@ -61,6 +62,11 @@ local CT = N("ScrollingFrame", {Size=UDim2.new(1,-110,1,-50), Position=UDim2.new
 N("UICorner", {CornerRadius=UDim.new(0,8)}, CT)
 N("UIListLayout", {Padding=UDim.new(0,6)}, CT)
 N("UIPadding", {PaddingTop=UDim.new(0,8), PaddingLeft=UDim.new(0,8), PaddingRight=UDim.new(0,8), PaddingBottom=UDim.new(0,8)}, CT)
+
+-- FOV Circle (отдельный Frame)
+local FOVCircle = N("Frame", {BackgroundTransparency=1, AnchorPoint=Vector2.new(0.5,0.5), Position=UDim2.new(0.5,0,0.5,0), Size=UDim2.new(0,300,0,300), Visible=false}, SG)
+N("UICorner", {CornerRadius=UDim.new(1,0)}, FOVCircle)
+local FOVStroke = N("UIStroke", {Thickness=1.5, Color=ACC, ApplyStrokeMode=Enum.ApplyStrokeMode.Border}, FOVCircle)
 
 local function Label(text) 
     N("TextLabel", {Text=text, Font=Enum.Font.GothamBold, TextSize=12, TextColor3=SUB, BackgroundTransparency=1, Size=UDim2.new(1,0,0,20), TextXAlignment=Enum.TextXAlignment.Left}, CT) 
@@ -115,16 +121,19 @@ local function BuildTab(name)
         Toggle("Aim Bot", C.AimBot, function(v) C.AimBot = v end)
         Toggle("Team Check", C.TeamCheck, function(v) C.TeamCheck = v end)
         Toggle("Wall Check", C.WallCheck, function(v) C.WallCheck = v end)
+        Toggle("Show FOV", C.ShowFOV, function(v) C.ShowFOV = v end) -- FOV вернули сюда
+        Slider("FOV Size", 30, 800, 150, function(v) C.FOV = v FOVCircle.Size = UDim2.new(0, v*2, 0, v*2) end)
         Slider("Smooth", 1, 100, 35, function(v) C.Smooth = v/100 end)
-        Slider("FOV", 10, 400, 150, function(v) C.FOV = v end)
     elseif name == "Visual" then
         Label("PLAYER ESP")
         Toggle("ESP", C.ESP, function(v) C.ESP = v end)
         Toggle("  Box", C.ESPBox, function(v) C.ESPBox = v end)
         Toggle("  Name", C.ESPName, function(v) C.ESPName = v end)
         Toggle("  Distance", C.ESPDist, function(v) C.ESPDist = v end)
+        Toggle("  Skeleton", C.ESPSkeleton, function(v) C.ESPSkeleton = v end)
+        Toggle("  Health Bar", C.ESPHP, function(v) C.ESPHP = v end)
+        Toggle("  Tracers", C.ESPTracers, function(v) C.ESPTracers = v end)
         Slider("Max Dist", 50, 5000, 1000, function(v) C.ESPMaxDist = v end)
-        Toggle("Show FOV", C.ShowFOV, function(v) C.ShowFOV = v end)
         Toggle("Fullbright", C.Fullbright, function(v) C.Fullbright = v end)
     elseif name == "Misc" then
         Label("MISC")
@@ -166,7 +175,19 @@ local Drawings = {}
 
 RunService.RenderStepped:Connect(function()
     local cam = GetCamera()
-    if not cam or not Drawing_OK then return end
+    if not cam then return end
+    
+    -- FOV Circle
+    if C.ShowFOV then
+        FOVCircle.Visible = true
+        FOVCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
+        FOVCircle.Size = UDim2.new(0, C.FOV*2, 0, C.FOV*2)
+        FOVStroke.Color = C.ESPColor
+    else
+        FOVCircle.Visible = false
+    end
+
+    if not Drawing_OK then return end
     for pl, data in pairs(PlayerCache) do
         if not Drawings[pl] then
             local b = Drawing.new("Square") b.Thickness = 1 b.Filled = false
@@ -206,7 +227,7 @@ RunService.RenderStepped:Connect(function()
                 e.hp.From = Vector2.new(x - 6, y + h)
                 e.hp.To = Vector2.new(x - 6, y + h - (h * hp_val))
                 e.hp.Color = Color3.fromHSV(hp_val * 0.3, 1, 1)
-                e.hp.Visible = true
+                e.hp.Visible = C.ESPHP
                 
                 local head = char:FindFirstChild("Head")
                 local larm = char:FindFirstChild("Left Arm") or char:FindFirstChild("LeftHand")
@@ -218,18 +239,24 @@ RunService.RenderStepped:Connect(function()
                     local sp, on2 = cam:WorldToViewportPoint(part.Position)
                     return Vector2.new(sp.X, sp.Y)
                 end
-                if head then
+                if head and C.ESPSkeleton then
                     local hpos = to2d(head) local rpos = to2d(hrp)
                     e.sk1.From = hpos e.sk1.To = rpos e.sk1.Color = C.ESPColor e.sk1.Visible = true
                     if larm then e.sk2.From = rpos e.sk2.To = to2d(larm) e.sk2.Color = C.ESPColor e.sk2.Visible = true end
                     if rarm then e.sk3.From = rpos e.sk3.To = to2d(rarm) e.sk3.Color = C.ESPColor e.sk3.Visible = true end
                     if lleg then e.sk4.From = rpos e.sk4.To = to2d(lleg) e.sk4.Color = C.ESPColor e.sk4.Visible = true end
+                else
+                    e.sk1.Visible = false e.sk2.Visible = false e.sk3.Visible = false e.sk4.Visible = false
                 end
                 
-                e.tr.From = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y)
-                e.tr.To = Vector2.new(pos.X, pos.Y)
-                e.tr.Color = C.ESPColor
-                e.tr.Visible = true
+                if C.ESPTracers then
+                    e.tr.From = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y)
+                    e.tr.To = Vector2.new(pos.X, pos.Y)
+                    e.tr.Color = C.ESPColor
+                    e.tr.Visible = true
+                else
+                    e.tr.Visible = false
+                end
             else
                 e.b.Visible = false e.n.Visible = false e.d.Visible = false e.hp.Visible = false e.sk1.Visible = false e.sk2.Visible = false e.sk3.Visible = false e.sk4.Visible = false e.tr.Visible = false
             end
@@ -274,4 +301,4 @@ UserInputService.InputBegan:Connect(function(input)
     end
 end)
 
-print("[FerClient v8.6] Загружен!")
+print("[FerClient v8.7] Загружен!")
