@@ -1,4 +1,4 @@
---[[ FerClient v8.8 | Stable Mobile Fix ]]
+--[[ FerClient v8.9 | AimBot Fix + Prediction ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -13,15 +13,27 @@ end
 
 local C = {
     AimBot=false, AimPart="Head", Smooth=0.35, FOV=150, TeamCheck=false,
-    ESP=false, ESPBox=true, ESPName=true, ESPDist=true, ESPSkeleton=false, ESPHP=false, ESPTracers=false, ESPMaxDist=1000,
-    ESPColor=Color3.fromRGB(0,200,255), ShowFOV=false
+    Prediction=0.15, -- Время предугадывания (сек)
+    ESP=false, ESPBox=true, ESPName=true, ESPDist=true, ESPMaxDist=1000,
+    ESPColor=Color3.fromRGB(0,200,255)
 }
 
+-- Кэш игроков (с обновлением при респавне)
 local PlayerCache = {}
-for _, pl in ipairs(Players:GetPlayers()) do
-    if pl ~= LP then PlayerCache[pl] = {Char=pl.Character, HRP=pl.Character and pl.Character:FindFirstChild("HumanoidRootPart")} end
+local function CachePlayer(pl)
+    if pl ~= LP then 
+        PlayerCache[pl] = {
+            Char=pl.Character, 
+            HRP=pl.Character and pl.Character:FindFirstChild("HumanoidRootPart")
+        }
+        pl.CharacterAdded:Connect(function(char)
+            task.wait(1)
+            PlayerCache[pl] = {Char=char, HRP=char:FindFirstChild("HumanoidRootPart")}
+        end)
+    end
 end
-Players.PlayerAdded:Connect(function(pl) if pl ~= LP then PlayerCache[pl] = {Char=pl.Character, HRP=pl.Character and pl.Character:FindFirstChild("HumanoidRootPart")} end end)
+for _, pl in ipairs(Players:GetPlayers()) do CachePlayer(pl) end
+Players.PlayerAdded:Connect(CachePlayer)
 Players.PlayerRemoving:Connect(function(pl) PlayerCache[pl] = nil end)
 
 local ACC = Color3.fromRGB(0,170,255)
@@ -50,7 +62,7 @@ N("UIStroke", {Color=ACC, Thickness=1}, M)
 
 local TB = N("Frame", {Size=UDim2.new(1,0,0,40), BackgroundColor3=P2, BorderSizePixel=0}, M)
 N("UICorner", {CornerRadius=UDim.new(0,12)}, TB)
-N("TextLabel", {Text="  FerClient v8.8", Font=Enum.Font.GothamBold, TextSize=16, TextColor3=TXT, BackgroundTransparency=1, Size=UDim2.new(1,-50,1,0), TextXAlignment=Enum.TextXAlignment.Left}, TB)
+N("TextLabel", {Text="  FerClient v8.9", Font=Enum.Font.GothamBold, TextSize=16, TextColor3=TXT, BackgroundTransparency=1, Size=UDim2.new(1,-50,1,0), TextXAlignment=Enum.TextXAlignment.Left}, TB)
 local CL = N("TextButton", {Text="✕", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=TXT, BackgroundColor3=Color3.fromRGB(220,50,70), Size=UDim2.new(0,26,0,26), Position=UDim2.new(1,-32,0.5,-13), BorderSizePixel=0}, TB)
 N("UICorner", {CornerRadius=UDim.new(0,6)}, CL)
 
@@ -61,10 +73,6 @@ local CT = N("ScrollingFrame", {Size=UDim2.new(1,-110,1,-50), Position=UDim2.new
 N("UICorner", {CornerRadius=UDim.new(0,8)}, CT)
 local CLL = N("UIListLayout", {Padding=UDim.new(0,6)}, CT)
 N("UIPadding", {PaddingTop=UDim.new(0,8), PaddingLeft=UDim.new(0,8), PaddingRight=UDim.new(0,8), PaddingBottom=UDim.new(0,8)}, CT)
-
-local FOVCircle = N("Frame", {BackgroundTransparency=1, AnchorPoint=Vector2.new(0.5,0.5), Position=UDim2.new(0.5,0,0.5,0), Size=UDim2.new(0,300,0,300), Visible=false}, SG)
-N("UICorner", {CornerRadius=UDim.new(1,0)}, FOVCircle)
-local FOVStroke = N("UIStroke", {Thickness=1.5, Color=ACC, ApplyStrokeMode=Enum.ApplyStrokeMode.Border}, FOVCircle)
 
 local function Label(text) 
     N("TextLabel", {Text=text, Font=Enum.Font.GothamBold, TextSize=12, TextColor3=SUB, BackgroundTransparency=1, Size=UDim2.new(1,0,0,20), TextXAlignment=Enum.TextXAlignment.Left}, CT) 
@@ -107,30 +115,22 @@ end
 
 local function BuildTab(name)
     for _, obj in ipairs(CT:GetChildren()) do if obj:IsA("GuiObject") then obj:Destroy() end end
-    
     if name == "Combat" then
         Label("COMBAT")
         Toggle("Aim Bot", C.AimBot, function(v) C.AimBot = v end)
         Toggle("Team Check", C.TeamCheck, function(v) C.TeamCheck = v end)
-        Toggle("Show FOV", C.ShowFOV, function(v) C.ShowFOV = v end)
-        Slider("FOV Size", 30, 800, 150, function(v) C.FOV = v FOVCircle.Size = UDim2.new(0, v*2, 0, v*2) end)
+        Slider("FOV", 30, 800, 150, function(v) C.FOV = v end)
         Slider("Smooth", 1, 100, 35, function(v) C.Smooth = v/100 end)
+        Slider("Prediction", 0, 50, 15, function(v) C.Prediction = v/100 end)
     elseif name == "Visual" then
         Label("PLAYER ESP")
         Toggle("ESP", C.ESP, function(v) C.ESP = v end)
         Toggle("  Box", C.ESPBox, function(v) C.ESPBox = v end)
         Toggle("  Name", C.ESPName, function(v) C.ESPName = v end)
         Toggle("  Distance", C.ESPDist, function(v) C.ESPDist = v end)
-        Toggle("  Skeleton", C.ESPSkeleton, function(v) C.ESPSkeleton = v end)
-        Toggle("  Health Bar", C.ESPHP, function(v) C.ESPHP = v end)
-        Toggle("  Tracers", C.ESPTracers, function(v) C.ESPTracers = v end)
         Slider("Max Dist", 50, 5000, 1000, function(v) C.ESPMaxDist = v end)
     end
-    
-    task.defer(function()
-        task.wait(0.1)
-        CT.CanvasSize = UDim2.new(0, 0, 0, CLL.AbsoluteContentSize.Y + 20)
-    end)
+    task.defer(function() task.wait(0.1) CT.CanvasSize = UDim2.new(0, 0, 0, CLL.AbsoluteContentSize.Y + 20) end)
 end
 
 local TabBtn = N("TextButton", {Text="Combat", Font=Enum.Font.GothamSemibold, TextSize=13, TextColor3=ACC, BackgroundColor3=P2, Size=UDim2.new(0,90,0,28), BorderSizePixel=0}, TBB)
@@ -142,7 +142,6 @@ N("UICorner", {CornerRadius=UDim.new(0,6)}, TabBtn2)
 TabBtn2.MouseButton1Click:Connect(function() BuildTab("Visual") end)
 
 BuildTab("Combat")
-
 AV.MouseButton1Click:Connect(function() M.Visible = not M.Visible end)
 CL.MouseButton1Click:Connect(function() M.Visible = false end)
 
@@ -152,84 +151,41 @@ TB.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.Mouse
 TB.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then mdrag = false end end)
 UserInputService.InputChanged:Connect(function(i) if mdrag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then local d = i.Position - mds M.Position = UDim2.new(mdp.X.Scale, mdp.X.Offset + d.X, mdp.Y.Scale, mdp.Y.Offset + d.Y) end end)
 
--- ESP (ИСПОЛЬЗУЕМ SQUARE ВМЕСТО LINE)
+-- ESP
 local Drawing_OK = pcall(function() local t = Drawing.new("Square") t:Remove() end)
 local Drawings = {}
 
 RunService.RenderStepped:Connect(function()
     local cam = GetCamera()
-    if not cam then return end
-    
-    if C.ShowFOV then
-        FOVCircle.Visible = true
-        FOVCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
-        FOVCircle.Size = UDim2.new(0, C.FOV*2, 0, C.FOV*2)
-        FOVStroke.Color = C.ESPColor
-    else
-        FOVCircle.Visible = false
-    end
-
-    if not Drawing_OK then return end
+    if not cam or not Drawing_OK then return end
     for pl, data in pairs(PlayerCache) do
         if not Drawings[pl] then
             local b = Drawing.new("Square") b.Thickness = 1 b.Filled = false
             local n = Drawing.new("Text") n.Size = 12 n.Center = true n.Outline = true n.Color = Color3.new(1,1,1)
             local d = Drawing.new("Text") d.Size = 11 d.Center = true d.Outline = true d.Color = C.ESPColor
-            local hp = Drawing.new("Square") hp.Thickness = 1 hp.Filled = true
-            local sk = Drawing.new("Square") sk.Thickness = 1 sk.Filled = true
-            local tr = Drawing.new("Square") tr.Thickness = 1 tr.Filled = true
-            Drawings[pl] = {b=b, n=n, d=d, hp=hp, sk=sk, tr=tr}
+            Drawings[pl] = {b=b, n=n, d=d}
         end
-        
         local e = Drawings[pl]
         local char = pl.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
         local hum = char and char:FindFirstChildOfClass("Humanoid")
-        
         if C.ESP and hrp and hum and hum.Health > 0 then
             local top = cam:WorldToViewportPoint(hrp.Position + Vector3.new(0,3,0))
             local bot = cam:WorldToViewportPoint(hrp.Position - Vector3.new(0,3,0))
             local pos, on = cam:WorldToViewportPoint(hrp.Position)
-            
             if on then
-                local h = math.abs(top.Y - bot.Y)
-                local w = h * 0.55
-                local x, y = pos.X - w/2, top.Y
-                
-                e.b.Size = Vector2.new(w, h) e.b.Position = Vector2.new(x, y) e.b.Color = C.ESPColor e.b.Visible = C.ESPBox
-                e.n.Text = pl.Name e.n.Position = Vector2.new(pos.X, y - 16) e.n.Visible = C.ESPName
+                local h = math.abs(top.Y - bot.Y) local w = h * 0.55
+                e.b.Size = Vector2.new(w, h) e.b.Position = Vector2.new(pos.X - w/2, top.Y) e.b.Color = C.ESPColor e.b.Visible = C.ESPBox
+                e.n.Text = pl.Name e.n.Position = Vector2.new(pos.X, top.Y - 16) e.n.Visible = C.ESPName
                 local LPH = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
                 local dist = LPH and math.floor((LPH.Position - hrp.Position).Magnitude) or 0
                 e.d.Text = "[" .. dist .. "m]" e.d.Position = Vector2.new(pos.X, bot.Y + 2) e.d.Visible = C.ESPDist
-                
-                local hp_val = hum.Health / hum.MaxHealth
-                e.hp.Size = Vector2.new(3, h * hp_val) e.hp.Position = Vector2.new(x - 6, y + h - (h * hp_val)) e.hp.Color = Color3.fromHSV(hp_val * 0.3, 1, 1) e.hp.Visible = C.ESPHP
-                
-                if C.ESPSkeleton then
-                    local head = char:FindFirstChild("Head")
-                    if head then
-                        local hpos = cam:WorldToViewportPoint(head.Position)
-                        e.sk.Size = Vector2.new(2, math.abs(hpos.Y - pos.Y)) e.sk.Position = Vector2.new(pos.X, hpos.Y) e.sk.Color = C.ESPColor e.sk.Visible = true
-                    end
-                else
-                    e.sk.Visible = false
-                end
-                
-                if C.ESPTracers then
-                    e.tr.Size = Vector2.new(2, 1) e.tr.Position = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y) e.tr.Color = C.ESPColor e.tr.Visible = true
-                else
-                    e.tr.Visible = false
-                end
-            else
-                e.b.Visible = false e.n.Visible = false e.d.Visible = false e.hp.Visible = false e.sk.Visible = false e.tr.Visible = false
-            end
-        else
-            e.b.Visible = false e.n.Visible = false e.d.Visible = false e.hp.Visible = false e.sk.Visible = false e.tr.Visible = false
-        end
+            else e.b.Visible = false e.n.Visible = false e.d.Visible = false end
+        else e.b.Visible = false e.n.Visible = false e.d.Visible = false end
     end
 end)
 
--- AIM
+-- AIM (С ПРЕДУГАДЫВАНИЕМ)
 local function GetNearest()
     local cam = GetCamera() if not cam then return nil end
     local best, dist = nil, C.FOV
@@ -248,20 +204,44 @@ local function GetNearest()
     return best
 end
 
+-- Аим работает постоянно (плавно), а при выстреле — резко доворачивает
+RunService.RenderStepped:Connect(function()
+    if not C.AimBot then return end
+    local cam = GetCamera() if not cam then return end
+    local target = GetNearest()
+    if target and target.Character then
+        local part = target.Character:FindFirstChild(C.AimPart) or target.Character:FindFirstChild("Head")
+        if part then
+            -- ПРЕДУГАДЫВАНИЕ
+            local vel = Vector3.new(0,0,0)
+            if target.Character.HumanoidRootPart then
+                vel = target.Character.HumanoidRootPart.AssemblyLinearVelocity
+            end
+            local predictedPos = part.Position + (vel * C.Prediction)
+            
+            -- Плавная наводка (магнит)
+            local desired = CFrame.new(cam.CFrame.Position, predictedPos)
+            cam.CFrame = cam.CFrame:Lerp(desired, 0.15)
+        end
+    end
+end)
+
+-- При нажатии на экран (выстрел) — резкий доворот
 UserInputService.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         if C.AimBot then
+            local cam = GetCamera() if not cam then return end
             local target = GetNearest()
-            if target and target.Character and target.Character:FindFirstChild(C.AimPart) then
-                local cam = GetCamera()
-                if cam then 
-                    local part = target.Character[C.AimPart]
+            if target and target.Character then
+                local part = target.Character:FindFirstChild(C.AimPart) or target.Character:FindFirstChild("Head")
+                if part then
                     local vel = target.Character.HumanoidRootPart and target.Character.HumanoidRootPart.AssemblyLinearVelocity or Vector3.new(0,0,0)
-                    cam.CFrame = CFrame.new(cam.CFrame.Position, part.Position + (vel * 0.1))
+                    local predictedPos = part.Position + (vel * C.Prediction)
+                    cam.CFrame = CFrame.new(cam.CFrame.Position, predictedPos)
                 end
             end
         end
     end
 end)
 
-print("[FerClient v8.8] Загружен!")
+print("[FerClient v8.9] AimBot + Prediction Loaded!")
