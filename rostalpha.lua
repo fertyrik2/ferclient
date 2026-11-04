@@ -1,4 +1,4 @@
---[[ FerClient v9.0 | Full Functions + Prediction + FOV ]]
+--[[ FerClient v9.1 | Full Functions + Fixed Prediction + FOV ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -7,6 +7,9 @@ local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 local LP = Players.LocalPlayer
 
+-- ФИКСИРОВАННОЕ ПРЕДУГАДЫВАНИЕ (секунды)
+local PREDICTION = 0.15
+
 local function GetCamera()
     local cam = workspace.CurrentCamera
     if cam and cam.Parent then return cam end
@@ -14,7 +17,7 @@ local function GetCamera()
 end
 
 local C = {
-    AimBot=false, AimPart="Head", Smooth=0.15, FOV=150, TeamCheck=false, Prediction=0.15,
+    AimBot=false, AimPart="Head", Smooth=0.15, FOV=150, TeamCheck=false,
     ESP=false, ESPBox=true, ESPName=true, ESPDist=true, ESPSkeleton=false, ESPHP=false, ESPTracers=false, ESPMaxDist=1000,
     ESPColor=Color3.fromRGB(0,200,255), ShowFOV=false,
     Fullbright=false, XRay=false, NoDeco=false,
@@ -58,7 +61,7 @@ N("UIStroke", {Color=ACC, Thickness=1}, M)
 
 local TB = N("Frame", {Size=UDim2.new(1,0,0,40), BackgroundColor3=P2, BorderSizePixel=0}, M)
 N("UICorner", {CornerRadius=UDim.new(0,12)}, TB)
-N("TextLabel", {Text="  FerClient v9.0", Font=Enum.Font.GothamBold, TextSize=16, TextColor3=TXT, BackgroundTransparency=1, Size=UDim2.new(1,-50,1,0), TextXAlignment=Enum.TextXAlignment.Left}, TB)
+N("TextLabel", {Text="  FerClient v9.1", Font=Enum.Font.GothamBold, TextSize=16, TextColor3=TXT, BackgroundTransparency=1, Size=UDim2.new(1,-50,1,0), TextXAlignment=Enum.TextXAlignment.Left}, TB)
 local CL = N("TextButton", {Text="✕", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=TXT, BackgroundColor3=Color3.fromRGB(220,50,70), Size=UDim2.new(0,26,0,26), Position=UDim2.new(1,-32,0.5,-13), BorderSizePixel=0}, TB)
 N("UICorner", {CornerRadius=UDim.new(0,6)}, CL)
 
@@ -114,7 +117,7 @@ local function BuildTab(name)
         Toggle("Show FOV", C.ShowFOV, function(v) C.ShowFOV = v end)
         Slider("FOV Size", 30, 800, 150, function(v) C.FOV = v FOVCircle.Size = UDim2.new(0, v*2, 0, v*2) end)
         Slider("Smooth", 1, 100, 15, function(v) C.Smooth = v/100 end)
-        Slider("Prediction", 0, 50, 15, function(v) C.Prediction = v/100 end)
+        -- Slider Prediction УДАЛЁН (фиксировано PREDICTION = 0.15)
     elseif name == "Visual" then
         Label("PLAYER ESP")
         Toggle("ESP", C.ESP, function(v) C.ESP = v end)
@@ -163,7 +166,7 @@ TB.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.Mouse
 TB.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then mdrag = false end end)
 UserInputService.InputChanged:Connect(function(i) if mdrag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then local d = i.Position - mds M.Position = UDim2.new(mdp.X.Scale, mdp.X.Offset + d.X, mdp.Y.Scale, mdp.Y.Offset + d.Y) end end)
 
--- АИМ + ПРЕДУГАДЫВАНИЕ
+-- АИМ + ПРЕДУГАДЫВАНИЕ (ФИКСИРОВАННОЕ)
 local function GetNearest()
     local cam = GetCamera() if not cam then return nil end
     local best, dist = nil, C.FOV
@@ -195,21 +198,21 @@ RunService.RenderStepped:Connect(function()
         FOVCircle.Visible = false
     end
 
-    -- AIM (постоянно, с предугадыванием)
+    -- AIM (постоянно, с фиксированным предугадыванием)
     if C.AimBot then
         local target = GetNearest()
         if target and target.Character then
             local part = target.Character:FindFirstChild(C.AimPart) or target.Character:FindFirstChild("Head")
             if part then
                 local vel = target.Character.HumanoidRootPart and target.Character.HumanoidRootPart.AssemblyLinearVelocity or Vector3.new(0,0,0)
-                local predPos = part.Position + (vel * C.Prediction)
+                local predPos = part.Position + (vel * PREDICTION)
                 cam.CFrame = cam.CFrame:Lerp(CFrame.new(cam.CFrame.Position, predPos), C.Smooth)
             end
         end
     end
 end)
 
--- ВЫСТРЕЛ (резкий доворот)
+-- ВЫСТРЕЛ (резкий доворот с тем же PREDICTION)
 UserInputService.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         if C.AimBot then
@@ -219,7 +222,7 @@ UserInputService.InputBegan:Connect(function(input)
                 local part = target.Character:FindFirstChild(C.AimPart) or target.Character:FindFirstChild("Head")
                 if part then
                     local vel = target.Character.HumanoidRootPart and target.Character.HumanoidRootPart.AssemblyLinearVelocity or Vector3.new(0,0,0)
-                    cam.CFrame = CFrame.new(cam.CFrame.Position, part.Position + (vel * C.Prediction))
+                    cam.CFrame = CFrame.new(cam.CFrame.Position, part.Position + (vel * PREDICTION))
                 end
             end
         end
@@ -319,4 +322,4 @@ RunService.Heartbeat:Connect(function()
     end end
 end)
 
-print("[FerClient v9.0] Loaded! All functions active.")
+print("[FerClient v9.1] Loaded! Prediction fixed at " .. PREDICTION .. "s")
