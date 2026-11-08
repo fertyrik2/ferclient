@@ -1,4 +1,4 @@
---[[ FerClient v12.0 | Silent Aim (Hook) + Camera Fix ]]
+--[[ FerClient v12.2 | Silent Aim Only | Camera 100% Fixed ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -9,7 +9,6 @@ local TweenService = game:GetService("TweenService")
 local Stats = game:GetService("Stats")
 local LP = Players.LocalPlayer
 
-local PREDICTION = 0.15
 local isMobile = UserInputService.TouchEnabled
 
 -- ПРОВЕРКА ХУКОВ
@@ -19,10 +18,10 @@ if hookmetamethod and newcclosure and getnamecallmethod then
         local old
         old = hookmetamethod(game, "__namecall", newcclosure(function(...) return old(...) end))
     end)
-    if ok then hasHooks = true print("[FerClient] Хуки работают! Silent Aim через Raycast активен.") 
+    if ok then hasHooks = true print("[FerClient] Хуки работают! Silent Aim активен.") 
     else print("[FerClient] ОШИБКА ХУКОВ! Silent Aim не будет работать.") end
 else
-    print("[FerClient] Delta НЕ поддерживает хуки. Silent Aim отключен.")
+    print("[FerClient] Delta НЕ поддерживает хуки. Аим не будет работать.")
 end
 
 local function GetCamera()
@@ -48,7 +47,7 @@ local function regAccent(i) table.insert(Themed.accents,i) end
 
 -- ============ СОСТОЯНИЕ ============
 local C = {
-    SilentAim=false, AimBot=false, AimPart="Head", Smooth=0.15, FOV=150, TeamCheck=false, WallCheck=false,
+    SilentAim=false, AimPart="Head", FOV=150, TeamCheck=false, WallCheck=false,
     AutoShoot=false, AutoShootDelay=0.05,
     ESP=false, ESPBox=true, ESPName=true, ESPDist=true, ESPSkeleton=false, ESPHP=false, ESPHPNum=false, ESPTracers=false, ESPHead=false, ESPMaxDist=1000,
     ESPColor=Color3.fromRGB(0,200,255), ShowFOV=false,
@@ -115,7 +114,7 @@ local TitleLogo = N("TextLabel", {Size=UDim2.new(0,26,0,26), Position=UDim2.new(
 corner(TitleLogo,8) regAccent(TitleLogo)
 local Title = N("TextLabel", {Size=UDim2.new(1,-300,1,0), Position=UDim2.new(0,126,0,0), BackgroundTransparency=1, Text="FerClient", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=15, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, TitleBar)
 regLabel(Title,"text")
-local SubTitle = N("TextLabel", {Size=UDim2.new(0,200,1,0), Position=UDim2.new(1,-290,0,0), BackgroundTransparency=1, Text="v12.0 • Hook", TextColor3=Colors.TextMuted, Font=Enum.Font.Gotham, TextSize=11, TextXAlignment=Enum.TextXAlignment.Right, ZIndex=3}, TitleBar)
+local SubTitle = N("TextLabel", {Size=UDim2.new(0,200,1,0), Position=UDim2.new(1,-290,0,0), BackgroundTransparency=1, Text="v12.2 • Silent Only", TextColor3=Colors.TextMuted, Font=Enum.Font.Gotham, TextSize=11, TextXAlignment=Enum.TextXAlignment.Right, ZIndex=3}, TitleBar)
 regLabel(SubTitle,"muted")
 
 local Sidebar = N("Frame", {Size=UDim2.new(0,168,1,-60), Position=UDim2.new(0,10,0,50), BackgroundColor3=Colors.Sidebar, BorderSizePixel=0, ZIndex=2}, M)
@@ -253,17 +252,17 @@ local O = 0
 local function nextO() O=O+1 return O end
 local function addTo(tab, obj) if obj then table.insert(Tabs[tab], obj) obj.Visible=false end end
 
-createTabBtn("AIM","Aimbot",1)
+createTabBtn("AIM","Silent Aim",1)
 createTabBtn("VISUALS","ESP",2)
 createTabBtn("PLAYER","Player",3)
 createTabBtn("WORLD","World",4)
 createTabBtn("MISC","Misc",5)
 
-addTo("AIM", createCategory("АИМБОТ", nextO()))
-addTo("AIM", createToggle("Silent Aim (Raycast)", "SilentAim", nextO()))
+addTo("AIM", createCategory("SILENT AIM", nextO()))
+addTo("AIM", createToggle("Включить Silent Aim", "SilentAim", nextO()))
 addTo("AIM", createToggle("Team Check", "TeamCheck", nextO()))
 addTo("AIM", createToggle("Wall Check", "WallCheck", nextO()))
-addTo("AIM", createToggle("AutoShoot", "AutoShoot", nextO()))
+addTo("AIM", createToggle("AutoShoot (Эмуляция клика)", "AutoShoot", nextO()))
 addTo("AIM", createSlider("Задержка выстрела","AutoShootDelay",0.01,0.5,nextO()))
 addTo("AIM", createSlider("FOV","FOV",20,800,nextO()))
 addTo("AIM", createToggle("Show FOV", "ShowFOV", nextO()))
@@ -361,7 +360,7 @@ local function toggleMenu()
     end
 end
 
--- ============ F-КНОПКА (уменьшена + перетаскивается) ============
+-- ============ F-КНОПКА ============
 local OpenBtn
 if isMobile then
     OpenBtn = N("TextButton", {Size=UDim2.new(0,36,0,36), Position=UDim2.new(0,12,0.42,0), BackgroundColor3=Colors.Sidebar, Text="F", TextColor3=Colors.Accent, Font=Enum.Font.GothamBold, TextSize=16, AutoButtonColor=false, ZIndex=50}, SG)
@@ -428,7 +427,7 @@ if hasDrawing then
     FOVCircle.Thickness, FOVCircle.Color, FOVCircle.NumSides, FOVCircle.Filled, FOVCircle.Visible = 1, Colors.Accent, 64, false, false
 end
 
--- ============ АИМ И SILENT AIM (НОВЫЙ) ============
+-- ============ SILENT AIM ЛОГИКА ============
 local function isVisible(targetPart, targetChar)
     if not C.WallCheck then return true end
     local char = LP.Character if not char then return false end
@@ -489,15 +488,6 @@ if hasHooks then
         end
         return oldNamecall(self, ...)
     end))
-end
-
-local function aimAt(target)
-    if not target or not target.part then return end
-    local cam = GetCamera() if not cam then return end
-    local vel = target.char:FindFirstChild("HumanoidRootPart") and target.char.HumanoidRootPart.AssemblyLinearVelocity or Vector3.new(0,0,0)
-    local aimPos = target.part.Position + vel * PREDICTION
-    local alpha = 1 - C.Smooth
-    cam.CFrame = cam.CFrame:Lerp(CFrame.new(cam.CFrame.Position, aimPos), alpha)
 end
 
 local lastShoot = 0
@@ -695,14 +685,10 @@ RunService.RenderStepped:Connect(function()
     end
 
     -- ОБНОВЛЯЕМ ЦЕЛЬ ДЛЯ SILENT AIM
-    if C.SilentAim or C.AimBot then
+    if C.SilentAim then
         CurrentAimTarget = GetNearest()
-        if C.SilentAim and CurrentAimTarget then
-            -- Silent aim логика сработает в хуке Raycast
-            if C.AutoShoot then tryAutoShoot(CurrentAimTarget) end
-        elseif C.AimBot and CurrentAimTarget then
-            aimAt(CurrentAimTarget)
-            if C.AutoShoot then tryAutoShoot(CurrentAimTarget) end
+        if C.AutoShoot and CurrentAimTarget then
+            tryAutoShoot(CurrentAimTarget)
         end
     else
         CurrentAimTarget = nil
@@ -840,5 +826,5 @@ UserInputService.InputBegan:Connect(function(input, processed)
 end)
 
 showTab("AIM")
-pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v12.0", Text="Silent Aim (Hook) загружен!", Duration=4}) end)
-print("[FerClient v12.0] Loaded. Silent Aim " .. (hasHooks and "АКТИВЕН" or "НЕ РАБОТАЕТ (нет хуков)"))
+pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v12.2", Text="Silent Aim Only. Camera Fixed.", Duration=4}) end)
+print("[FerClient v12.2] Loaded. Silent Aim " .. (hasHooks and "АКТИВЕН" or "НЕ РАБОТАЕТ (нет хуков)"))
