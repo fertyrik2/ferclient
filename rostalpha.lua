@@ -1,4 +1,4 @@
---[[ FerClient v13.2 | Vomagla Full Copy + Fall Damage ]]
+--[[ FerClient v13.3 | Exact Vomagla Aim + Fall Damage + Draggable F ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -58,7 +58,7 @@ corner(M,12); stroke(M, ACC, 1)
 
 local TitleBar = N("Frame", {Size=UDim2.new(1,0,0,44), BackgroundColor3=PANEL, BorderSizePixel=0, ZIndex=2}, M)
 corner(TitleBar,12)
-N("TextLabel", {Text="  FerClient v13.2", Font=Enum.Font.GothamBold, TextSize=15, TextColor3=TXT, BackgroundTransparency=1, Size=UDim2.new(1,-50,1,0), TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, TitleBar)
+N("TextLabel", {Text="  FerClient v13.3", Font=Enum.Font.GothamBold, TextSize=15, TextColor3=TXT, BackgroundTransparency=1, Size=UDim2.new(1,-50,1,0), TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, TitleBar)
 local closeClick = N("TextButton", {Text="X", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=TXT, BackgroundColor3=Color3.fromRGB(220,50,70), Size=UDim2.new(0,26,0,26), Position=UDim2.new(1,-32,0.5,-13), BorderSizePixel=0, ZIndex=3}, TitleBar)
 corner(closeClick,6); closeClick.MouseButton1Click:Connect(function() M.Visible = false end)
 
@@ -239,7 +239,6 @@ Players.PlayerAdded:Connect(function(p) task.wait(1); createESP(p) end)
 Players.PlayerRemoving:Connect(function(p) removeESP(p) end)
 
 -- ============ FALL DAMAGE ============
-local FallDamageFix = false
 RunService.Heartbeat:Connect(function()
     if not C.NoFallDamage then return end
     local char = LP.Character
@@ -328,7 +327,39 @@ workspace.DescendantAdded:Connect(function(obj)
     end
 end)
 
-UserInputService.InputBegan:Connect(function(input) if input.KeyCode == Enum.KeyCode.RightShift then M.Visible = not M.Visible end end)
+-- ============ F-КНОПКА И ПЕРЕТАСКИВАНИЕ ============
+local OpenBtn = N("TextButton", {Size=UDim2.new(0,36,0,36), Position=UDim2.new(0,12,0.42,0), BackgroundColor3=BG, Text="F", TextColor3=ACC, Font=Enum.Font.GothamBold, TextSize=16, AutoButtonColor=false, ZIndex=50}, SG)
+corner(OpenBtn,18); stroke(OpenBtn, ACC, 1.5, 0.3)
+
+local dragBtn, btnStart, posStart, moved = false, nil, nil, false
+OpenBtn.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        dragBtn = true; moved = false; btnStart = i.Position; posStart = OpenBtn.Position
+    end
+end)
+OpenBtn.InputEnded:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        dragBtn = false
+    end
+end)
+UserInputService.InputChanged:Connect(function(i)
+    if dragBtn and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+        local d = i.Position - btnStart
+        if math.abs(d.X) > 4 or math.abs(d.Y) > 4 then moved = true end
+        OpenBtn.Position = UDim2.new(posStart.X.Scale, posStart.X.Offset + d.X, posStart.Y.Scale, posStart.Y.Offset + d.Y)
+    end
+end)
+OpenBtn.MouseButton1Click:Connect(function()
+    if moved then moved = false; return end
+    M.Visible = not M.Visible
+end)
+
+local mdrag, mds, mdp = false, nil, nil
+TitleBar.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then mdrag=true; mds=i.Position; mdp=M.Position end end)
+TitleBar.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then mdrag=false end end)
+UserInputService.InputChanged:Connect(function(i) if mdrag and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then local d=i.Position-mds; M.Position=UDim2.new(mdp.X.Scale,mdp.X.Offset+d.X,mdp.Y.Scale,mdp.Y.Offset+d.Y) end end)
+
+-- ============ START ============
 showTab("AIM")
-pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v13.2", Text="Vomagla Logic + Fall Damage", Duration=4}) end)
-print("[FerClient v13.2] Loaded.")
+pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v13.3", Text="Vomagla Logic + Fall Damage + F", Duration=4}) end)
+print("[FerClient v13.3] Loaded.")
