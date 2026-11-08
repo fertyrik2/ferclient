@@ -1,4 +1,4 @@
---[[ FerClient v12.2 | Silent Aim Only | Camera 100% Fixed ]]
+--[[ FerClient v12.3 | Silent Aim + Camera Unlocked ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -114,7 +114,7 @@ local TitleLogo = N("TextLabel", {Size=UDim2.new(0,26,0,26), Position=UDim2.new(
 corner(TitleLogo,8) regAccent(TitleLogo)
 local Title = N("TextLabel", {Size=UDim2.new(1,-300,1,0), Position=UDim2.new(0,126,0,0), BackgroundTransparency=1, Text="FerClient", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=15, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, TitleBar)
 regLabel(Title,"text")
-local SubTitle = N("TextLabel", {Size=UDim2.new(0,200,1,0), Position=UDim2.new(1,-290,0,0), BackgroundTransparency=1, Text="v12.2 • Silent Only", TextColor3=Colors.TextMuted, Font=Enum.Font.Gotham, TextSize=11, TextXAlignment=Enum.TextXAlignment.Right, ZIndex=3}, TitleBar)
+local SubTitle = N("TextLabel", {Size=UDim2.new(0,200,1,0), Position=UDim2.new(1,-290,0,0), BackgroundTransparency=1, Text="v12.3 • Camera Unlocked", TextColor3=Colors.TextMuted, Font=Enum.Font.Gotham, TextSize=11, TextXAlignment=Enum.TextXAlignment.Right, ZIndex=3}, TitleBar)
 regLabel(SubTitle,"muted")
 
 local Sidebar = N("Frame", {Size=UDim2.new(0,168,1,-60), Position=UDim2.new(0,10,0,50), BackgroundColor3=Colors.Sidebar, BorderSizePixel=0, ZIndex=2}, M)
@@ -791,7 +791,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ============ INF JUMP / ANTI AFK / THIRD PERSON ============
+-- ============ INF JUMP / ANTI AFK ============
 UserInputService.JumpRequest:Connect(function() if C.InfJump and LP.Character then local h=LP.Character:FindFirstChildOfClass("Humanoid") if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end end end)
 
 task.spawn(function()
@@ -800,10 +800,12 @@ task.spawn(function()
         if C.AntiAFK then
             pcall(function() local v=game:GetService("VirtualUser") v:CaptureController() v:ClickButton2(Vector2.new()) end)
         end
+        -- ThirdPerson теперь ТОЛЬКО если включен тумблер в меню
         if C.ThirdPerson then
-            pcall(function() LP.CameraMaxZoomDistance=C.ThirdPersonDist LP.CameraMinZoomDistance=C.ThirdPersonDist end)
-        else
-            pcall(function() LP.CameraMaxZoomDistance=128 LP.CameraMinZoomDistance=0.5 end)
+            pcall(function() 
+                LP.CameraMaxZoomDistance = C.ThirdPersonDist 
+                LP.CameraMinZoomDistance = C.ThirdPersonDist 
+            end)
         end
     end
 end)
@@ -826,5 +828,5 @@ UserInputService.InputBegan:Connect(function(input, processed)
 end)
 
 showTab("AIM")
-pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v12.2", Text="Silent Aim Only. Camera Fixed.", Duration=4}) end)
-print("[FerClient v12.2] Loaded. Silent Aim " .. (hasHooks and "АКТИВЕН" or "НЕ РАБОТАЕТ (нет хуков)"))
+pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v12.3", Text="Camera Unlocked. Silent Aim.", Duration=4}) end)
+print("[FerClient v12.3] Loaded. Camera is FREE.")
