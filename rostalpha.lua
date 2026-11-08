@@ -1,4 +1,4 @@
---[[ FerClient v10.0 | Full Merge (NyzeRust features + FerClient upgrades) ]]
+--[[ FerClient v10.1 | Full Merge + Draggable Small F Button ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -102,7 +102,7 @@ local TitleLogo = N("TextLabel", {Size=UDim2.new(0,26,0,26), Position=UDim2.new(
 corner(TitleLogo,8) regAccent(TitleLogo)
 local Title = N("TextLabel", {Size=UDim2.new(1,-300,1,0), Position=UDim2.new(0,126,0,0), BackgroundTransparency=1, Text="FerClient", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=15, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, TitleBar)
 regLabel(Title,"text")
-local SubTitle = N("TextLabel", {Size=UDim2.new(0,200,1,0), Position=UDim2.new(1,-290,0,0), BackgroundTransparency=1, Text="v10.0 • Merge", TextColor3=Colors.TextMuted, Font=Enum.Font.Gotham, TextSize=11, TextXAlignment=Enum.TextXAlignment.Right, ZIndex=3}, TitleBar)
+local SubTitle = N("TextLabel", {Size=UDim2.new(0,200,1,0), Position=UDim2.new(1,-290,0,0), BackgroundTransparency=1, Text="v10.1 • Merge", TextColor3=Colors.TextMuted, Font=Enum.Font.Gotham, TextSize=11, TextXAlignment=Enum.TextXAlignment.Right, ZIndex=3}, TitleBar)
 regLabel(SubTitle,"muted")
 
 local Sidebar = N("Frame", {Size=UDim2.new(0,168,1,-60), Position=UDim2.new(0,10,0,50), BackgroundColor3=Colors.Sidebar, BorderSizePixel=0, ZIndex=2}, M)
@@ -193,7 +193,6 @@ local function createToggle(label, prop, order, noBind)
         C[prop]=not C[prop]
         refreshToggle(prop,b,status)
         TweenService:Create(marker, TweenInfo.new(0.2), {BackgroundColor3=C[prop] and Colors.Accent or Colors.BorderLight}):Play()
-        if prop=="AimBot" then if C.AimBot then if Blur then end end end
     end)
     if not noBind then createBindBtn(b, prop, b, status) end
     return b
@@ -350,30 +349,53 @@ local function toggleMenu()
     end
 end
 
+-- ============ F-КНОПКА (уменьшена + перетаскивается) ============
 local OpenBtn
 if isMobile then
-    OpenBtn = N("TextButton", {Size=UDim2.new(0,52,0,52), Position=UDim2.new(0,12,0.42,0), BackgroundColor3=Colors.Sidebar, Text="F", TextColor3=Colors.Accent, Font=Enum.Font.GothamBold, TextSize=22, AutoButtonColor=false, ZIndex=50}, SG)
-    corner(OpenBtn,26) stroke(OpenBtn, Colors.Accent, 2, 0.3)
-    OpenBtn.MouseButton1Click:Connect(toggleMenu)
+    OpenBtn = N("TextButton", {Size=UDim2.new(0,36,0,36), Position=UDim2.new(0,12,0.42,0), BackgroundColor3=Colors.Sidebar, Text="F", TextColor3=Colors.Accent, Font=Enum.Font.GothamBold, TextSize=16, AutoButtonColor=false, ZIndex=50}, SG)
+    corner(OpenBtn,18) stroke(OpenBtn, Colors.Accent, 1.5, 0.3)
 else
-    OpenBtn = N("TextButton", {Size=UDim2.new(0,40,0,40), Position=UDim2.new(0,20,0.5,-20), BackgroundColor3=Colors.Background, Text="F", TextColor3=Colors.Accent, Font=Enum.Font.GothamBold, TextSize=22, AutoButtonColor=false, ZIndex=50}, SG)
-    corner(OpenBtn,20) stroke(OpenBtn, Colors.Accent, 2, 0.3)
-    OpenBtn.MouseButton1Click:Connect(toggleMenu)
+    OpenBtn = N("TextButton", {Size=UDim2.new(0,30,0,30), Position=UDim2.new(0,20,0.5,-15), BackgroundColor3=Colors.Background, Text="F", TextColor3=Colors.Accent, Font=Enum.Font.GothamBold, TextSize=13, AutoButtonColor=false, ZIndex=50}, SG)
+    corner(OpenBtn,15) stroke(OpenBtn, Colors.Accent, 1.5, 0.3)
 end
 
--- Drag
-local mdrag, mds, mdp = false, nil, nil
-local function makeDrag(handle)
-    handle.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then mdrag=true mds=i.Position mdp=M.Position end end)
-    handle.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then mdrag=false end end)
+do
+    local dragBtn, btnStart, posStart, moved = false, nil, nil, false
+    OpenBtn.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            dragBtn = true moved = false
+            btnStart = i.Position
+            posStart = OpenBtn.Position
+        end
+    end)
+    OpenBtn.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            dragBtn = false
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(i)
+        if dragBtn and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+            local d = i.Position - btnStart
+            if math.abs(d.X) > 4 or math.abs(d.Y) > 4 then moved = true end
+            OpenBtn.Position = UDim2.new(posStart.X.Scale, posStart.X.Offset + d.X, posStart.Y.Scale, posStart.Y.Offset + d.Y)
+        end
+    end)
+    OpenBtn.MouseButton1Click:Connect(function()
+        if moved then moved = false return end
+        toggleMenu()
+    end)
 end
-makeDrag(TitleBar)
+
+-- ============ ПЕРЕТАСКИВАНИЕ ОКНА ============
+local mdrag, mds, mdp = false, nil, nil
+TitleBar.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then mdrag=true mds=i.Position mdp=M.Position end end)
+TitleBar.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then mdrag=false end end)
 UserInputService.InputChanged:Connect(function(i) if mdrag and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then local d=i.Position-mds M.Position=UDim2.new(mdp.X.Scale,mdp.X.Offset+d.X,mdp.Y.Scale,mdp.Y.Offset+d.Y) end end)
 
 -- ============ WATERMARK FPS + PING ============
 local WM = N("ScreenGui", {Name="FerWM", ResetOnSpawn=false, IgnoreGuiInset=true}, CoreGui)
 local WFrame = N("Frame", {Size=UDim2.new(0,200,0,28), Position=UDim2.new(0.5,-100,0,8), BackgroundColor3=Colors.Background, BackgroundTransparency=0.05, BorderSizePixel=0, ZIndex=10}, WM)
-corner(WFrame,14); local WStroke = stroke(WFrame, Colors.Accent, 1, 0.4)
+corner(WFrame,14); stroke(WFrame, Colors.Accent, 1, 0.4)
 local WLabel = N("TextLabel", {Size=UDim2.new(1,-20,1,0), Position=UDim2.new(0,10,0,0), BackgroundTransparency=1, TextColor3=Colors.Text, Font=Enum.Font.GothamMedium, TextSize=12, TextXAlignment=Enum.TextXAlignment.Left, Text="FerClient | 0 FPS | 0ms"}, WFrame)
 local fpsT, frames = tick(), 0
 RunService.RenderStepped:Connect(function()
@@ -571,7 +593,7 @@ local function applyXRay(on)
     end
 end
 
--- ============ RESOURCES (вот папки для Auto-Farm) ============
+-- ============ RESOURCES ============
 local OreData = {
     ores = {sulfur={C="SulfurESP", col=Color3.new(1,1,0)}, iron={C="IronESP", col=Color3.fromRGB(180,180,180)}, stone={C="StoneESP", col=Color3.fromRGB(220,220,220)}},
     crates = {Crate={C="CrateESP", col=Color3.fromRGB(180,130,60)}, MilitaryCrate={C="MilitaryESP", col=Color3.new(0,180,0)}, EliteCrate={C="EliteESP", col=Color3.fromRGB(255,60,90)}, FoodBox={C="FoodESP", col=Color3.fromRGB(0,200,255)}, ToolBox={C="FoodESP", col=Color3.fromRGB(0,200,255)}}
@@ -583,7 +605,7 @@ local function applyHighlight(obj, name, color, maxDist, enabled)
         return
     end
     if not obj:FindFirstChild("FerHL") then
-        local h = N("Highlight", {Name="FerHL", DepthMode=Enum.HighlightDepthMode.AlwaysOnTop, OutlineColor=color, FillColor=color}, obj)
+        N("Highlight", {Name="FerHL", DepthMode=Enum.HighlightDepthMode.AlwaysOnTop, OutlineColor=color, FillColor=color}, obj)
     end
     if not obj:FindFirstChild("FerTag") then
         local bg = N("BillboardGui", {Name="FerTag", AlwaysOnTop=true, Size=UDim2.new(0,120,0,40), ExtentsOffset=Vector3.new(0,2,0)}, obj)
@@ -637,12 +659,11 @@ Players.PlayerAdded:Connect(function(p) task.wait(1) createESP(p) end)
 Players.PlayerRemoving:Connect(function(p) removeESP(p) end)
 
 -- ============ RENDER ============
-local fps, frames2, lastT = 0, 0, tick()
+local lastT = 0
 RunService.RenderStepped:Connect(function()
     local cam = GetCamera() if not cam then return end
     local now = tick()
 
-    -- FOV Circle
     if FOVCircle then
         if C.ShowFOV then
             FOVCircle.Visible = true
@@ -654,7 +675,6 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- AimBot (постоянно при ON)
     if C.AimBot then
         local t = GetNearest()
         if t then aimAt(t) if C.AutoShoot then tryAutoShoot(t) end
@@ -663,7 +683,6 @@ RunService.RenderStepped:Connect(function()
         restoreAutoRotate()
     end
 
-    -- ESP
     if hasDrawing then
         for pl, e in pairs(ESP) do
             local char = pl.Character
@@ -732,15 +751,12 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- World visual (троттлинг 2с)
-    if not lastT or now - lastT > 2 then
+    if now - lastT > 2 then
         lastT = now
         if C.Fullbright then pcall(applyFullbright, true) end
         if C.XRay then pcall(applyXRay, true) elseif xrayActive then pcall(applyXRay, false) end
         pcall(applyOpt)
 
-        -- Resources
-        local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
         local ores = workspace:FindFirstChild("ores")
         if ores then
             for _, obj in ipairs(ores:GetChildren()) do
@@ -765,7 +781,6 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ============ INF JUMP / ANTI AFK / THIRD PERSON ============
-local InfConn, AFKConn
 UserInputService.JumpRequest:Connect(function() if C.InfJump and LP.Character then local h=LP.Character:FindFirstChildOfClass("Humanoid") if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end end end)
 
 task.spawn(function()
@@ -800,5 +815,5 @@ UserInputService.InputBegan:Connect(function(input, processed)
 end)
 
 showTab("AIM")
-pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v10.0", Text="Merge OK • RSHIFT меню", Duration=4}) end)
-print("[FerClient v10.0] Loaded. Папки для Auto-Farm: workspace.ores / workspace.Crates / workspace.Npc")
+pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v10.1", Text="F кнопка: меньше + drag • RSHIFT меню", Duration=4}) end)
+print("[FerClient v10.1] Loaded. F-кнопка уменьшена и перетаскивается.")
