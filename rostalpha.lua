@@ -1,4 +1,4 @@
---[[ FerClient v12.3 | Silent Aim + Camera Unlocked ]]
+--[[ FerClient v12.4 | Exact Vomagla Silent Aim Logic (Fixed) ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -11,17 +11,17 @@ local LP = Players.LocalPlayer
 
 local isMobile = UserInputService.TouchEnabled
 
--- ПРОВЕРКА ХУКОВ
+-- Проверка хуков
 local hasHooks = false
 if hookmetamethod and newcclosure and getnamecallmethod then
     local ok = pcall(function()
         local old
         old = hookmetamethod(game, "__namecall", newcclosure(function(...) return old(...) end))
     end)
-    if ok then hasHooks = true print("[FerClient] Хуки работают! Silent Aim активен.") 
-    else print("[FerClient] ОШИБКА ХУКОВ! Silent Aim не будет работать.") end
+    if ok then hasHooks = true print("[FerClient] Хуки OK.") 
+    else print("[FerClient] ОШИБКА: Хуки не работают.") end
 else
-    print("[FerClient] Delta НЕ поддерживает хуки. Аим не будет работать.")
+    print("[FerClient] Delta не поддерживает хуки.")
 end
 
 local function GetCamera()
@@ -114,7 +114,7 @@ local TitleLogo = N("TextLabel", {Size=UDim2.new(0,26,0,26), Position=UDim2.new(
 corner(TitleLogo,8) regAccent(TitleLogo)
 local Title = N("TextLabel", {Size=UDim2.new(1,-300,1,0), Position=UDim2.new(0,126,0,0), BackgroundTransparency=1, Text="FerClient", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=15, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, TitleBar)
 regLabel(Title,"text")
-local SubTitle = N("TextLabel", {Size=UDim2.new(0,200,1,0), Position=UDim2.new(1,-290,0,0), BackgroundTransparency=1, Text="v12.3 • Camera Unlocked", TextColor3=Colors.TextMuted, Font=Enum.Font.Gotham, TextSize=11, TextXAlignment=Enum.TextXAlignment.Right, ZIndex=3}, TitleBar)
+local SubTitle = N("TextLabel", {Size=UDim2.new(0,200,1,0), Position=UDim2.new(1,-290,0,0), BackgroundTransparency=1, Text="v12.4 • Vomagla Aim", TextColor3=Colors.TextMuted, Font=Enum.Font.Gotham, TextSize=11, TextXAlignment=Enum.TextXAlignment.Right, ZIndex=3}, TitleBar)
 regLabel(SubTitle,"muted")
 
 local Sidebar = N("Frame", {Size=UDim2.new(0,168,1,-60), Position=UDim2.new(0,10,0,50), BackgroundColor3=Colors.Sidebar, BorderSizePixel=0, ZIndex=2}, M)
@@ -258,11 +258,11 @@ createTabBtn("PLAYER","Player",3)
 createTabBtn("WORLD","World",4)
 createTabBtn("MISC","Misc",5)
 
-addTo("AIM", createCategory("SILENT AIM", nextO()))
+addTo("AIM", createCategory("VOMAGLA SILENT AIM", nextO()))
 addTo("AIM", createToggle("Включить Silent Aim", "SilentAim", nextO()))
 addTo("AIM", createToggle("Team Check", "TeamCheck", nextO()))
 addTo("AIM", createToggle("Wall Check", "WallCheck", nextO()))
-addTo("AIM", createToggle("AutoShoot (Эмуляция клика)", "AutoShoot", nextO()))
+addTo("AIM", createToggle("AutoShoot (Эмуляция)", "AutoShoot", nextO()))
 addTo("AIM", createSlider("Задержка выстрела","AutoShootDelay",0.01,0.5,nextO()))
 addTo("AIM", createSlider("FOV","FOV",20,800,nextO()))
 addTo("AIM", createToggle("Show FOV", "ShowFOV", nextO()))
@@ -427,36 +427,74 @@ if hasDrawing then
     FOVCircle.Thickness, FOVCircle.Color, FOVCircle.NumSides, FOVCircle.Filled, FOVCircle.Visible = 1, Colors.Accent, 64, false, false
 end
 
--- ============ SILENT AIM ЛОГИКА ============
-local function isVisible(targetPart, targetChar)
-    if not C.WallCheck then return true end
-    local char = LP.Character if not char then return false end
-    local params = RaycastParams.new()
-    params.FilterType = Enum.RaycastFilterType.Exclude
-    params.FilterDescendantsInstances = {char, targetChar}
-    local cam = GetCamera() if not cam then return false end
-    local ray = workspace:Raycast(cam.CFrame.Position, (targetPart.Position - cam.CFrame.Position), params)
-    return ray == nil
+-- ============ VOMAGLA SILENT AIM (ТОЧНАЯ КОПИЯ) ============
+local ignoreFolderNames = {"Viewmodel","ViewModel","Ignore","Debris","BulletTraces","Effects","GunEffects","Arms","FPSArms","Particles","Bullets"}
+local wallRayP = RaycastParams.new()
+wallRayP.FilterType = Enum.RaycastFilterType.Exclude
+wallRayP.IgnoreWater = true
+
+local function isPartVisible(origin, targetPos, targetChar)
+    local il = {}
+    local char = LP.Character
+    if char then il[#il+1] = char end
+    local cam = GetCamera()
+    if cam then il[#il+1] = cam end
+    for i = 1, #ignoreFolderNames do
+        local f = Workspace:FindFirstChild(ignoreFolderNames[i])
+        if f then il[#il+1] = f end
+    end
+    wallRayP.FilterDescendantsInstances = il
+    for _ = 1, 4 do
+        local dir = targetPos - origin
+        if dir.Magnitude < 0.5 then return true end
+        local r = Workspace:Raycast(origin, dir, wallRayP)
+        if not r then return true end
+        if r.Instance:IsDescendantOf(targetChar) then return true end
+        if r.Instance:IsA("BasePart") and r.Instance.Transparency >= 0.9 then
+            il[#il+1] = r.Instance; wallRayP.FilterDescendantsInstances = il; continue
+        end
+        local hitO = false
+        for plr in pairs(PlayerCache) do
+            if plr.Character and r.Instance:IsDescendantOf(plr.Character) then
+                il[#il+1] = plr.Character; wallRayP.FilterDescendantsInstances = il; hitO = true; break
+            end
+        end
+        if hitO then continue end
+        return false
+    end
+    return false
 end
 
-local function GetNearest()
-    local cam = GetCamera() if not cam then return nil end
+local function getClosestVomagla()
+    local cam = GetCamera()
+    if not cam then return nil end
+    local myRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+    local myPos = myRoot and myRoot.Position
     local center = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
-    local target, mag = nil, math.huge
+    local best, bestD = nil, nil
+    local maxDistSq = 500 * 500 
+    
     for pl, data in pairs(PlayerCache) do
         if pl ~= LP then
-            local char = data.Char
-            local hrp = data.HRP
-            if char and hrp and hrp.Parent then
-                if not (C.TeamCheck and pl.Team == LP.Team) then
-                    local hum = char:FindFirstChildOfClass("Humanoid")
-                    if hum and hum.Health > 0 then
-                        local part = char:FindFirstChild(C.AimPart) or char:FindFirstChild("Head") or hrp
-                        local sp, on = cam:WorldToViewportPoint(part.Position)
-                        if on then
-                            local dist = (Vector2.new(sp.X, sp.Y) - center).Magnitude
-                            if dist < mag and dist < C.FOV then
-                                if isVisible(part, char) then mag, target = dist, {pl=pl, part=part, char=char} end
+            local ch = data.Char
+            local part = ch and (ch:FindFirstChild(C.AimPart) or ch:FindFirstChild("HumanoidRootPart") or ch:FindFirstChild("Head"))
+            if part and part.Parent then
+                local hum = ch:FindFirstChild("Humanoid")
+                if hum and hum.Health > 0 then
+                    if not (C.TeamCheck and pl.Team == LP.Team) then
+                        local pp = part.Position
+                        if not myPos or (myPos - pp).Magnitude <= 500 then
+                            local sp, vis = cam:WorldToViewportPoint(pp)
+                            if vis then
+                                local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
+                                if d < C.FOV then
+                                    if not C.WallCheck or isPartVisible(cam.CFrame.Position, pp, ch) then
+                                        if not bestD or d < bestD then 
+                                            best = {part = part, char = ch} 
+                                            bestD = d 
+                                        end
+                                    end
+                                end
                             end
                         end
                     end
@@ -464,15 +502,15 @@ local function GetNearest()
             end
         end
     end
-    return target
+    return best
 end
 
--- ХУК НА RAYCAST (ИЗ WATERMELON)
+-- ТОЧНЫЙ ХУК ИЗ ВОМАГЛЫ
 if hasHooks then
     local oldNamecall
     oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
         local method = getnamecallmethod()
-        if method == "Raycast" and self == workspace then
+        if method == "Raycast" and self == Workspace then
             if not checkcaller() then
                 local args = {...}
                 local origin = args[1]
@@ -684,9 +722,9 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- ОБНОВЛЯЕМ ЦЕЛЬ ДЛЯ SILENT AIM
+    -- ОБНОВЛЯЕМ ЦЕЛЬ (ИСПОЛЬЗУЕМ ЛОГИКУ ВОМАГЛЫ)
     if C.SilentAim then
-        CurrentAimTarget = GetNearest()
+        CurrentAimTarget = getClosestVomagla()
         if C.AutoShoot and CurrentAimTarget then
             tryAutoShoot(CurrentAimTarget)
         end
@@ -800,7 +838,6 @@ task.spawn(function()
         if C.AntiAFK then
             pcall(function() local v=game:GetService("VirtualUser") v:CaptureController() v:ClickButton2(Vector2.new()) end)
         end
-        -- ThirdPerson теперь ТОЛЬКО если включен тумблер в меню
         if C.ThirdPerson then
             pcall(function() 
                 LP.CameraMaxZoomDistance = C.ThirdPersonDist 
@@ -828,5 +865,5 @@ UserInputService.InputBegan:Connect(function(input, processed)
 end)
 
 showTab("AIM")
-pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v12.3", Text="Camera Unlocked. Silent Aim.", Duration=4}) end)
-print("[FerClient v12.3] Loaded. Camera is FREE.")
+pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v12.4", Text="Vomagla Silent Aim Active", Duration=4}) end)
+print("[FerClient v12.4] Vomagla Silent Aim Loaded.")
