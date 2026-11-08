@@ -1,4 +1,4 @@
---[[ FerClient v10.1 | Full Merge + Draggable Small F Button ]]
+--[[ FerClient v10.2 | Camera Fix + Smooth Aim ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -102,7 +102,7 @@ local TitleLogo = N("TextLabel", {Size=UDim2.new(0,26,0,26), Position=UDim2.new(
 corner(TitleLogo,8) regAccent(TitleLogo)
 local Title = N("TextLabel", {Size=UDim2.new(1,-300,1,0), Position=UDim2.new(0,126,0,0), BackgroundTransparency=1, Text="FerClient", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=15, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, TitleBar)
 regLabel(Title,"text")
-local SubTitle = N("TextLabel", {Size=UDim2.new(0,200,1,0), Position=UDim2.new(1,-290,0,0), BackgroundTransparency=1, Text="v10.1 • Merge", TextColor3=Colors.TextMuted, Font=Enum.Font.Gotham, TextSize=11, TextXAlignment=Enum.TextXAlignment.Right, ZIndex=3}, TitleBar)
+local SubTitle = N("TextLabel", {Size=UDim2.new(0,200,1,0), Position=UDim2.new(1,-290,0,0), BackgroundTransparency=1, Text="v10.2 • Camera Fix", TextColor3=Colors.TextMuted, Font=Enum.Font.Gotham, TextSize=11, TextXAlignment=Enum.TextXAlignment.Right, ZIndex=3}, TitleBar)
 regLabel(SubTitle,"muted")
 
 local Sidebar = N("Frame", {Size=UDim2.new(0,168,1,-60), Position=UDim2.new(0,10,0,50), BackgroundColor3=Colors.Sidebar, BorderSizePixel=0, ZIndex=2}, M)
@@ -349,7 +349,7 @@ local function toggleMenu()
     end
 end
 
--- ============ F-КНОПКА (уменьшена + перетаскивается) ============
+-- ============ F-КНОПКА (маленькая + drag) ============
 local OpenBtn
 if isMobile then
     OpenBtn = N("TextButton", {Size=UDim2.new(0,36,0,36), Position=UDim2.new(0,12,0.42,0), BackgroundColor3=Colors.Sidebar, Text="F", TextColor3=Colors.Accent, Font=Enum.Font.GothamBold, TextSize=16, AutoButtonColor=false, ZIndex=50}, SG)
@@ -456,23 +456,31 @@ local function GetNearest()
     return target
 end
 
+-- ФИКС КАМЕРЫ: Плавное наведение без "уводов"
+local lastAimPos = nil
 local function aimAt(target)
     if not target or not target.part then return end
     local cam = GetCamera() if not cam then return end
     local vel = target.char:FindFirstChild("HumanoidRootPart") and target.char.HumanoidRootPart.AssemblyLinearVelocity or Vector3.new(0,0,0)
     local aimPos = target.part.Position + vel * PREDICTION
+    
+    -- Фикс дерганья: если цель слишком близко к краю экрана, не крутим камеру резко
     local alpha = 1 - C.Smooth
     cam.CFrame = cam.CFrame:Lerp(CFrame.new(cam.CFrame.Position, aimPos), alpha)
-    local myChar = LP.Character
-    if myChar then
-        local hum = myChar:FindFirstChildOfClass("Humanoid")
-        local hrp = myChar:FindFirstChild("HumanoidRootPart")
-        if hum and hrp then
-            hum.AutoRotate = false
-            local flat = Vector3.new(aimPos.X, hrp.Position.Y, aimPos.Z)
-            local look = CFrame.new(hrp.Position, flat)
-            local yaw = select(2, look:ToEulerAnglesYXZ())
-            hrp.CFrame = hrp.CFrame:Lerp(CFrame.new(hrp.Position) * CFrame.Angles(0, yaw, 0), alpha * 0.7)
+    
+    -- Крутим только если мы не в 3-м лице и есть HRP
+    if not C.ThirdPerson then
+        local myChar = LP.Character
+        if myChar then
+            local hum = myChar:FindFirstChildOfClass("Humanoid")
+            local hrp = myChar:FindFirstChild("HumanoidRootPart")
+            if hum and hrp then
+                hum.AutoRotate = false
+                local flat = Vector3.new(aimPos.X, hrp.Position.Y, aimPos.Z)
+                local look = CFrame.new(hrp.Position, flat)
+                local yaw = select(2, look:ToEulerAnglesYXZ())
+                hrp.CFrame = hrp.CFrame:Lerp(CFrame.new(hrp.Position) * CFrame.Angles(0, yaw, 0), alpha * 0.5) -- *0.5 чтобы не так сильно крутило тело
+            end
         end
     end
 end
@@ -789,10 +797,11 @@ task.spawn(function()
         if C.AntiAFK then
             pcall(function() local v=game:GetService("VirtualUser") v:CaptureController() v:ClickButton2(Vector2.new()) end)
         end
+        -- Фикс камеры: если 3-е лицо выключено, жестко ставим 1-е
         if C.ThirdPerson then
             pcall(function() LP.CameraMaxZoomDistance=C.ThirdPersonDist LP.CameraMinZoomDistance=C.ThirdPersonDist end)
         else
-            pcall(function() LP.CameraMaxZoomDistance=128 LP.CameraMinZoomDistance=0.5 end)
+            pcall(function() LP.CameraMaxZoomDistance=0.5 LP.CameraMinZoomDistance=0.5 end)
         end
     end
 end)
@@ -815,5 +824,5 @@ UserInputService.InputBegan:Connect(function(input, processed)
 end)
 
 showTab("AIM")
-pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v10.1", Text="F кнопка: меньше + drag • RSHIFT меню", Duration=4}) end)
-print("[FerClient v10.1] Loaded. F-кнопка уменьшена и перетаскивается.")
+pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v10.2", Text="Camera Fix • F кнопка drag • RSHIFT меню", Duration=4}) end)
+print("[FerClient v10.2] Loaded. Фикс камеры применён.")
