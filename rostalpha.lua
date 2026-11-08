@@ -1,4 +1,4 @@
---[[ FerClient v11.0 | Silent Aim (Mouse.Hit) + Camera Fix ]]
+--[[ FerClient v12.0 | Silent Aim (Hook) + Camera Fix ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -11,6 +11,19 @@ local LP = Players.LocalPlayer
 
 local PREDICTION = 0.15
 local isMobile = UserInputService.TouchEnabled
+
+-- ПРОВЕРКА ХУКОВ
+local hasHooks = false
+if hookmetamethod and newcclosure and getnamecallmethod then
+    local ok = pcall(function()
+        local old
+        old = hookmetamethod(game, "__namecall", newcclosure(function(...) return old(...) end))
+    end)
+    if ok then hasHooks = true print("[FerClient] Хуки работают! Silent Aim через Raycast активен.") 
+    else print("[FerClient] ОШИБКА ХУКОВ! Silent Aim не будет работать.") end
+else
+    print("[FerClient] Delta НЕ поддерживает хуки. Silent Aim отключен.")
+end
 
 local function GetCamera()
     local cam = workspace.CurrentCamera
@@ -35,9 +48,8 @@ local function regAccent(i) table.insert(Themed.accents,i) end
 
 -- ============ СОСТОЯНИЕ ============
 local C = {
-    AimBot=false, AimPart="Head", Smooth=0.15, FOV=150, TeamCheck=false, WallCheck=false,
+    SilentAim=false, AimBot=false, AimPart="Head", Smooth=0.15, FOV=150, TeamCheck=false, WallCheck=false,
     AutoShoot=false, AutoShootDelay=0.05,
-    SilentAim=false, -- ГЛАВНОЕ НОВОВВЕДЕНИЕ
     ESP=false, ESPBox=true, ESPName=true, ESPDist=true, ESPSkeleton=false, ESPHP=false, ESPHPNum=false, ESPTracers=false, ESPHead=false, ESPMaxDist=1000,
     ESPColor=Color3.fromRGB(0,200,255), ShowFOV=false,
     Fullbright=false, XRay=false, NoDeco=false,
@@ -50,6 +62,7 @@ local C = {
     NoBulletDrop=false
 }
 _G.FerBinds = {}
+local CurrentAimTarget = nil
 
 -- ============ PLAYER CACHE ============
 local PlayerCache = {}
@@ -79,13 +92,12 @@ local function padding(p, px, py) local u=N("UIPadding",{},p) local ux,uy=UDim.n
 
 -- ============ GUI ============
 local Blur = N("BlurEffect", {Size=0, Enabled=true}, Lighting)
-local SG = N("ScreenGui", {Name="FerUI_v11", ResetOnSpawn=false, IgnoreGuiInset=true, ZIndexBehavior=Enum.ZIndexBehavior.Sibling}, CoreGui)
+local SG = N("ScreenGui", {Name="FerUI_v12", ResetOnSpawn=false, IgnoreGuiInset=true, ZIndexBehavior=Enum.ZIndexBehavior.Sibling}, CoreGui)
 
 local M = N("Frame", {Size=UDim2.new(0,720,0,500), Position=UDim2.new(0.5,-360,0.5,-250), BackgroundColor3=Colors.Background, BorderSizePixel=0, Visible=false, ClipsDescendants=false}, SG)
 if isMobile then M.Size=UDim2.new(0,540,0,400) M.Position=UDim2.new(0.5,-270,0.5,-200) end
 corner(M,14)
-local MainStroke = stroke(M, Colors.BorderLight, 1, 0.3)
-regFrame(M,"bg") regStroke(MainStroke)
+regFrame(M,"bg") regStroke(stroke(M, Colors.BorderLight, 1, 0.3))
 
 local TitleBar = N("Frame", {Size=UDim2.new(1,0,0,44), BackgroundColor3=Colors.Sidebar, BorderSizePixel=0, ZIndex=2}, M)
 corner(TitleBar,14)
@@ -103,7 +115,7 @@ local TitleLogo = N("TextLabel", {Size=UDim2.new(0,26,0,26), Position=UDim2.new(
 corner(TitleLogo,8) regAccent(TitleLogo)
 local Title = N("TextLabel", {Size=UDim2.new(1,-300,1,0), Position=UDim2.new(0,126,0,0), BackgroundTransparency=1, Text="FerClient", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=15, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, TitleBar)
 regLabel(Title,"text")
-local SubTitle = N("TextLabel", {Size=UDim2.new(0,200,1,0), Position=UDim2.new(1,-290,0,0), BackgroundTransparency=1, Text="v11.0 • Silent", TextColor3=Colors.TextMuted, Font=Enum.Font.Gotham, TextSize=11, TextXAlignment=Enum.TextXAlignment.Right, ZIndex=3}, TitleBar)
+local SubTitle = N("TextLabel", {Size=UDim2.new(0,200,1,0), Position=UDim2.new(1,-290,0,0), BackgroundTransparency=1, Text="v12.0 • Hook", TextColor3=Colors.TextMuted, Font=Enum.Font.Gotham, TextSize=11, TextXAlignment=Enum.TextXAlignment.Right, ZIndex=3}, TitleBar)
 regLabel(SubTitle,"muted")
 
 local Sidebar = N("Frame", {Size=UDim2.new(0,168,1,-60), Position=UDim2.new(0,10,0,50), BackgroundColor3=Colors.Sidebar, BorderSizePixel=0, ZIndex=2}, M)
@@ -248,13 +260,11 @@ createTabBtn("WORLD","World",4)
 createTabBtn("MISC","Misc",5)
 
 addTo("AIM", createCategory("АИМБОТ", nextO()))
-addTo("AIM", createToggle("Silent Aim", "SilentAim", nextO()))
-addTo("AIM", createToggle("Обычный Аим", "AimBot", nextO()))
+addTo("AIM", createToggle("Silent Aim (Raycast)", "SilentAim", nextO()))
 addTo("AIM", createToggle("Team Check", "TeamCheck", nextO()))
 addTo("AIM", createToggle("Wall Check", "WallCheck", nextO()))
 addTo("AIM", createToggle("AutoShoot", "AutoShoot", nextO()))
 addTo("AIM", createSlider("Задержка выстрела","AutoShootDelay",0.01,0.5,nextO()))
-addTo("AIM", createSlider("Плавность","Smooth",0.01,1,nextO()))
 addTo("AIM", createSlider("FOV","FOV",20,800,nextO()))
 addTo("AIM", createToggle("Show FOV", "ShowFOV", nextO()))
 
@@ -351,7 +361,7 @@ local function toggleMenu()
     end
 end
 
--- ============ F-КНОПКА ============
+-- ============ F-КНОПКА (уменьшена + перетаскивается) ============
 local OpenBtn
 if isMobile then
     OpenBtn = N("TextButton", {Size=UDim2.new(0,36,0,36), Position=UDim2.new(0,12,0.42,0), BackgroundColor3=Colors.Sidebar, Text="F", TextColor3=Colors.Accent, Font=Enum.Font.GothamBold, TextSize=16, AutoButtonColor=false, ZIndex=50}, SG)
@@ -394,7 +404,7 @@ TitleBar.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.M
 TitleBar.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then mdrag=false end end)
 UserInputService.InputChanged:Connect(function(i) if mdrag and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then local d=i.Position-mds M.Position=UDim2.new(mdp.X.Scale,mdp.X.Offset+d.X,mdp.Y.Scale,mdp.Y.Offset+d.Y) end end)
 
--- ============ WATERMARK ============
+-- ============ WATERMARK FPS + PING ============
 local WM = N("ScreenGui", {Name="FerWM", ResetOnSpawn=false, IgnoreGuiInset=true}, CoreGui)
 local WFrame = N("Frame", {Size=UDim2.new(0,200,0,28), Position=UDim2.new(0.5,-100,0,8), BackgroundColor3=Colors.Background, BackgroundTransparency=0.05, BorderSizePixel=0, ZIndex=10}, WM)
 corner(WFrame,14); stroke(WFrame, Colors.Accent, 1, 0.4)
@@ -418,7 +428,7 @@ if hasDrawing then
     FOVCircle.Thickness, FOVCircle.Color, FOVCircle.NumSides, FOVCircle.Filled, FOVCircle.Visible = 1, Colors.Accent, 64, false, false
 end
 
--- ============ АИМ И SILENT AIM ============
+-- ============ АИМ И SILENT AIM (НОВЫЙ) ============
 local function isVisible(targetPart, targetChar)
     if not C.WallCheck then return true end
     local char = LP.Character if not char then return false end
@@ -458,49 +468,29 @@ local function GetNearest()
     return target
 end
 
--- SILENT AIM: подмена мыши в момент выстрела
-local originalMouseHit, originalMouseTarget
-local function silentAimHook()
-    if not C.SilentAim then return end
-    local target = GetNearest()
-    if not target or not target.part then return end
-    local mouse = LP:GetMouse()
-    local vel = target.char:FindFirstChild("HumanoidRootPart") and target.char.HumanoidRootPart.AssemblyLinearVelocity or Vector3.new(0,0,0)
-    local aimPos = target.part.Position + vel * PREDICTION
-    
-    if not originalMouseHit then
-        originalMouseHit = mouse.Hit
-        originalMouseTarget = mouse.Target
-    end
-    
-    -- Подмена свойств мыши (работает в 90% игр)
-    pcall(function()
-        mouse.Target = target.part
-    end)
-    pcall(function()
-        -- Если игра использует Camera.CFrame для рейкаста
-        local cam = GetCamera()
-        if cam then
-            local oldCFrame = cam.CFrame
-            cam.CFrame = CFrame.new(cam.CFrame.Position, aimPos)
-            task.wait(0.01)
-            cam.CFrame = oldCFrame
+-- ХУК НА RAYCAST (ИЗ WATERMELON)
+if hasHooks then
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        if method == "Raycast" and self == workspace then
+            if not checkcaller() then
+                local args = {...}
+                local origin = args[1]
+                local direction = args[2]
+                if typeof(origin) == "Vector3" and typeof(direction) == "Vector3" then
+                    local mag = direction.Magnitude
+                    if mag > 50 and C.SilentAim and CurrentAimTarget and CurrentAimTarget.part then
+                        local newDir = (CurrentAimTarget.part.Position - origin).Unit * mag
+                        return oldNamecall(self, origin, newDir, args[3])
+                    end
+                end
+            end
         end
-    end)
+        return oldNamecall(self, ...)
+    end))
 end
 
-local function restoreMouse()
-    if originalMouseHit then
-        pcall(function()
-            local mouse = LP:GetMouse()
-            mouse.Target = originalMouseTarget
-        end)
-        originalMouseHit = nil
-        originalMouseTarget = nil
-    end
-end
-
--- Обычный Аим (для сравнения)
 local function aimAt(target)
     if not target or not target.part then return end
     local cam = GetCamera() if not cam then return end
@@ -508,10 +498,6 @@ local function aimAt(target)
     local aimPos = target.part.Position + vel * PREDICTION
     local alpha = 1 - C.Smooth
     cam.CFrame = cam.CFrame:Lerp(CFrame.new(cam.CFrame.Position, aimPos), alpha)
-end
-
-local function restoreAutoRotate()
-    pcall(function() local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") if hum then hum.AutoRotate = true end end)
 end
 
 local lastShoot = 0
@@ -529,17 +515,6 @@ local function tryAutoShoot(target)
         end
     end)
 end
-
--- Перехват выстрела для Silent Aim
-UserInputService.InputBegan:Connect(function(input, processed)
-    if processed then return end
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        if C.SilentAim then
-            silentAimHook()
-            task.delay(0.05, restoreMouse)
-        end
-    end
-end)
 
 -- ============ ОПТИМИЗАЦИЯ ============
 local OptBackup = {effects={},particles={},decals={},shadows={},parts={},sounds={}}
@@ -719,11 +694,18 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- Обычный аим (не трогаем камеру если SilentAim)
-    if C.AimBot and not C.SilentAim then
-        local t = GetNearest()
-        if t then aimAt(t) if C.AutoShoot then tryAutoShoot(t) end
-        else restoreAutoRotate() end
+    -- ОБНОВЛЯЕМ ЦЕЛЬ ДЛЯ SILENT AIM
+    if C.SilentAim or C.AimBot then
+        CurrentAimTarget = GetNearest()
+        if C.SilentAim and CurrentAimTarget then
+            -- Silent aim логика сработает в хуке Raycast
+            if C.AutoShoot then tryAutoShoot(CurrentAimTarget) end
+        elseif C.AimBot and CurrentAimTarget then
+            aimAt(CurrentAimTarget)
+            if C.AutoShoot then tryAutoShoot(CurrentAimTarget) end
+        end
+    else
+        CurrentAimTarget = nil
     end
 
     if hasDrawing then
@@ -858,5 +840,5 @@ UserInputService.InputBegan:Connect(function(input, processed)
 end)
 
 showTab("AIM")
-pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v11.0", Text="Silent Aim добавлен • RSHIFT меню", Duration=4}) end)
-print("[FerClient v11.0] Silent Aim loaded.")
+pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v12.0", Text="Silent Aim (Hook) загружен!", Duration=4}) end)
+print("[FerClient v12.0] Loaded. Silent Aim " .. (hasHooks and "АКТИВЕН" or "НЕ РАБОТАЕТ (нет хуков)"))
