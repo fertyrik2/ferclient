@@ -1,4 +1,4 @@
---[[ FerClient v15.0 | Admin List + Fixed Fall Damage + Full UI ]]
+--[[ FerClient v16.0 | Full UI + Silent Walk + All Features ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -7,6 +7,7 @@ local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
 local Stats = game:GetService("Stats")
+local SoundService = game:GetService("SoundService")
 local LP = Players.LocalPlayer
 
 local isMobile = UserInputService.TouchEnabled
@@ -14,7 +15,7 @@ local function GetCamera() local cam = workspace.CurrentCamera; if cam and cam.P
 
 -- Кастомные обертки
 if not newcclosure then getgenv().newcclosure = function(f) return f end end
-if not checkcaller then getenv().checkcaller = function() return false end end
+if not checkcaller then getgenv().checkcaller = function() return false end end
 if not hookmetamethod then getgenv().hookmetamethod = function() end end
 if not getnamecallmethod then getgenv().getnamecallmethod = function() return "" end end
 
@@ -39,7 +40,7 @@ local C = {
     -- Resources
     SulfurESP=false, IronESP=false, StoneESP=false, OreDist=500, CrateESP=false, MilitaryESP=false, EliteESP=false, FoodESP=false, CrateDist=500, NpcESP=false, NpcDist=600,
     -- Player
-    NoFallDamage=false, InfJump=false, AntiAFK=false, ThirdPerson=false, ThirdPersonDist=15,
+    NoFallDamage=false, InfJump=false, AntiAFK=false, ThirdPerson=false, ThirdPersonDist=15, SilentWalk=false,
     -- World
     NoBulletDrop=false, OptLowGFX=false,
     -- Admin
@@ -89,7 +90,7 @@ local TitleLogo = N("TextLabel", {Size=UDim2.new(0,26,0,26), Position=UDim2.new(
 corner(TitleLogo,8); regAccent(TitleLogo)
 local Title = N("TextLabel", {Size=UDim2.new(1,-300,1,0), Position=UDim2.new(0,126,0,0), BackgroundTransparency=1, Text="FerClient", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=15, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, TitleBar)
 regLabel(Title,"text")
-local SubTitle = N("TextLabel", {Size=UDim2.new(0,200,1,0), Position=UDim2.new(1,-290,0,0), BackgroundTransparency=1, Text="v15.0 • Admin + Fall", TextColor3=Colors.TextMuted, Font=Enum.Font.Gotham, TextSize=11, TextXAlignment=Enum.TextXAlignment.Right, ZIndex=3}, TitleBar)
+local SubTitle = N("TextLabel", {Size=UDim2.new(0,200,1,0), Position=UDim2.new(1,-290,0,0), BackgroundTransparency=1, Text="v16.0 • Silent Walk", TextColor3=Colors.TextMuted, Font=Enum.Font.Gotham, TextSize=11, TextXAlignment=Enum.TextXAlignment.Right, ZIndex=3}, TitleBar)
 regLabel(SubTitle,"muted")
 
 local Sidebar = N("Frame", {Size=UDim2.new(0,168,1,-60), Position=UDim2.new(0,10,0,50), BackgroundColor3=Colors.Sidebar, BorderSizePixel=0, ZIndex=2}, M)
@@ -195,6 +196,7 @@ addTo("PLAYER", createCategory("PLAYER", nextO()))
 addTo("PLAYER", createToggle("Inf Jump", "InfJump", nextO()))
 addTo("PLAYER", createToggle("Anti AFK", "AntiAFK", nextO()))
 addTo("PLAYER", createToggle("God Mode (No Fall Dmg)", "NoFallDamage", nextO()))
+addTo("PLAYER", createToggle("Silent Walk (No Steps)", "SilentWalk", nextO())) -- НОВАЯ ФУНКЦИЯ
 addTo("PLAYER", createToggle("Third Person", "ThirdPerson", nextO()))
 addTo("PLAYER", createSlider("Third Dist","ThirdPersonDist",3,50,nextO()))
 
@@ -264,6 +266,49 @@ Players.PlayerAdded:Connect(checkAdmin)
 Players.PlayerRemoving:Connect(function(pl)
     if detectedAdmins[pl] then detectedAdmins[pl] = nil; for _, v in ipairs(AdminListContainer:GetChildren()) do if v:IsA("TextLabel") and v.Text:find(pl.Name) then v:Destroy() end end end
 end)
+
+-- ============ SILENT WALK LOGIC ============
+local NoFootsteps = {
+    Enabled = false,
+    OldVolumes = setmetatable({}, { __mode = "k" })
+}
+function NoFootsteps:MuteSound(sound)
+    if not self.Enabled then return end
+    if not sound:IsA("Sound") then return end
+    if self.OldVolumes[sound] == nil then self.OldVolumes[sound] = sound.Volume end
+    sound.Volume = 0
+    sound:Stop()
+end
+function NoFootsteps:MuteFootstepFolder()
+    if not self.Enabled then return end
+    local folder = SoundService:FindFirstChild("FootstepSounds")
+    if not folder then return end
+    for _, obj in ipairs(folder:GetDescendants()) do if obj:IsA("Sound") then self:MuteSound(obj) end end
+end
+function NoFootsteps:MuteCharacter(char)
+    if not self.Enabled then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    for _, obj in ipairs(root:GetChildren()) do if obj:IsA("Sound") then self:MuteSound(obj) end end
+end
+function NoFootsteps:Set(state)
+    self.Enabled = state == true
+    if self.Enabled then
+        self:MuteFootstepFolder()
+        if LP.Character then self:MuteCharacter(LP.Character) end
+    else
+        for sound, oldVolume in pairs(self.OldVolumes) do
+            if sound and sound.Parent and sound:IsA("Sound") then sound.Volume = oldVolume end
+        end
+        table.clear(self.OldVolumes)
+    end
+end
+RunService.Heartbeat:Connect(function()
+    if not NoFootsteps.Enabled then return end
+    NoFootsteps:MuteFootstepFolder()
+    if LP.Character then NoFootsteps:MuteCharacter(LP.Character) end
+end)
+LP.CharacterAdded:Connect(function(char) task.wait(1); NoFootsteps:MuteCharacter(char) end)
 
 -- ============ LOGIC ============
 local function isVisible(targetPart, targetChar)
@@ -481,5 +526,5 @@ UserInputService.InputChanged:Connect(function(i) if mdrag and (i.UserInputType=
 
 UserInputService.InputBegan:Connect(function(input) if input.KeyCode == Enum.KeyCode.RightShift then M.Visible = not M.Visible end end)
 showTab("AIM")
-pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v15.0", Text="Admin List + Fixed Fall Dmg", Duration=4}) end)
-print("[FerClient v15.0] Loaded.")
+pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v16.0", Text="Silent Walk + Admin + Fall Dmg", Duration=4}) end)
+print("[FerClient v16.0] Loaded.")
