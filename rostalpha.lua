@@ -1,4 +1,4 @@
---[[ FerClient v17.1 | Vomagla Features + Fixed Aim/FOV ]]
+--[[ FerClient v18.0 | Exact Vomagla Silent Aim (Crash Fix + Optimization) ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -32,20 +32,13 @@ local function regAccent(i) table.insert(Themed.accents,i) end
 
 -- СОСТОЯНИЕ
 local C = {
-    -- Aimbot
     SilentAim=false, AimPart="Head", FOV=150, TeamCheck=false, WallCheck=false, AutoShoot=false, AutoShootDelay=0.05, Manipulation=false, HitChance=100,
-    -- Visuals
     ESP=false, ESPBox=true, ESPName=true, ESPDist=true, ESPSkeleton=false, ESPHP=false, ESPHPNum=false, ESPTracers=false, ESPHead=false, ESPMaxDist=1000,
     ESPColor=Color3.fromRGB(0,200,255), ShowFOV=false, Fullbright=false, XRay=false, NoDeco=false,
-    -- Resources
     SulfurESP=false, IronESP=false, StoneESP=false, OreDist=500, CrateESP=false, MilitaryESP=false, EliteESP=false, FoodESP=false, CrateDist=500, NpcESP=false, NpcDist=600,
-    -- Player
     NoFallDamage=false, InfJump=false, AntiAFK=false, ThirdPerson=false, ThirdPersonDist=15, SilentWalk=false, HeadExpander=false, HitboxSize=5,
-    -- World
     NoBulletDrop=false, OptLowGFX=false,
-    -- Admin
     AdminList=false,
-    -- Hit FX
     Hitmarker=false, HitSound=false, ReloadIndicator=false, KillSound=false
 }
 _G.FerBinds = {}
@@ -92,7 +85,7 @@ local TitleLogo = N("TextLabel", {Size=UDim2.new(0,26,0,26), Position=UDim2.new(
 corner(TitleLogo,8); regAccent(TitleLogo)
 local Title = N("TextLabel", {Size=UDim2.new(1,-300,1,0), Position=UDim2.new(0,126,0,0), BackgroundTransparency=1, Text="FerClient", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=15, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, TitleBar)
 regLabel(Title,"text")
-local SubTitle = N("TextLabel", {Size=UDim2.new(0,200,1,0), Position=UDim2.new(1,-290,0,0), BackgroundTransparency=1, Text="v17.1 • Aim Fixed", TextColor3=Colors.TextMuted, Font=Enum.Font.Gotham, TextSize=11, TextXAlignment=Enum.TextXAlignment.Right, ZIndex=3}, TitleBar)
+local SubTitle = N("TextLabel", {Size=UDim2.new(0,200,1,0), Position=UDim2.new(1,-290,0,0), BackgroundTransparency=1, Text="v18.0 • Exact Vomagla", TextColor3=Colors.TextMuted, Font=Enum.Font.Gotham, TextSize=11, TextXAlignment=Enum.TextXAlignment.Right, ZIndex=3}, TitleBar)
 regLabel(SubTitle,"muted")
 
 local Sidebar = N("Frame", {Size=UDim2.new(0,168,1,-60), Position=UDim2.new(0,10,0,50), BackgroundColor3=Colors.Sidebar, BorderSizePixel=0, ZIndex=2}, M)
@@ -350,7 +343,7 @@ local function GetNearest()
     return target
 end
 
--- Хук
+-- Хук (Оптимизированный)
 local oldNamecall
 oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     local method = getnamecallmethod()
@@ -362,8 +355,11 @@ oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
                 if mag > 50 and C.SilentAim and CurrentAimTarget and CurrentAimTarget.part then
                     local newDir = (CurrentAimTarget.part.Position - origin).Unit * mag
                     if C.Manipulation then
-                        origin = (GetCamera() and GetCamera().CFrame.Position) or origin
-                        args[1] = origin
+                        local cam = GetCamera()
+                        if cam then
+                            origin = cam.CFrame.Position
+                            args[1] = origin
+                        end
                     end
                     return oldNamecall(self, origin, newDir, args[3])
                 end
@@ -428,27 +424,6 @@ local function setupHeadExpander(char)
         weld.Parent = hitbox
         hitbox.Parent = char
         HeadHitboxes[char] = hitbox
-        local visual = Instance.new("Part")
-        visual.Name = "FerHitboxVisual"
-        visual.Size = Vector3.new(size, size, size)
-        visual.Transparency = 0.5
-        visual.Color = Color3.fromRGB(255, 0, 0)
-        visual.Material = Enum.Material.Neon
-        visual.CanCollide = false
-        visual.CanQuery = false
-        visual.CanTouch = false
-        visual.Massless = true
-        local weld2 = Instance.new("WeldConstraint")
-        weld2.Part0 = head
-        weld2.Part1 = visual
-        weld2.Parent = visual
-        visual.Parent = char
-        hitbox.Transparency = 0.5
-        hitbox.Color = Color3.fromRGB(255,0,0)
-        hitbox.Material = Enum.Material.Neon
-        hitbox.CanQuery = true
-        hitbox.Parent = char
-        visual:Destroy()
     else
         if HeadHitboxes[char] then
             HeadHitboxes[char]:Destroy()
@@ -463,7 +438,7 @@ Players.PlayerAdded:Connect(function(pl) pl.CharacterAdded:Connect(setupHeadExpa
 local function playHitSound()
     if not C.HitSound then return end
     local s = Instance.new("Sound")
-    s.SoundId = "rbxassetid://988593556" -- Dink
+    s.SoundId = "rbxassetid://988593556"
     s.Volume = 2
     s.Parent = SoundService
     s:Play()
@@ -472,7 +447,7 @@ end
 local function playKillSound()
     if not C.KillSound then return end
     local s = Instance.new("Sound")
-    s.SoundId = "rbxassetid://116907610084760" -- Double Kill
+    s.SoundId = "rbxassetid://116907610084760"
     s.Volume = 2
     s.Parent = SoundService
     s:Play()
@@ -504,7 +479,6 @@ local function createHitmarker(pos)
     game:GetService("Debris"):AddItem(p, 0.5)
 end
 
--- Слушатель урона для Hitmarker/Sound
 local oldHit = nil
 pcall(function()
     local GunClient = require(game:GetService("ReplicatedStorage").Gun.Scripts.GunClient)
@@ -522,7 +496,6 @@ pcall(function()
     end
 end)
 
--- Слушатель смерти для Kill Sound
 for _, pl in ipairs(Players:GetPlayers()) do
     if pl ~= LP then
         pl.CharacterAdded:Connect(function(char)
@@ -715,5 +688,5 @@ UserInputService.InputChanged:Connect(function(i) if mdrag and (i.UserInputType=
 
 UserInputService.InputBegan:Connect(function(input) if input.KeyCode == Enum.KeyCode.RightShift then M.Visible = not M.Visible end end)
 showTab("AIM")
-pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v17.1", Text="Aim & FOV Fixed!", Duration=4}) end)
-print("[FerClient v17.1] Loaded.")
+pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v18.0", Text="Exact Vomagla + Crash Fix", Duration=4}) end)
+print("[FerClient v18.0] Loaded.")
