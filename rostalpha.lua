@@ -1,4 +1,4 @@
---[[ FerClient v17.0 | Vomagla Features Ported (Skeleton, Hitbox, Hitmarker) ]]
+--[[ FerClient v17.1 | Vomagla Features + Fixed Aim/FOV ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -92,7 +92,7 @@ local TitleLogo = N("TextLabel", {Size=UDim2.new(0,26,0,26), Position=UDim2.new(
 corner(TitleLogo,8); regAccent(TitleLogo)
 local Title = N("TextLabel", {Size=UDim2.new(1,-300,1,0), Position=UDim2.new(0,126,0,0), BackgroundTransparency=1, Text="FerClient", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=15, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, TitleBar)
 regLabel(Title,"text")
-local SubTitle = N("TextLabel", {Size=UDim2.new(0,200,1,0), Position=UDim2.new(1,-290,0,0), BackgroundTransparency=1, Text="v17.0 • Vomagla Port", TextColor3=Colors.TextMuted, Font=Enum.Font.Gotham, TextSize=11, TextXAlignment=Enum.TextXAlignment.Right, ZIndex=3}, TitleBar)
+local SubTitle = N("TextLabel", {Size=UDim2.new(0,200,1,0), Position=UDim2.new(1,-290,0,0), BackgroundTransparency=1, Text="v17.1 • Aim Fixed", TextColor3=Colors.TextMuted, Font=Enum.Font.Gotham, TextSize=11, TextXAlignment=Enum.TextXAlignment.Right, ZIndex=3}, TitleBar)
 regLabel(SubTitle,"muted")
 
 local Sidebar = N("Frame", {Size=UDim2.new(0,168,1,-60), Position=UDim2.new(0,10,0,50), BackgroundColor3=Colors.Sidebar, BorderSizePixel=0, ZIndex=2}, M)
@@ -412,7 +412,6 @@ local function setupHeadExpander(char)
     if not char then return end
     local head = char:FindFirstChild("Head")
     if not head then return end
-    
     if C.HeadExpander then
         if HeadHitboxes[char] then return end
         local size = C.HitboxSize
@@ -429,7 +428,6 @@ local function setupHeadExpander(char)
         weld.Parent = hitbox
         hitbox.Parent = char
         HeadHitboxes[char] = hitbox
-        
         local visual = Instance.new("Part")
         visual.Name = "FerHitboxVisual"
         visual.Size = Vector3.new(size, size, size)
@@ -579,9 +577,22 @@ pcall(function()
 end)
 
 -- ============ MAIN RENDER ============
+local FOVRing = N("Frame", {AnchorPoint=Vector2.new(0.5,0.5), Position=UDim2.new(0.5,0,0.5,0), BackgroundTransparency=1, Visible=false, ZIndex=10}, SG)
+corner(FOVRing, 500)
+local FOVStroke = N("UIStroke", {Thickness=1.5, Color=Colors.Accent}, FOVRing)
+
 RunService.RenderStepped:Connect(function()
     local cam = GetCamera(); if not cam then return end
     local now = tick()
+
+    -- FOV Ring
+    if C.ShowFOV and C.SilentAim then
+        FOVRing.Visible = true
+        FOVRing.Size = UDim2.new(0, C.FOV*2, 0, C.FOV*2)
+        FOVStroke.Color = CurrentAimTarget and Color3.fromRGB(0,255,0) or Colors.Accent
+    else
+        FOVRing.Visible = false
+    end
 
     if C.AdminList then
         AdminFrame.Visible = true
@@ -704,5 +715,5 @@ UserInputService.InputChanged:Connect(function(i) if mdrag and (i.UserInputType=
 
 UserInputService.InputBegan:Connect(function(input) if input.KeyCode == Enum.KeyCode.RightShift then M.Visible = not M.Visible end end)
 showTab("AIM")
-pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v17.0", Text="Vomagla Features Ported!", Duration=4}) end)
-print("[FerClient v17.0] Loaded.")
+pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v17.1", Text="Aim & FOV Fixed!", Duration=4}) end)
+print("[FerClient v17.1] Loaded.")
