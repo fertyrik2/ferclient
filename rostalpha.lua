@@ -1,4 +1,4 @@
---[[ FerClient v22.0 | Vomagla Silent Aim (Exact Copy) ]]
+--[[ FerClient v23.0 | Vomagla Exact Silent Aim (Dual Hook) ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -12,7 +12,7 @@ local LP = Players.LocalPlayer
 local isMobile = UserInputService.TouchEnabled
 local function GetCamera() local cam = workspace.CurrentCamera; if cam and cam.Parent then return cam end; return nil end
 
--- ============ ОБЕРТКИ ============
+-- ОБЕРТКИ
 if not newcclosure then getgenv().newcclosure = function(f) return f end end
 if not checkcaller then getgenv().checkcaller = function() return false end end
 if not hookmetamethod then getgenv().hookmetamethod = function() end end
@@ -67,7 +67,7 @@ corner(M,14); stroke(M, Colors.BorderLight, 1, 0.3)
 
 local TitleBar = N("Frame", {Size=UDim2.new(1,0,0,44), BackgroundColor3=Colors.Sidebar, BorderSizePixel=0}, M)
 corner(TitleBar,14)
-N("TextLabel", {Size=UDim2.new(1,-50,1,0), Position=UDim2.new(0,16,0,0), BackgroundTransparency=1, Text="FerClient v22.0", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=16, TextXAlignment=Enum.TextXAlignment.Left}, TitleBar)
+N("TextLabel", {Size=UDim2.new(1,-50,1,0), Position=UDim2.new(0,16,0,0), BackgroundTransparency=1, Text="FerClient v23.0", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=16, TextXAlignment=Enum.TextXAlignment.Left}, TitleBar)
 local closeClick = N("TextButton", {Size=UDim2.new(0,26,0,26), Position=UDim2.new(1,-32,0.5,-13), BackgroundColor3=Color3.fromRGB(220,50,70), Text="✕", TextColor3=Color3.new(1,1,1), Font=Enum.Font.GothamBold, TextSize=14}, TitleBar)
 corner(closeClick,6); closeClick.MouseButton1Click:Connect(function() M.Visible=false; if Blur then TweenService:Create(Blur,TweenInfo.new(0.3),{Size=0}):Play() end end)
 
@@ -219,7 +219,7 @@ local function MuteChar(char) if not NoFootsteps.Enabled then return end; local 
 RunService.Heartbeat:Connect(function() if NoFootsteps.Enabled then MuteFootsteps(); if LP.Character then MuteChar(LP.Character) end end end)
 LP.CharacterAdded:Connect(function(c) task.wait(1); MuteChar(c) end)
 
--- ============ ЛОГИКА ВОМАГЛЫ (ТОЧНАЯ КОПИЯ) ============
+-- ============ ЛОГИКА ВОМАГЛЫ (DUAL HOOK) ============
 local v13 = { Enabled = false, TargetPart = "Head", UseFOV = true, FOVRadius = 150, FOVRadiusSq = 22500, MaxDistance = 500, MaxDistanceSq = 250000 }
 local screenCenter = Vector2.new(0,0)
 local function getMousePosition() local cam = Workspace.CurrentCamera; if cam then local vp = cam.ViewportSize; screenCenter = Vector2.new(vp.X*0.5, vp.Y*0.5) end; return Vector2.new(screenCenter.X, screenCenter.Y + 50) end
@@ -284,18 +284,17 @@ local function getClosestVomagla()
     return best
 end
 
--- ТОЧНЫЙ ХУК ИЗ ВОМАГЛЫ
+-- ХУК 1: RAYCAST (БЕЗ УСЛОВИЯ mag > 50)
 local oldNamecall
 oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     local method = getnamecallmethod()
     if method == "Raycast" and self == Workspace then
         if not checkcaller() then
-            local args = {...}
-            local origin = args[1]
-            local direction = args[2]
+            local args = {...}; local origin = args[1]; local direction = args[2]
             if typeof(origin) == "Vector3" and typeof(direction) == "Vector3" then
                 local mag = direction.Magnitude
-                if mag > 50 and C.SilentAim and CurrentAimTarget and CurrentAimTarget.part then
+                -- УБРАНО mag > 50 !!!
+                if C.SilentAim and CurrentAimTarget and CurrentAimTarget.part then
                     local newDir = (CurrentAimTarget.part.Position - origin).Unit * mag
                     return oldNamecall(self, origin, newDir, args[3])
                 end
@@ -304,6 +303,38 @@ oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     end
     return oldNamecall(self, ...)
 end))
+
+-- ХУК 2: GUNBASE.FIRE (КАК В ВОМАГЛЕ)
+pcall(function()
+    local GunBase = require(game:GetService("ReplicatedStorage").Gun.Scripts.GunBase)
+    if GunBase and type(GunBase.fire) == "function" then
+        local origFire = GunBase.fire
+        GunBase.fire = function(self, ...)
+            if C.SilentAim and CurrentAimTarget and CurrentAimTarget.part then
+                local args = {...}
+                local patched = false
+                local pos = CurrentAimTarget.part.Position
+                for i, v in ipairs(args) do
+                    if typeof(v) == "Vector3" and not patched then
+                        args[i] = pos
+                        patched = true
+                    elseif typeof(v) == "buffer" and not patched then
+                        pcall(function()
+                            buffer.writef32(v, 4, pos.X)
+                            buffer.writef32(v, 8, pos.Y)
+                            buffer.writef32(v, 12, pos.Z)
+                        end)
+                        patched = true
+                    end
+                end
+                if patched then
+                    return origFire(self, table.unpack(args))
+                end
+            end
+            return origFire(self, ...)
+        end
+    end
+end)
 
 local lastShoot = 0
 local function tryAutoShoot(target)
@@ -508,5 +539,5 @@ UserInputService.InputChanged:Connect(function(i) if mdrag and (i.UserInputType=
 
 UserInputService.InputBegan:Connect(function(input) if input.KeyCode==Enum.KeyCode.RightShift then M.Visible=not M.Visible end end)
 showTab("AIM")
-pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v22.0", Text="Exact Vomagla Silent Aim", Duration=4}) end)
-print("[FerClient v22.0] Loaded.")
+pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v23.0", Text="Dual Hook Vomagla Aim", Duration=4}) end)
+print("[FerClient v23.0] Loaded.")
