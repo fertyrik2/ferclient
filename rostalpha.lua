@@ -1,4 +1,4 @@
---[[ FerClient v21.1 | Exact Vomagla Aim + Shifted FOV Circle ]]
+--[[ FerClient v21.2 | Green FOV on Lock + Ignore Wall for Aim ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -67,7 +67,7 @@ corner(M,14); stroke(M, Colors.BorderLight, 1, 0.3)
 
 local TitleBar = N("Frame", {Size=UDim2.new(1,0,0,44), BackgroundColor3=Colors.Sidebar, BorderSizePixel=0}, M)
 corner(TitleBar,14)
-N("TextLabel", {Size=UDim2.new(1,-50,1,0), Position=UDim2.new(0,16,0,0), BackgroundTransparency=1, Text="FerClient v21.1", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=16, TextXAlignment=Enum.TextXAlignment.Left}, TitleBar)
+N("TextLabel", {Size=UDim2.new(1,-50,1,0), Position=UDim2.new(0,16,0,0), BackgroundTransparency=1, Text="FerClient v21.2", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=16, TextXAlignment=Enum.TextXAlignment.Left}, TitleBar)
 local closeClick = N("TextButton", {Size=UDim2.new(0,26,0,26), Position=UDim2.new(1,-32,0.5,-13), BackgroundColor3=Color3.fromRGB(220,50,70), Text="✕", TextColor3=Color3.new(1,1,1), Font=Enum.Font.GothamBold, TextSize=14}, TitleBar)
 corner(closeClick,6); closeClick.MouseButton1Click:Connect(function() M.Visible=false; if Blur then TweenService:Create(Blur,TweenInfo.new(0.3),{Size=0}):Play() end end)
 
@@ -219,7 +219,7 @@ local function MuteChar(char) if not NoFootsteps.Enabled then return end; local 
 RunService.Heartbeat:Connect(function() if NoFootsteps.Enabled then MuteFootsteps(); if LP.Character then MuteChar(LP.Character) end end end)
 LP.CharacterAdded:Connect(function(c) task.wait(1); MuteChar(c) end)
 
--- ============ AIM LOGIC (СМЕЩЕННЫЙ ЦЕНТР) ============
+-- ============ AIM LOGIC ============
 local function isVisible(targetPart, targetChar)
     if not C.WallCheck then return true end
     local char = LP.Character if not char then return false end
@@ -230,7 +230,6 @@ end
 
 local function GetNearest()
     local cam = GetCamera() if not cam then return nil end
-    -- СМЕЩЕНИЕ ВНИЗ (как в Вомагле)
     local center = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2 + 50)
     local target, mag = nil, math.huge
     for pl, data in pairs(PlayerCache) do
@@ -245,7 +244,10 @@ local function GetNearest()
                         if on then
                             local dist = (Vector2.new(sp.X, sp.Y) - center).Magnitude
                             if dist < mag and dist < C.FOV then
-                                if isVisible(part, char) then mag, target = dist, {pl=pl, part=part, char=char} end
+                                -- ЕСЛИ В КРУГЕ, ИГНОРИРУЕМ СТЕНЫ (чтобы регало)
+                                if isVisible(part, char) or true then 
+                                    mag, target = dist, {pl=pl, part=part, char=char} 
+                                end
                             end
                         end
                     end
@@ -368,7 +370,6 @@ if LP.Character then setupNFD(LP.Character) end
 LP.CharacterAdded:Connect(setupNFD)
 
 -- MAIN LOOP
--- FOV RING СМЕЩЕН ВНИЗ (КАК В ВОМАГЛЕ)
 local FOVRing = N("Frame", {AnchorPoint=Vector2.new(0.5,0.5), Position=UDim2.new(0.5,0,0.5,50), BackgroundTransparency=1, Visible=false, ZIndex=10}, SG)
 corner(FOVRing, 500); local FOVStroke = N("UIStroke", {Thickness=1.5, Color=Colors.Accent}, FOVRing)
 
@@ -378,6 +379,7 @@ RunService.RenderStepped:Connect(function()
 
     if C.ShowFOV and C.SilentAim then
         FOVRing.Visible = true; FOVRing.Size = UDim2.new(0, C.FOV*2, 0, C.FOV*2)
+        -- ЗЕЛЕНЫЙ ЕСЛИ ЕСТЬ ЦЕЛЬ
         FOVStroke.Color = CurrentAimTarget and Color3.fromRGB(0,255,0) or Colors.Accent
     else FOVRing.Visible = false end
 
@@ -473,5 +475,5 @@ UserInputService.InputChanged:Connect(function(i) if mdrag and (i.UserInputType=
 
 UserInputService.InputBegan:Connect(function(input) if input.KeyCode==Enum.KeyCode.RightShift then M.Visible=not M.Visible end end)
 showTab("AIM")
-pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v21.1", Text="Shifted FOV + Vomagla Aim", Duration=4}) end)
-print("[FerClient v21.1] Loaded.")
+pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v21.2", Text="Green FOV + Ignore Walls", Duration=4}) end)
+print("[FerClient v21.2] Loaded.")
