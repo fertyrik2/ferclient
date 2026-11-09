@@ -1,4 +1,4 @@
---[[ FerClient v16.0 | Full UI + Silent Walk + All Features ]]
+--[[ FerClient v17.0 | Vomagla Features Ported (Skeleton, Hitbox, Hitmarker) ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -33,18 +33,20 @@ local function regAccent(i) table.insert(Themed.accents,i) end
 -- СОСТОЯНИЕ
 local C = {
     -- Aimbot
-    SilentAim=false, AimPart="Head", FOV=150, TeamCheck=false, WallCheck=false, AutoShoot=false, AutoShootDelay=0.05,
+    SilentAim=false, AimPart="Head", FOV=150, TeamCheck=false, WallCheck=false, AutoShoot=false, AutoShootDelay=0.05, Manipulation=false, HitChance=100,
     -- Visuals
     ESP=false, ESPBox=true, ESPName=true, ESPDist=true, ESPSkeleton=false, ESPHP=false, ESPHPNum=false, ESPTracers=false, ESPHead=false, ESPMaxDist=1000,
     ESPColor=Color3.fromRGB(0,200,255), ShowFOV=false, Fullbright=false, XRay=false, NoDeco=false,
     -- Resources
     SulfurESP=false, IronESP=false, StoneESP=false, OreDist=500, CrateESP=false, MilitaryESP=false, EliteESP=false, FoodESP=false, CrateDist=500, NpcESP=false, NpcDist=600,
     -- Player
-    NoFallDamage=false, InfJump=false, AntiAFK=false, ThirdPerson=false, ThirdPersonDist=15, SilentWalk=false,
+    NoFallDamage=false, InfJump=false, AntiAFK=false, ThirdPerson=false, ThirdPersonDist=15, SilentWalk=false, HeadExpander=false, HitboxSize=5,
     -- World
     NoBulletDrop=false, OptLowGFX=false,
     -- Admin
-    AdminList=false
+    AdminList=false,
+    -- Hit FX
+    Hitmarker=false, HitSound=false, ReloadIndicator=false, KillSound=false
 }
 _G.FerBinds = {}
 local CurrentAimTarget = nil
@@ -90,7 +92,7 @@ local TitleLogo = N("TextLabel", {Size=UDim2.new(0,26,0,26), Position=UDim2.new(
 corner(TitleLogo,8); regAccent(TitleLogo)
 local Title = N("TextLabel", {Size=UDim2.new(1,-300,1,0), Position=UDim2.new(0,126,0,0), BackgroundTransparency=1, Text="FerClient", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=15, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, TitleBar)
 regLabel(Title,"text")
-local SubTitle = N("TextLabel", {Size=UDim2.new(0,200,1,0), Position=UDim2.new(1,-290,0,0), BackgroundTransparency=1, Text="v16.0 • Silent Walk", TextColor3=Colors.TextMuted, Font=Enum.Font.Gotham, TextSize=11, TextXAlignment=Enum.TextXAlignment.Right, ZIndex=3}, TitleBar)
+local SubTitle = N("TextLabel", {Size=UDim2.new(0,200,1,0), Position=UDim2.new(1,-290,0,0), BackgroundTransparency=1, Text="v17.0 • Vomagla Port", TextColor3=Colors.TextMuted, Font=Enum.Font.Gotham, TextSize=11, TextXAlignment=Enum.TextXAlignment.Right, ZIndex=3}, TitleBar)
 regLabel(SubTitle,"muted")
 
 local Sidebar = N("Frame", {Size=UDim2.new(0,168,1,-60), Position=UDim2.new(0,10,0,50), BackgroundColor3=Colors.Sidebar, BorderSizePixel=0, ZIndex=2}, M)
@@ -191,12 +193,15 @@ addTo("AIM", createToggle("AutoShoot", "AutoShoot", nextO()))
 addTo("AIM", createSlider("Задержка выстрела","AutoShootDelay",0.01,0.5,nextO()))
 addTo("AIM", createSlider("FOV","FOV",20,800,nextO()))
 addTo("AIM", createToggle("Show FOV", "ShowFOV", nextO()))
+addTo("AIM", createToggle("Manipulation (Стены)", "Manipulation", nextO()))
 
 addTo("PLAYER", createCategory("PLAYER", nextO()))
 addTo("PLAYER", createToggle("Inf Jump", "InfJump", nextO()))
 addTo("PLAYER", createToggle("Anti AFK", "AntiAFK", nextO()))
 addTo("PLAYER", createToggle("God Mode (No Fall Dmg)", "NoFallDamage", nextO()))
-addTo("PLAYER", createToggle("Silent Walk (No Steps)", "SilentWalk", nextO())) -- НОВАЯ ФУНКЦИЯ
+addTo("PLAYER", createToggle("Silent Walk", "SilentWalk", nextO()))
+addTo("PLAYER", createToggle("Head Expander", "HeadExpander", nextO()))
+addTo("PLAYER", createSlider("Head Size", "HitboxSize", 2, 20, nextO()))
 addTo("PLAYER", createToggle("Third Person", "ThirdPerson", nextO()))
 addTo("PLAYER", createSlider("Third Dist","ThirdPersonDist",3,50,nextO()))
 
@@ -229,6 +234,10 @@ addTo("VISUALS", createCategory("WORLD VISUAL", nextO()))
 addTo("VISUALS", createToggle("Fullbright", "Fullbright", nextO()))
 addTo("VISUALS", createToggle("X-Ray", "XRay", nextO()))
 addTo("VISUALS", createToggle("No Deco", "NoDeco", nextO()))
+addTo("VISUALS", createToggle("Hitmarker", "Hitmarker", nextO()))
+addTo("VISUALS", createToggle("Kill Sound", "KillSound", nextO()))
+addTo("VISUALS", createToggle("Hit Sound", "HitSound", nextO()))
+addTo("VISUALS", createToggle("Reload Indicator", "ReloadIndicator", nextO()))
 
 addTo("WORLD", createCategory("WORLD", nextO()))
 addTo("WORLD", createToggle("No Bullet Drop", "NoBulletDrop", nextO()))
@@ -268,10 +277,7 @@ Players.PlayerRemoving:Connect(function(pl)
 end)
 
 -- ============ SILENT WALK LOGIC ============
-local NoFootsteps = {
-    Enabled = false,
-    OldVolumes = setmetatable({}, { __mode = "k" })
-}
+local NoFootsteps = { Enabled = false, OldVolumes = setmetatable({}, { __mode = "k" }) }
 function NoFootsteps:MuteSound(sound)
     if not self.Enabled then return end
     if not sound:IsA("Sound") then return end
@@ -355,6 +361,10 @@ oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
                 local mag = direction.Magnitude
                 if mag > 50 and C.SilentAim and CurrentAimTarget and CurrentAimTarget.part then
                     local newDir = (CurrentAimTarget.part.Position - origin).Unit * mag
+                    if C.Manipulation then
+                        origin = (GetCamera() and GetCamera().CFrame.Position) or origin
+                        args[1] = origin
+                    end
                     return oldNamecall(self, origin, newDir, args[3])
                 end
             end
@@ -396,6 +406,136 @@ for _,p in ipairs(Players:GetPlayers()) do createESP(p) end
 Players.PlayerAdded:Connect(function(p) task.wait(1); createESP(p) end)
 Players.PlayerRemoving:Connect(function(p) removeESP(p) end)
 
+-- ============ HEAD EXPANDER ============
+local HeadHitboxes = {}
+local function setupHeadExpander(char)
+    if not char then return end
+    local head = char:FindFirstChild("Head")
+    if not head then return end
+    
+    if C.HeadExpander then
+        if HeadHitboxes[char] then return end
+        local size = C.HitboxSize
+        local hitbox = Instance.new("Part")
+        hitbox.Name = "FerHitbox"
+        hitbox.Size = Vector3.new(size, size, size)
+        hitbox.Transparency = 1
+        hitbox.CanCollide = false
+        hitbox.Massless = true
+        hitbox.CFrame = head.CFrame
+        local weld = Instance.new("WeldConstraint")
+        weld.Part0 = head
+        weld.Part1 = hitbox
+        weld.Parent = hitbox
+        hitbox.Parent = char
+        HeadHitboxes[char] = hitbox
+        
+        local visual = Instance.new("Part")
+        visual.Name = "FerHitboxVisual"
+        visual.Size = Vector3.new(size, size, size)
+        visual.Transparency = 0.5
+        visual.Color = Color3.fromRGB(255, 0, 0)
+        visual.Material = Enum.Material.Neon
+        visual.CanCollide = false
+        visual.CanQuery = false
+        visual.CanTouch = false
+        visual.Massless = true
+        local weld2 = Instance.new("WeldConstraint")
+        weld2.Part0 = head
+        weld2.Part1 = visual
+        weld2.Parent = visual
+        visual.Parent = char
+        hitbox.Transparency = 0.5
+        hitbox.Color = Color3.fromRGB(255,0,0)
+        hitbox.Material = Enum.Material.Neon
+        hitbox.CanQuery = true
+        hitbox.Parent = char
+        visual:Destroy()
+    else
+        if HeadHitboxes[char] then
+            HeadHitboxes[char]:Destroy()
+            HeadHitboxes[char] = nil
+        end
+    end
+end
+for _, pl in ipairs(Players:GetPlayers()) do if pl.Character then setupHeadExpander(pl.Character) end; pl.CharacterAdded:Connect(setupHeadExpander) end
+Players.PlayerAdded:Connect(function(pl) pl.CharacterAdded:Connect(setupHeadExpander) end)
+
+-- ============ HITMARKER & HITSOUND ============
+local function playHitSound()
+    if not C.HitSound then return end
+    local s = Instance.new("Sound")
+    s.SoundId = "rbxassetid://988593556" -- Dink
+    s.Volume = 2
+    s.Parent = SoundService
+    s:Play()
+    game:GetService("Debris"):AddItem(s, 1)
+end
+local function playKillSound()
+    if not C.KillSound then return end
+    local s = Instance.new("Sound")
+    s.SoundId = "rbxassetid://116907610084760" -- Double Kill
+    s.Volume = 2
+    s.Parent = SoundService
+    s:Play()
+    game:GetService("Debris"):AddItem(s, 1)
+end
+local function createHitmarker(pos)
+    if not C.Hitmarker then return end
+    local p = Instance.new("Part")
+    p.Size = Vector3.new(0.1,0.1,0.1)
+    p.Transparency = 1
+    p.Anchored = true
+    p.CanCollide = false
+    p.Position = pos
+    p.Parent = Workspace
+    local bill = Instance.new("BillboardGui")
+    bill.Size = UDim2.new(0,20,0,20)
+    bill.AlwaysOnTop = true
+    bill.Parent = p
+    for i=1,4 do
+        local l = Instance.new("Frame")
+        l.Size = UDim2.new(0,7,0,1)
+        l.BackgroundColor3 = Color3.new(1,1,1)
+        l.BorderSizePixel = 0
+        l.Position = UDim2.new(0.5,0,0.5,0)
+        l.Rotation = i == 1 and 45 or i == 2 and -45 or i == 3 and 135 or 225
+        l.AnchorPoint = Vector2.new(0.5,0.5)
+        l.Parent = bill
+    end
+    game:GetService("Debris"):AddItem(p, 0.5)
+end
+
+-- Слушатель урона для Hitmarker/Sound
+local oldHit = nil
+pcall(function()
+    local GunClient = require(game:GetService("ReplicatedStorage").Gun.Scripts.GunClient)
+    oldHit = GunClient.hit
+    GunClient.hit = function(self, hitResult, ...)
+        if oldHit then oldHit(self, hitResult, ...) end
+        if hitResult and hitResult.Instance then
+            local char = hitResult.Instance:FindFirstAncestorOfClass("Model")
+            local pl = Players:GetPlayerFromCharacter(char)
+            if pl and pl ~= LP then
+                createHitmarker(hitResult.Position)
+                playHitSound()
+            end
+        end
+    end
+end)
+
+-- Слушатель смерти для Kill Sound
+for _, pl in ipairs(Players:GetPlayers()) do
+    if pl ~= LP then
+        pl.CharacterAdded:Connect(function(char)
+            local hum = char:WaitForChild("Humanoid")
+            hum.Died:Connect(function()
+                if C.KillSound then playKillSound() end
+            end)
+        end)
+    end
+end
+
 -- ============ FALL DAMAGE FIX ============
 local function setupNFD(char)
     local hrp = char:WaitForChild("HumanoidRootPart", 5)
@@ -411,6 +551,32 @@ local function setupNFD(char)
 end
 if LP.Character then setupNFD(LP.Character) end
 LP.CharacterAdded:Connect(setupNFD)
+
+-- ============ RELOAD INDICATOR ============
+local ReloadGui = N("ScreenGui", {Name="FerReload", ResetOnSpawn=false}, CoreGui)
+local ReloadFrame = N("Frame", {Size=UDim2.new(0,160,0,16), Position=UDim2.new(0.5,-80,1,-80), BackgroundTransparency=1, Visible=false}, ReloadGui)
+local ReloadBg = N("Frame", {Size=UDim2.new(1,0,0,6), Position=UDim2.new(0,0,0.5,-3), BackgroundColor3=Color3.fromRGB(20,20,20), BorderSizePixel=0}, ReloadFrame)
+corner(ReloadBg, 3)
+local ReloadFill = N("Frame", {Size=UDim2.new(0,0,1,0), BackgroundColor3=Color3.fromRGB(255,200,50), BorderSizePixel=0}, ReloadBg)
+corner(ReloadFill, 3)
+
+local ReloadStart = 0
+local ReloadDur = 0
+local IsReloading = false
+
+pcall(function()
+    local GunBase = require(game:GetService("ReplicatedStorage").Gun.Scripts.GunBase)
+    local origReload = GunBase.reload or GunBase.Reload or GunBase.startReload
+    if origReload then
+        local name = GunBase.reload and "reload" or GunBase.Reload and "Reload" or "startReload"
+        GunBase[name] = function(self, ...)
+            ReloadStart = tick()
+            ReloadDur = self.ReloadTime or self.ReloadDuration or 2
+            IsReloading = true
+            return origReload(self, ...)
+        end
+    end
+end)
 
 -- ============ MAIN RENDER ============
 RunService.RenderStepped:Connect(function()
@@ -490,6 +656,18 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
+    if C.ReloadIndicator then
+        if IsReloading then
+            local progress = (tick() - ReloadStart) / math.max(ReloadDur, 0.01)
+            if progress >= 1 then
+                IsReloading = false; ReloadFrame.Visible = false
+            else
+                ReloadFrame.Visible = true
+                ReloadFill.Size = UDim2.new(progress,0,1,0)
+            end
+        else ReloadFrame.Visible = false end
+    else ReloadFrame.Visible = false end
+
     if C.Fullbright then Lighting.Ambient=Color3.new(1,1,1); Lighting.OutdoorAmbient=Color3.new(1,1,1); Lighting.Brightness=2; Lighting.ClockTime=14; Lighting.FogEnd=100000; Lighting.GlobalShadows=false end
     if C.OptLowGFX then pcall(function() settings().Rendering.QualityLevel=Enum.QualityLevel.Level01 end); Lighting.GlobalShadows=false end
 end)
@@ -526,5 +704,5 @@ UserInputService.InputChanged:Connect(function(i) if mdrag and (i.UserInputType=
 
 UserInputService.InputBegan:Connect(function(input) if input.KeyCode == Enum.KeyCode.RightShift then M.Visible = not M.Visible end end)
 showTab("AIM")
-pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v16.0", Text="Silent Walk + Admin + Fall Dmg", Duration=4}) end)
-print("[FerClient v16.0] Loaded.")
+pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v17.0", Text="Vomagla Features Ported!", Duration=4}) end)
+print("[FerClient v17.0] Loaded.")
