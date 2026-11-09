@@ -1,4 +1,4 @@
---[[ FerClient v21.0 | Exact Vomagla Silent Aim (Fixed Hooks) ]]
+--[[ FerClient v21.1 | Exact Vomagla Aim + Shifted FOV Circle ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -12,7 +12,7 @@ local LP = Players.LocalPlayer
 local isMobile = UserInputService.TouchEnabled
 local function GetCamera() local cam = workspace.CurrentCamera; if cam and cam.Parent then return cam end; return nil end
 
--- ============ ОБЕРТКИ (КАК В ВОМАГЛЕ) ============
+-- ОБЕРТКИ
 if not newcclosure then getgenv().newcclosure = function(f) return f end end
 if not checkcaller then getgenv().checkcaller = function() return false end end
 if not hookmetamethod then getgenv().hookmetamethod = function() end end
@@ -20,16 +20,9 @@ if not getnamecallmethod then getgenv().getnamecallmethod = function() return ""
 
 -- ЦВЕТА
 local Colors = {
-    Accent = Color3.fromRGB(150, 110, 255),
-    Background = Color3.fromRGB(12, 12, 16),
-    Sidebar = Color3.fromRGB(18, 18, 24),
-    Panel = Color3.fromRGB(22, 22, 30),
-    Card = Color3.fromRGB(28, 28, 38),
-    CardHover = Color3.fromRGB(38, 38, 50),
-    Text = Color3.fromRGB(240, 240, 248),
-    TextDim = Color3.fromRGB(150, 150, 165),
-    Border = Color3.fromRGB(38, 38, 50),
-    BorderLight = Color3.fromRGB(50, 50, 66)
+    Accent = Color3.fromRGB(150, 110, 255), Background = Color3.fromRGB(12, 12, 16), Sidebar = Color3.fromRGB(18, 18, 24),
+    Panel = Color3.fromRGB(22, 22, 30), Card = Color3.fromRGB(28, 28, 38), CardHover = Color3.fromRGB(38, 38, 50),
+    Text = Color3.fromRGB(240, 240, 248), TextDim = Color3.fromRGB(150, 150, 165), Border = Color3.fromRGB(38, 38, 50), BorderLight = Color3.fromRGB(50, 50, 66)
 }
 
 -- СОСТОЯНИЕ
@@ -74,7 +67,7 @@ corner(M,14); stroke(M, Colors.BorderLight, 1, 0.3)
 
 local TitleBar = N("Frame", {Size=UDim2.new(1,0,0,44), BackgroundColor3=Colors.Sidebar, BorderSizePixel=0}, M)
 corner(TitleBar,14)
-N("TextLabel", {Size=UDim2.new(1,-50,1,0), Position=UDim2.new(0,16,0,0), BackgroundTransparency=1, Text="FerClient v21.0", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=16, TextXAlignment=Enum.TextXAlignment.Left}, TitleBar)
+N("TextLabel", {Size=UDim2.new(1,-50,1,0), Position=UDim2.new(0,16,0,0), BackgroundTransparency=1, Text="FerClient v21.1", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=16, TextXAlignment=Enum.TextXAlignment.Left}, TitleBar)
 local closeClick = N("TextButton", {Size=UDim2.new(0,26,0,26), Position=UDim2.new(1,-32,0.5,-13), BackgroundColor3=Color3.fromRGB(220,50,70), Text="✕", TextColor3=Color3.new(1,1,1), Font=Enum.Font.GothamBold, TextSize=14}, TitleBar)
 corner(closeClick,6); closeClick.MouseButton1Click:Connect(function() M.Visible=false; if Blur then TweenService:Create(Blur,TweenInfo.new(0.3),{Size=0}):Play() end end)
 
@@ -226,7 +219,7 @@ local function MuteChar(char) if not NoFootsteps.Enabled then return end; local 
 RunService.Heartbeat:Connect(function() if NoFootsteps.Enabled then MuteFootsteps(); if LP.Character then MuteChar(LP.Character) end end end)
 LP.CharacterAdded:Connect(function(c) task.wait(1); MuteChar(c) end)
 
--- ============ AIM LOGIC ============
+-- ============ AIM LOGIC (СМЕЩЕННЫЙ ЦЕНТР) ============
 local function isVisible(targetPart, targetChar)
     if not C.WallCheck then return true end
     local char = LP.Character if not char then return false end
@@ -237,7 +230,8 @@ end
 
 local function GetNearest()
     local cam = GetCamera() if not cam then return nil end
-    local center = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
+    -- СМЕЩЕНИЕ ВНИЗ (как в Вомагле)
+    local center = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2 + 50)
     local target, mag = nil, math.huge
     for pl, data in pairs(PlayerCache) do
         if pl ~= LP then
@@ -262,29 +256,24 @@ local function GetNearest()
     return target
 end
 
--- ============ САМЫЙ ВАЖНЫЙ ХУК (КАК В ВОМАГЛЕ) ============
-local hasHooks = pcall(function() return hookmetamethod ~= nil end)
-if hasHooks then
-    local oldNamecall
-    oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        if method == "Raycast" and self == Workspace then
-            if not checkcaller() then
-                local args = {...}
-                local origin = args[1]
-                local direction = args[2]
-                if typeof(origin) == "Vector3" and typeof(direction) == "Vector3" then
-                    local mag = direction.Magnitude
-                    if mag > 50 and C.SilentAim and CurrentAimTarget and CurrentAimTarget.part then
-                        local newDir = (CurrentAimTarget.part.Position - origin).Unit * mag
-                        return oldNamecall(self, origin, newDir, args[3])
-                    end
+-- ХУК
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    if method == "Raycast" and self == Workspace then
+        if not checkcaller() then
+            local args = {...}; local origin = args[1]; local direction = args[2]
+            if typeof(origin) == "Vector3" and typeof(direction) == "Vector3" then
+                local mag = direction.Magnitude
+                if mag > 50 and C.SilentAim and CurrentAimTarget and CurrentAimTarget.part then
+                    local newDir = (CurrentAimTarget.part.Position - origin).Unit * mag
+                    return oldNamecall(self, origin, newDir, args[3])
                 end
             end
         end
-        return oldNamecall(self, ...)
-    end))
-end
+    end
+    return oldNamecall(self, ...)
+end))
 
 local lastShoot = 0
 local function tryAutoShoot(target)
@@ -379,7 +368,8 @@ if LP.Character then setupNFD(LP.Character) end
 LP.CharacterAdded:Connect(setupNFD)
 
 -- MAIN LOOP
-local FOVRing = N("Frame", {AnchorPoint=Vector2.new(0.5,0.5), Position=UDim2.new(0.5,0,0.5,0), BackgroundTransparency=1, Visible=false, ZIndex=10}, SG)
+-- FOV RING СМЕЩЕН ВНИЗ (КАК В ВОМАГЛЕ)
+local FOVRing = N("Frame", {AnchorPoint=Vector2.new(0.5,0.5), Position=UDim2.new(0.5,0,0.5,50), BackgroundTransparency=1, Visible=false, ZIndex=10}, SG)
 corner(FOVRing, 500); local FOVStroke = N("UIStroke", {Thickness=1.5, Color=Colors.Accent}, FOVRing)
 
 RunService.RenderStepped:Connect(function()
@@ -483,5 +473,5 @@ UserInputService.InputChanged:Connect(function(i) if mdrag and (i.UserInputType=
 
 UserInputService.InputBegan:Connect(function(input) if input.KeyCode==Enum.KeyCode.RightShift then M.Visible=not M.Visible end end)
 showTab("AIM")
-pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v21.0", Text="Exact Vomagla Aim + Fixed Hooks", Duration=4}) end)
-print("[FerClient v21.0] Loaded.")
+pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v21.1", Text="Shifted FOV + Vomagla Aim", Duration=4}) end)
+print("[FerClient v21.1] Loaded.")
