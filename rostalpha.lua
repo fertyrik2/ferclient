@@ -1,4 +1,4 @@
---[[ FerClient v18.2 | Stable Full Build (No Crash) ]]
+--[[ FerClient v21.0 | Exact Vomagla Silent Aim (Fixed Hooks) ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -12,7 +12,13 @@ local LP = Players.LocalPlayer
 local isMobile = UserInputService.TouchEnabled
 local function GetCamera() local cam = workspace.CurrentCamera; if cam and cam.Parent then return cam end; return nil end
 
--- ТЕМЫ
+-- ============ ОБЕРТКИ (КАК В ВОМАГЛЕ) ============
+if not newcclosure then getgenv().newcclosure = function(f) return f end end
+if not checkcaller then getgenv().checkcaller = function() return false end end
+if not hookmetamethod then getgenv().hookmetamethod = function() end end
+if not getnamecallmethod then getgenv().getnamecallmethod = function() return "" end end
+
+-- ЦВЕТА
 local Colors = {
     Accent = Color3.fromRGB(150, 110, 255),
     Background = Color3.fromRGB(12, 12, 16),
@@ -62,23 +68,23 @@ local function padding(p, px, py) local u=N("UIPadding",{},p); local ux,uy=UDim.
 -- GUI
 local Blur = N("BlurEffect", {Size=0, Enabled=true}, Lighting)
 local SG = N("ScreenGui", {Name="FerUI", ResetOnSpawn=false, IgnoreGuiInset=true, ZIndexBehavior=Enum.ZIndexBehavior.Sibling}, CoreGui)
-local M = N("Frame", {Size=UDim2.new(0,720,0,500), Position=UDim2.new(0.5,-360,0.5,-250), BackgroundColor3=Colors.Background, BorderSizePixel=0, Visible=false, ClipsDescendants=false}, SG)
+local M = N("Frame", {Size=UDim2.new(0,720,0,500), Position=UDim2.new(0.5,-360,0.5,-250), BackgroundColor3=Colors.Background, BorderSizePixel=0, Visible=false}, SG)
 if isMobile then M.Size=UDim2.new(0,540,0,400) M.Position=UDim2.new(0.5,-270,0.5,-200) end
 corner(M,14); stroke(M, Colors.BorderLight, 1, 0.3)
 
-local TitleBar = N("Frame", {Size=UDim2.new(1,0,0,44), BackgroundColor3=Colors.Sidebar, BorderSizePixel=0, ZIndex=2}, M)
+local TitleBar = N("Frame", {Size=UDim2.new(1,0,0,44), BackgroundColor3=Colors.Sidebar, BorderSizePixel=0}, M)
 corner(TitleBar,14)
-N("TextLabel", {Size=UDim2.new(1,-50,1,0), Position=UDim2.new(0,16,0,0), BackgroundTransparency=1, Text="FerClient v18.2", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=16, TextXAlignment=Enum.TextXAlignment.Left}, TitleBar)
+N("TextLabel", {Size=UDim2.new(1,-50,1,0), Position=UDim2.new(0,16,0,0), BackgroundTransparency=1, Text="FerClient v21.0", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=16, TextXAlignment=Enum.TextXAlignment.Left}, TitleBar)
 local closeClick = N("TextButton", {Size=UDim2.new(0,26,0,26), Position=UDim2.new(1,-32,0.5,-13), BackgroundColor3=Color3.fromRGB(220,50,70), Text="✕", TextColor3=Color3.new(1,1,1), Font=Enum.Font.GothamBold, TextSize=14}, TitleBar)
 corner(closeClick,6); closeClick.MouseButton1Click:Connect(function() M.Visible=false; if Blur then TweenService:Create(Blur,TweenInfo.new(0.3),{Size=0}):Play() end end)
 
-local Sidebar = N("Frame", {Size=UDim2.new(0,168,1,-60), Position=UDim2.new(0,10,0,50), BackgroundColor3=Colors.Sidebar, BorderSizePixel=0, ZIndex=2}, M)
-corner(Sidebar,12); N("UIListLayout", {Padding=UDim.new(0,4), SortOrder=Enum.SortOrder.LayoutOrder}, Sidebar); padding(Sidebar,8,10)
+local Sidebar = N("Frame", {Size=UDim2.new(0,168,1,-60), Position=UDim2.new(0,10,0,50), BackgroundColor3=Colors.Sidebar, BorderSizePixel=0}, M)
+corner(Sidebar,12); N("UIListLayout", {Padding=UDim.new(0,4)}, Sidebar); padding(Sidebar,8,10)
 
-local Container = N("ScrollingFrame", {Position=UDim2.new(0,188,0,50), Size=UDim2.new(1,-198,1,-60), BackgroundColor3=Colors.Panel, BorderSizePixel=0, ScrollBarThickness=isMobile and 0 or 4, ScrollBarImageColor3=Colors.Accent, CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y}, M)
-corner(Container,12); N("UIListLayout", {Padding=UDim.new(0,6), SortOrder=Enum.SortOrder.LayoutOrder}, Container); padding(Container,14)
+local Container = N("ScrollingFrame", {Position=UDim2.new(0,188,0,50), Size=UDim2.new(1,-198,1,-60), BackgroundColor3=Colors.Panel, BorderSizePixel=0, ScrollBarThickness=0, CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y}, M)
+corner(Container,12); N("UIListLayout", {Padding=UDim.new(0,6)}, Container); padding(Container,14)
 
-local Tabs = {VISUALS={}, AIM={}, PLAYER={}, WORLD={}, MISC={}}
+local Tabs = {AIM={}, VISUALS={}, PLAYER={}, WORLD={}, MISC={}}
 local tabButtons = {}
 local function showTab(name)
     for t, objs in pairs(Tabs) do for _, o in ipairs(objs) do o.Visible=(t==name) end end
@@ -91,8 +97,7 @@ local function createTabBtn(name, label, order)
 end
 
 local function createCategory(title, order)
-    local l = N("TextLabel", {Size=UDim2.new(1,0,0,24), BackgroundTransparency=1, Text=title, TextColor3=Colors.TextDim, Font=Enum.Font.GothamBold, TextSize=12, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=order}, Container)
-    return l
+    return N("TextLabel", {Size=UDim2.new(1,0,0,24), BackgroundTransparency=1, Text=title, TextColor3=Colors.TextDim, Font=Enum.Font.GothamBold, TextSize=12, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=order}, Container)
 end
 
 local function createToggle(label, prop, order)
@@ -120,17 +125,27 @@ end
 local O=0; local function nextO() O=O+1; return O end
 local function addTo(t,o) if o then table.insert(Tabs[t],o); o.Visible=false end end
 
-createTabBtn("AIM","Aimbot",1); createTabBtn("VISUALS","Visuals",2); createTabBtn("PLAYER","Player",3); createTabBtn("WORLD","World",4); createTabBtn("MISC","Misc",5)
+createTabBtn("AIM","Silent Aim",1); createTabBtn("VISUALS","Visuals",2); createTabBtn("PLAYER","Player",3); createTabBtn("WORLD","World",4); createTabBtn("MISC","Misc",5)
 
 -- НАПОЛНЕНИЕ
 addTo("AIM", createCategory("SILENT AIM", nextO()))
-addTo("AIM", createToggle("Silent Aim", "SilentAim", nextO()))
+addTo("AIM", createToggle("Включить Silent Aim", "SilentAim", nextO()))
 addTo("AIM", createToggle("Team Check", "TeamCheck", nextO()))
 addTo("AIM", createToggle("Wall Check", "WallCheck", nextO()))
 addTo("AIM", createToggle("AutoShoot", "AutoShoot", nextO()))
-addTo("AIM", createSlider("Fire Delay","AutoShootDelay",0.01,0.5,nextO()))
+addTo("AIM", createSlider("Задержка выстрела","AutoShootDelay",0.01,0.5,nextO()))
 addTo("AIM", createSlider("FOV","FOV",20,800,nextO()))
 addTo("AIM", createToggle("Show FOV", "ShowFOV", nextO()))
+
+addTo("PLAYER", createCategory("PLAYER", nextO()))
+addTo("PLAYER", createToggle("Inf Jump", "InfJump", nextO()))
+addTo("PLAYER", createToggle("Anti AFK", "AntiAFK", nextO()))
+addTo("PLAYER", createToggle("God Mode (No Fall)", "NoFallDamage", nextO()))
+addTo("PLAYER", createToggle("Silent Walk", "SilentWalk", nextO()))
+addTo("PLAYER", createToggle("Head Expander", "HeadExpander", nextO()))
+addTo("PLAYER", createSlider("Head Size", "HitboxSize", 2, 20, nextO()))
+addTo("PLAYER", createToggle("Third Person", "ThirdPerson", nextO()))
+addTo("PLAYER", createSlider("Third Dist","ThirdPersonDist",3,50,nextO()))
 
 addTo("VISUALS", createCategory("PLAYER ESP", nextO()))
 addTo("VISUALS", createToggle("ESP", "ESP", nextO()))
@@ -166,24 +181,16 @@ addTo("VISUALS", createToggle("Kill Sound", "KillSound", nextO()))
 addTo("VISUALS", createToggle("Hit Sound", "HitSound", nextO()))
 addTo("VISUALS", createToggle("Reload Indicator", "ReloadIndicator", nextO()))
 
-addTo("PLAYER", createCategory("PLAYER", nextO()))
-addTo("PLAYER", createToggle("Inf Jump", "InfJump", nextO()))
-addTo("PLAYER", createToggle("Anti AFK", "AntiAFK", nextO()))
-addTo("PLAYER", createToggle("God Mode (No Fall)", "NoFallDamage", nextO()))
-addTo("PLAYER", createToggle("Silent Walk", "SilentWalk", nextO()))
-addTo("PLAYER", createToggle("Head Expander", "HeadExpander", nextO()))
-addTo("PLAYER", createSlider("Head Size", "HitboxSize", 2, 20, nextO()))
-addTo("PLAYER", createToggle("Third Person", "ThirdPerson", nextO()))
-addTo("PLAYER", createSlider("Third Dist","ThirdPersonDist",3,50,nextO()))
-
 addTo("WORLD", createCategory("WORLD", nextO()))
 addTo("WORLD", createToggle("No Bullet Drop", "NoBulletDrop", nextO()))
+
+addTo("WORLD", createCategory("OPTIMIZATION", nextO()))
 addTo("WORLD", createToggle("Low GFX", "OptLowGFX", nextO()))
 
 addTo("MISC", createCategory("ADMIN LIST", nextO()))
 addTo("MISC", createToggle("Show Admin List", "AdminList", nextO()))
 
--- ADMIN LIST
+-- ============ ADMIN LIST UI ============
 local AdminGui = N("ScreenGui", {Name="FerAdminList", ResetOnSpawn=false}, CoreGui)
 local AdminFrame = N("Frame", {Size=UDim2.new(0,200,0,100), Position=UDim2.new(0,20,0.3,0), BackgroundColor3=Colors.Panel, BorderSizePixel=0, Visible=false}, AdminGui)
 corner(AdminFrame,8); stroke(AdminFrame, Colors.Accent, 1)
@@ -211,7 +218,7 @@ Players.PlayerRemoving:Connect(function(pl)
     if detectedAdmins[pl] then detectedAdmins[pl] = nil; for _, v in ipairs(AdminListContainer:GetChildren()) do if v:IsA("TextLabel") and v.Text:find(pl.Name) then v:Destroy() end end end
 end)
 
--- SILENT WALK
+-- ============ SILENT WALK LOGIC ============
 local NoFootsteps = { Enabled = false, OldVolumes = setmetatable({}, { __mode = "k" }) }
 local function MuteSound(s) if not NoFootsteps.Enabled or not s:IsA("Sound") then return end; if not NoFootsteps.OldVolumes[s] then NoFootsteps.OldVolumes[s]=s.Volume end; s.Volume=0; s:Stop() end
 local function MuteFootsteps() if not NoFootsteps.Enabled then return end; local f=SoundService:FindFirstChild("FootstepSounds"); if f then for _,o in ipairs(f:GetDescendants()) do if o:IsA("Sound") then MuteSound(o) end end end end
@@ -219,7 +226,7 @@ local function MuteChar(char) if not NoFootsteps.Enabled then return end; local 
 RunService.Heartbeat:Connect(function() if NoFootsteps.Enabled then MuteFootsteps(); if LP.Character then MuteChar(LP.Character) end end end)
 LP.CharacterAdded:Connect(function(c) task.wait(1); MuteChar(c) end)
 
--- AIM LOGIC
+-- ============ AIM LOGIC ============
 local function isVisible(targetPart, targetChar)
     if not C.WallCheck then return true end
     local char = LP.Character if not char then return false end
@@ -227,6 +234,7 @@ local function isVisible(targetPart, targetChar)
     local cam = GetCamera() if not cam then return false end
     return workspace:Raycast(cam.CFrame.Position, (targetPart.Position - cam.CFrame.Position), params) == nil
 end
+
 local function GetNearest()
     local cam = GetCamera() if not cam then return nil end
     local center = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
@@ -238,11 +246,13 @@ local function GetNearest()
                 if not (C.TeamCheck and pl.Team == LP.Team) then
                     local hum = char:FindFirstChildOfClass("Humanoid")
                     if hum and hum.Health > 0 then
-                        local part = char:FindFirstChild(C.AimPart) or char:FindFirstChild("Head") or hrp
+                        local part = char:FindFirstChild("Head") or hrp
                         local sp, on = cam:WorldToViewportPoint(part.Position)
                         if on then
                             local dist = (Vector2.new(sp.X, sp.Y) - center).Magnitude
-                            if dist < mag and dist < C.FOV then if isVisible(part, char) then mag, target = dist, {pl=pl, part=part, char=char} end end
+                            if dist < mag and dist < C.FOV then
+                                if isVisible(part, char) then mag, target = dist, {pl=pl, part=part, char=char} end
+                            end
                         end
                     end
                 end
@@ -250,6 +260,30 @@ local function GetNearest()
         end
     end
     return target
+end
+
+-- ============ САМЫЙ ВАЖНЫЙ ХУК (КАК В ВОМАГЛЕ) ============
+local hasHooks = pcall(function() return hookmetamethod ~= nil end)
+if hasHooks then
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        if method == "Raycast" and self == Workspace then
+            if not checkcaller() then
+                local args = {...}
+                local origin = args[1]
+                local direction = args[2]
+                if typeof(origin) == "Vector3" and typeof(direction) == "Vector3" then
+                    local mag = direction.Magnitude
+                    if mag > 50 and C.SilentAim and CurrentAimTarget and CurrentAimTarget.part then
+                        local newDir = (CurrentAimTarget.part.Position - origin).Unit * mag
+                        return oldNamecall(self, origin, newDir, args[3])
+                    end
+                end
+            end
+        end
+        return oldNamecall(self, ...)
+    end))
 end
 
 local lastShoot = 0
@@ -344,26 +378,10 @@ end
 if LP.Character then setupNFD(LP.Character) end
 LP.CharacterAdded:Connect(setupNFD)
 
--- RELOAD INDICATOR
-local ReloadGui = N("ScreenGui", {Name="FerReload", ResetOnSpawn=false}, CoreGui)
-local ReloadFrame = N("Frame", {Size=UDim2.new(0,160,0,16), Position=UDim2.new(0.5,-80,1,-80), BackgroundTransparency=1, Visible=false}, ReloadGui)
-local ReloadBg = N("Frame", {Size=UDim2.new(1,0,0,6), Position=UDim2.new(0,0,0.5,-3), BackgroundColor3=Color3.fromRGB(20,20,20)}, ReloadBg, BorderSizePixel=0}, ReloadFrame)
-corner(ReloadBg,3); local ReloadFill = N("Frame", {Size=UDim2.new(0,0,1,0), BackgroundColor3=Color3.fromRGB(255,200,50)}, ReloadBg); corner(ReloadFill,3)
-local ReloadStart, ReloadDur, IsReloading = 0, 0, false
-pcall(function()
-    local GunBase = require(game:GetService("ReplicatedStorage").Gun.Scripts.GunBase)
-    local orig = GunBase.reload or GunBase.Reload or GunBase.startReload
-    if orig then
-        local name = GunBase.reload and "reload" or GunBase.Reload and "Reload" or "startReload"
-        GunBase[name] = function(self, ...) ReloadStart=tick(); ReloadDur=self.ReloadTime or self.ReloadDuration or 2; IsReloading=true; return orig(self, ...) end
-    end
-end)
-
--- FOV RING
+-- MAIN LOOP
 local FOVRing = N("Frame", {AnchorPoint=Vector2.new(0.5,0.5), Position=UDim2.new(0.5,0,0.5,0), BackgroundTransparency=1, Visible=false, ZIndex=10}, SG)
 corner(FOVRing, 500); local FOVStroke = N("UIStroke", {Thickness=1.5, Color=Colors.Accent}, FOVRing)
 
--- MAIN LOOP
 RunService.RenderStepped:Connect(function()
     local cam = GetCamera(); if not cam then return end
     local now = tick()
@@ -435,13 +453,6 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    if C.ReloadIndicator then
-        if IsReloading then
-            local prog=(tick()-ReloadStart)/math.max(ReloadDur,0.01)
-            if prog>=1 then IsReloading=false; ReloadFrame.Visible=false else ReloadFrame.Visible=true; ReloadFill.Size=UDim2.new(prog,0,1,0) end
-        else ReloadFrame.Visible=false end
-    else ReloadFrame.Visible=false end
-
     if C.Fullbright then Lighting.Ambient=Color3.new(1,1,1); Lighting.OutdoorAmbient=Color3.new(1,1,1); Lighting.Brightness=2; Lighting.ClockTime=14; Lighting.FogEnd=100000; Lighting.GlobalShadows=false end
     if C.OptLowGFX then pcall(function() settings().Rendering.QualityLevel=Enum.QualityLevel.Level01 end); Lighting.GlobalShadows=false end
 end)
@@ -472,5 +483,5 @@ UserInputService.InputChanged:Connect(function(i) if mdrag and (i.UserInputType=
 
 UserInputService.InputBegan:Connect(function(input) if input.KeyCode==Enum.KeyCode.RightShift then M.Visible=not M.Visible end end)
 showTab("AIM")
-pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v18.2", Text="Stable Build Loaded", Duration=4}) end)
-print("[FerClient v18.2] Loaded.")
+pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v21.0", Text="Exact Vomagla Aim + Fixed Hooks", Duration=4}) end)
+print("[FerClient v21.0] Loaded.")
