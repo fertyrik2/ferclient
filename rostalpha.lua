@@ -1,4 +1,4 @@
---[[ FerClient v23.0 | Vomagla Exact Silent Aim (Dual Hook) ]]
+--[[ FerClient v24.0 | Fixed Raycast, Cache, FallDamage, HeadExpander ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -38,16 +38,23 @@ local C = {
 _G.FerBinds = {}
 local CurrentAimTarget = nil
 
--- CACHE
+-- ============ FIX 1: PlayerCache (БЕЗ task.wait) ============
 local PlayerCache = {}
-local function CachePlayer(pl)
-    if pl ~= LP then 
-        PlayerCache[pl] = {Char=pl.Character, HRP=pl.Character and pl.Character:FindFirstChild("HumanoidRootPart")}
-        pl.CharacterAdded:Connect(function(char) task.wait(1); PlayerCache[pl] = {Char=char, HRP=char:FindFirstChild("HumanoidRootPart")} end)
-    end
+local function UpdatePlayerCache(pl)
+    if pl == LP then return end
+    local char = pl.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    PlayerCache[pl] = {Char=char, Hum=hum, HRP=hrp}
 end
-for _, pl in ipairs(Players:GetPlayers()) do CachePlayer(pl) end
-Players.PlayerAdded:Connect(CachePlayer)
+local function RegisterPlayer(pl)
+    if pl == LP then return end
+    UpdatePlayerCache(pl)
+    pl.CharacterAdded:Connect(function() UpdatePlayerCache(pl) end)
+    pl.CharacterRemoving:Connect(function() PlayerCache[pl] = nil end)
+end
+for _, pl in ipairs(Players:GetPlayers()) do RegisterPlayer(pl) end
+Players.PlayerAdded:Connect(RegisterPlayer)
 Players.PlayerRemoving:Connect(function(pl) PlayerCache[pl] = nil end)
 
 -- UI HELPERS
@@ -67,7 +74,7 @@ corner(M,14); stroke(M, Colors.BorderLight, 1, 0.3)
 
 local TitleBar = N("Frame", {Size=UDim2.new(1,0,0,44), BackgroundColor3=Colors.Sidebar, BorderSizePixel=0}, M)
 corner(TitleBar,14)
-N("TextLabel", {Size=UDim2.new(1,-50,1,0), Position=UDim2.new(0,16,0,0), BackgroundTransparency=1, Text="FerClient v23.0", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=16, TextXAlignment=Enum.TextXAlignment.Left}, TitleBar)
+N("TextLabel", {Size=UDim2.new(1,-50,1,0), Position=UDim2.new(0,16,0,0), BackgroundTransparency=1, Text="FerClient v24.0", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=16, TextXAlignment=Enum.TextXAlignment.Left}, TitleBar)
 local closeClick = N("TextButton", {Size=UDim2.new(0,26,0,26), Position=UDim2.new(1,-32,0.5,-13), BackgroundColor3=Color3.fromRGB(220,50,70), Text="✕", TextColor3=Color3.new(1,1,1), Font=Enum.Font.GothamBold, TextSize=14}, TitleBar)
 corner(closeClick,6); closeClick.MouseButton1Click:Connect(function() M.Visible=false; if Blur then TweenService:Create(Blur,TweenInfo.new(0.3),{Size=0}):Play() end end)
 
@@ -211,15 +218,25 @@ Players.PlayerRemoving:Connect(function(pl)
     if detectedAdmins[pl] then detectedAdmins[pl] = nil; for _, v in ipairs(AdminListContainer:GetChildren()) do if v:IsA("TextLabel") and v.Text:find(pl.Name) then v:Destroy() end end end
 end)
 
--- ============ SILENT WALK LOGIC ============
+-- ============ SILENT WALK (FIXED) ============
 local NoFootsteps = { Enabled = false, OldVolumes = setmetatable({}, { __mode = "k" }) }
-local function MuteSound(s) if not NoFootsteps.Enabled or not s:IsA("Sound") then return end; if not NoFootsteps.OldVolumes[s] then NoFootsteps.OldVolumes[s]=s.Volume end; s.Volume=0; s:Stop() end
+local function MuteSound(s) 
+    if not s:IsA("Sound") then return end
+    if not NoFootsteps.OldVolumes[s] then NoFootsteps.OldVolumes[s]=s.Volume end
+    s.Volume=0; s:Stop() 
+end
+local function RestoreSounds()
+    for s, v in pairs(NoFootsteps.OldVolumes) do
+        if s and s.Parent then pcall(function() s.Volume = v end) end
+    end
+    table.clear(NoFootsteps.OldVolumes)
+end
 local function MuteFootsteps() if not NoFootsteps.Enabled then return end; local f=SoundService:FindFirstChild("FootstepSounds"); if f then for _,o in ipairs(f:GetDescendants()) do if o:IsA("Sound") then MuteSound(o) end end end end
 local function MuteChar(char) if not NoFootsteps.Enabled then return end; local r=char:FindFirstChild("HumanoidRootPart"); if r then for _,o in ipairs(r:GetChildren()) do if o:IsA("Sound") then MuteSound(o) end end end end
 RunService.Heartbeat:Connect(function() if NoFootsteps.Enabled then MuteFootsteps(); if LP.Character then MuteChar(LP.Character) end end end)
-LP.CharacterAdded:Connect(function(c) task.wait(1); MuteChar(c) end)
+LP.CharacterAdded:Connect(function(c) if NoFootsteps.Enabled then task.wait(1); MuteChar(c) end end)
 
--- ============ ЛОГИКА ВОМАГЛЫ (DUAL HOOK) ============
+-- ============ FIX 2: RAYCAST ============
 local v13 = { Enabled = false, TargetPart = "Head", UseFOV = true, FOVRadius = 150, FOVRadiusSq = 22500, MaxDistance = 500, MaxDistanceSq = 250000 }
 local screenCenter = Vector2.new(0,0)
 local function getMousePosition() local cam = Workspace.CurrentCamera; if cam then local vp = cam.ViewportSize; screenCenter = Vector2.new(vp.X*0.5, vp.Y*0.5) end; return Vector2.new(screenCenter.X, screenCenter.Y + 50) end
@@ -284,19 +301,21 @@ local function getClosestVomagla()
     return best
 end
 
--- ХУК 1: RAYCAST (БЕЗ УСЛОВИЯ mag > 50)
+-- ХУК 1: RAYCAST (ПЕРЕДАЕМ ВСЕ АРГУМЕНТЫ)
 local oldNamecall
 oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     local method = getnamecallmethod()
     if method == "Raycast" and self == Workspace then
         if not checkcaller() then
-            local args = {...}; local origin = args[1]; local direction = args[2]
+            local args = table.pack(...)
+            local origin = args[1]
+            local direction = args[2]
             if typeof(origin) == "Vector3" and typeof(direction) == "Vector3" then
                 local mag = direction.Magnitude
-                -- УБРАНО mag > 50 !!!
                 if C.SilentAim and CurrentAimTarget and CurrentAimTarget.part then
                     local newDir = (CurrentAimTarget.part.Position - origin).Unit * mag
-                    return oldNamecall(self, origin, newDir, args[3])
+                    args[2] = newDir
+                    return oldNamecall(self, table.unpack(args, 1, args.n))
                 end
             end
         end
@@ -304,20 +323,24 @@ oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     return oldNamecall(self, ...)
 end))
 
--- ХУК 2: GUNBASE.FIRE (КАК В ВОМАГЛЕ)
+-- ХУК 2: GUNBASE.FIRE (ТОЛЬКО ПОЗИЦИЯ)
 pcall(function()
     local GunBase = require(game:GetService("ReplicatedStorage").Gun.Scripts.GunBase)
     if GunBase and type(GunBase.fire) == "function" then
         local origFire = GunBase.fire
         GunBase.fire = function(self, ...)
             if C.SilentAim and CurrentAimTarget and CurrentAimTarget.part then
-                local args = {...}
+                local args = table.pack(...)
                 local patched = false
                 local pos = CurrentAimTarget.part.Position
-                for i, v in ipairs(args) do
+                for i = 1, args.n do
+                    local v = args[i]
                     if typeof(v) == "Vector3" and not patched then
-                        args[i] = pos
-                        patched = true
+                        -- Проверяем, что это позиция, а не направление (магнитуда > 1)
+                        if v.Magnitude > 1 then
+                            args[i] = pos
+                            patched = true
+                        end
                     elseif typeof(v) == "buffer" and not patched then
                         pcall(function()
                             buffer.writef32(v, 4, pos.X)
@@ -328,7 +351,7 @@ pcall(function()
                     end
                 end
                 if patched then
-                    return origFire(self, table.unpack(args))
+                    return origFire(self, table.unpack(args, 1, args.n))
                 end
             end
             return origFire(self, ...)
@@ -369,14 +392,17 @@ for _,p in ipairs(Players:GetPlayers()) do createESP(p) end
 Players.PlayerAdded:Connect(function(p) task.wait(1); createESP(p) end)
 Players.PlayerRemoving:Connect(function(p) removeESP(p) end)
 
--- HEAD EXPANDER
+-- ============ FIX 3: HEAD EXPANDER (ОБНОВЛЕНИЕ РАЗМЕРА) ============
 local HeadHitboxes = {}
 local function setupHeadExpander(char)
     if not char then return end
     local head = char:FindFirstChild("Head")
     if not head then return end
     if C.HeadExpander then
-        if HeadHitboxes[char] then return end
+        if HeadHitboxes[char] and HeadHitboxes[char].Parent then 
+            HeadHitboxes[char].Size = Vector3.new(C.HitboxSize, C.HitboxSize, C.HitboxSize)
+            return 
+        end
         local hb = Instance.new("Part")
         hb.Name="FerHitbox"; hb.Size=Vector3.new(C.HitboxSize,C.HitboxSize,C.HitboxSize); hb.Transparency=1; hb.CanCollide=false; hb.CanQuery=true; hb.Massless=true
         hb.CFrame=head.CFrame
@@ -415,11 +441,13 @@ for _,pl in ipairs(Players:GetPlayers()) do
     if pl~=LP then pl.CharacterAdded:Connect(function(char) local hum=char:WaitForChild("Humanoid"); hum.Died:Connect(function() if C.KillSound then playKillSound() end end) end) end
 end
 
--- FALL DAMAGE
+-- ============ FIX 4: FALL DAMAGE (ОДИН HEARTBEAT) ============
+local FallDamageConn = nil
 local function setupNFD(char)
+    if FallDamageConn then FallDamageConn:Disconnect() end
     local hrp = char:WaitForChild("HumanoidRootPart", 5)
     if not hrp then return end
-    RunService.Heartbeat:Connect(function()
+    FallDamageConn = RunService.Heartbeat:Connect(function()
         if not C.NoFallDamage or not hrp.Parent then return end
         local vel = hrp.AssemblyLinearVelocity
         if vel.Y < -50 then hrp.AssemblyLinearVelocity = Vector3.new(vel.X, -10, vel.Z) end
@@ -465,7 +493,9 @@ RunService.RenderStepped:Connect(function()
             local draw=false
             if C.ESP and hrp and hum and hum.Health>0 then
                 local ps,on=cam:WorldToViewportPoint(hrp.Position)
-                if on and ps.Z<=C.ESPMaxDist then
+                -- ИСПОЛЬЗУЕМ DISTANCE (MAGNITUDE)
+                local dist = (hrp.Position - cam.CFrame.Position).Magnitude
+                if on and dist <= C.ESPMaxDist then
                     draw=true; local sy=4500/ps.Z; local sx=2800/ps.Z; local x,y=ps.X-sx/2,ps.Y-sy/2
                     for i,l in ipairs(e.box) do
                         l.Visible=C.ESPBox; l.Color=C.ESPColor
@@ -486,7 +516,7 @@ RunService.RenderStepped:Connect(function()
                     e.name.Visible=C.ESPName
                     if C.ESPName then e.name.Text=pl.DisplayName; e.name.Position=Vector2.new(ps.X,y-34); e.name.Color=C.ESPColor end
                     e.dist.Visible=C.ESPDist
-                    if C.ESPDist then e.dist.Text="["..math.floor(ps.Z).."m]"; e.dist.Position=Vector2.new(ps.X,y-18) end
+                    if C.ESPDist then e.dist.Text="["..math.floor(dist).."m]"; e.dist.Position=Vector2.new(ps.X,y-18) end
                     e.tracer.Visible=C.ESPTracers
                     if C.ESPTracers then e.tracer.From=Vector2.new(cam.ViewportSize.X/2,cam.ViewportSize.Y); e.tracer.To=Vector2.new(ps.X,ps.Y); e.tracer.Color=C.ESPColor end
                     e.head.Visible=C.ESPHead
@@ -539,5 +569,5 @@ UserInputService.InputChanged:Connect(function(i) if mdrag and (i.UserInputType=
 
 UserInputService.InputBegan:Connect(function(input) if input.KeyCode==Enum.KeyCode.RightShift then M.Visible=not M.Visible end end)
 showTab("AIM")
-pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v23.0", Text="Dual Hook Vomagla Aim", Duration=4}) end)
-print("[FerClient v23.0] Loaded.")
+pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v24.0", Text="Fixed: Cache, Raycast, FallDamage", Duration=4}) end)
+print("[FerClient v24.0] Loaded.")
