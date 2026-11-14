@@ -1,4 +1,4 @@
---[[ FerClient v24.0 | Fixed Raycast, Cache, FallDamage, HeadExpander ]]
+--[[ FerClient v26.0 | Exact Vomagla Silent Aim Copy ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -12,7 +12,7 @@ local LP = Players.LocalPlayer
 local isMobile = UserInputService.TouchEnabled
 local function GetCamera() local cam = workspace.CurrentCamera; if cam and cam.Parent then return cam end; return nil end
 
--- ОБЕРТКИ
+-- ОБЕРТКИ ВОМАГЛЫ
 if not newcclosure then getgenv().newcclosure = function(f) return f end end
 if not checkcaller then getgenv().checkcaller = function() return false end end
 if not hookmetamethod then getgenv().hookmetamethod = function() end end
@@ -30,31 +30,22 @@ local C = {
     SilentAim=false, AimPart="Head", FOV=150, TeamCheck=false, WallCheck=false, AutoShoot=false, AutoShootDelay=0.05,
     ESP=false, ESPBox=true, ESPName=true, ESPDist=true, ESPSkeleton=false, ESPHP=false, ESPHPNum=false, ESPTracers=false, ESPHead=false, ESPMaxDist=1000,
     ESPColor=Color3.fromRGB(0,200,255), ShowFOV=false, Fullbright=false, XRay=false, NoDeco=false,
-    SulfurESP=false, IronESP=false, StoneESP=false, OreDist=500, CrateESP=false, MilitaryESP=false, EliteESP=false, FoodESP=false, CrateDist=500, NpcESP=false, NpcDist=600,
-    NoFallDamage=false, InfJump=false, AntiAFK=false, ThirdPerson=false, ThirdPersonDist=15, SilentWalk=false, HeadExpander=false, HitboxSize=5,
-    NoBulletDrop=false, OptLowGFX=false, AdminList=false,
-    Hitmarker=false, HitSound=false, ReloadIndicator=false, KillSound=false
+    NoFallDamage=false, InfJump=false, AntiAFK=false, ThirdPerson=false, ThirdPersonDist=15, HeadExpander=false, HitboxSize=5,
+    OptLowGFX=false
 }
 _G.FerBinds = {}
 local CurrentAimTarget = nil
 
--- ============ FIX 1: PlayerCache (БЕЗ task.wait) ============
+-- PLAYER CACHE (КАК В ВОМАГЛЕ)
 local PlayerCache = {}
-local function UpdatePlayerCache(pl)
-    if pl == LP then return end
-    local char = pl.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    PlayerCache[pl] = {Char=char, Hum=hum, HRP=hrp}
+local function CachePlayer(pl)
+    if pl ~= LP then 
+        PlayerCache[pl] = {Char=pl.Character, HRP=pl.Character and pl.Character:FindFirstChild("HumanoidRootPart")}
+        pl.CharacterAdded:Connect(function(char) task.wait(1); PlayerCache[pl] = {Char=char, HRP=char:FindFirstChild("HumanoidRootPart")} end)
+    end
 end
-local function RegisterPlayer(pl)
-    if pl == LP then return end
-    UpdatePlayerCache(pl)
-    pl.CharacterAdded:Connect(function() UpdatePlayerCache(pl) end)
-    pl.CharacterRemoving:Connect(function() PlayerCache[pl] = nil end)
-end
-for _, pl in ipairs(Players:GetPlayers()) do RegisterPlayer(pl) end
-Players.PlayerAdded:Connect(RegisterPlayer)
+for _, pl in ipairs(Players:GetPlayers()) do CachePlayer(pl) end
+Players.PlayerAdded:Connect(CachePlayer)
 Players.PlayerRemoving:Connect(function(pl) PlayerCache[pl] = nil end)
 
 -- UI HELPERS
@@ -74,7 +65,7 @@ corner(M,14); stroke(M, Colors.BorderLight, 1, 0.3)
 
 local TitleBar = N("Frame", {Size=UDim2.new(1,0,0,44), BackgroundColor3=Colors.Sidebar, BorderSizePixel=0}, M)
 corner(TitleBar,14)
-N("TextLabel", {Size=UDim2.new(1,-50,1,0), Position=UDim2.new(0,16,0,0), BackgroundTransparency=1, Text="FerClient v24.0", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=16, TextXAlignment=Enum.TextXAlignment.Left}, TitleBar)
+N("TextLabel", {Size=UDim2.new(1,-50,1,0), Position=UDim2.new(0,16,0,0), BackgroundTransparency=1, Text="FerClient v26.0", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=16, TextXAlignment=Enum.TextXAlignment.Left}, TitleBar)
 local closeClick = N("TextButton", {Size=UDim2.new(0,26,0,26), Position=UDim2.new(1,-32,0.5,-13), BackgroundColor3=Color3.fromRGB(220,50,70), Text="✕", TextColor3=Color3.new(1,1,1), Font=Enum.Font.GothamBold, TextSize=14}, TitleBar)
 corner(closeClick,6); closeClick.MouseButton1Click:Connect(function() M.Visible=false; if Blur then TweenService:Create(Blur,TweenInfo.new(0.3),{Size=0}):Play() end end)
 
@@ -84,7 +75,7 @@ corner(Sidebar,12); N("UIListLayout", {Padding=UDim.new(0,4)}, Sidebar); padding
 local Container = N("ScrollingFrame", {Position=UDim2.new(0,188,0,50), Size=UDim2.new(1,-198,1,-60), BackgroundColor3=Colors.Panel, BorderSizePixel=0, ScrollBarThickness=0, CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y}, M)
 corner(Container,12); N("UIListLayout", {Padding=UDim.new(0,6)}, Container); padding(Container,14)
 
-local Tabs = {AIM={}, VISUALS={}, PLAYER={}, WORLD={}, MISC={}}
+local Tabs = {AIM={}, VISUALS={}, PLAYER={}, WORLD={}}
 local tabButtons = {}
 local function showTab(name)
     for t, objs in pairs(Tabs) do for _, o in ipairs(objs) do o.Visible=(t==name) end end
@@ -125,15 +116,14 @@ end
 local O=0; local function nextO() O=O+1; return O end
 local function addTo(t,o) if o then table.insert(Tabs[t],o); o.Visible=false end end
 
-createTabBtn("AIM","Silent Aim",1); createTabBtn("VISUALS","Visuals",2); createTabBtn("PLAYER","Player",3); createTabBtn("WORLD","World",4); createTabBtn("MISC","Misc",5)
+createTabBtn("AIM","Silent Aim",1); createTabBtn("VISUALS","Visuals",2); createTabBtn("PLAYER","Player",3); createTabBtn("WORLD","World",4)
 
--- НАПОЛНЕНИЕ
 addTo("AIM", createCategory("SILENT AIM", nextO()))
-addTo("AIM", createToggle("Включить Silent Aim", "SilentAim", nextO()))
+addTo("AIM", createToggle("Enable Silent Aim", "SilentAim", nextO()))
 addTo("AIM", createToggle("Team Check", "TeamCheck", nextO()))
 addTo("AIM", createToggle("Wall Check", "WallCheck", nextO()))
 addTo("AIM", createToggle("AutoShoot", "AutoShoot", nextO()))
-addTo("AIM", createSlider("Задержка выстрела","AutoShootDelay",0.01,0.5,nextO()))
+addTo("AIM", createSlider("Fire Delay","AutoShootDelay",0.01,0.5,nextO()))
 addTo("AIM", createSlider("FOV","FOV",20,800,nextO()))
 addTo("AIM", createToggle("Show FOV", "ShowFOV", nextO()))
 
@@ -141,7 +131,6 @@ addTo("PLAYER", createCategory("PLAYER", nextO()))
 addTo("PLAYER", createToggle("Inf Jump", "InfJump", nextO()))
 addTo("PLAYER", createToggle("Anti AFK", "AntiAFK", nextO()))
 addTo("PLAYER", createToggle("God Mode (No Fall)", "NoFallDamage", nextO()))
-addTo("PLAYER", createToggle("Silent Walk", "SilentWalk", nextO()))
 addTo("PLAYER", createToggle("Head Expander", "HeadExpander", nextO()))
 addTo("PLAYER", createSlider("Head Size", "HitboxSize", 2, 20, nextO()))
 addTo("PLAYER", createToggle("Third Person", "ThirdPerson", nextO()))
@@ -159,84 +148,15 @@ addTo("VISUALS", createToggle("Tracers", "ESPTracers", nextO()))
 addTo("VISUALS", createToggle("Head Circle", "ESPHead", nextO()))
 addTo("VISUALS", createSlider("ESP Max Dist","ESPMaxDist",50,5000,nextO()))
 
-addTo("VISUALS", createCategory("RESOURCES", nextO()))
-addTo("VISUALS", createToggle("Sulfur", "SulfurESP", nextO()))
-addTo("VISUALS", createToggle("Iron", "IronESP", nextO()))
-addTo("VISUALS", createToggle("Stone", "StoneESP", nextO()))
-addTo("VISUALS", createToggle("Crate", "CrateESP", nextO()))
-addTo("VISUALS", createToggle("Military Crate", "MilitaryESP", nextO()))
-addTo("VISUALS", createToggle("Elite Crate", "EliteESP", nextO()))
-addTo("VISUALS", createToggle("Food Box", "FoodESP", nextO()))
-addTo("VISUALS", createSlider("Ore Dist","OreDist",50,3000,nextO()))
-addTo("VISUALS", createSlider("Crate Dist","CrateDist",50,3000,nextO()))
-addTo("VISUALS", createToggle("NPC ESP", "NpcESP", nextO()))
-addTo("VISUALS", createSlider("NPC Dist","NpcDist",50,3000,nextO()))
-
 addTo("VISUALS", createCategory("WORLD VISUAL", nextO()))
 addTo("VISUALS", createToggle("Fullbright", "Fullbright", nextO()))
 addTo("VISUALS", createToggle("X-Ray", "XRay", nextO()))
 addTo("VISUALS", createToggle("No Deco", "NoDeco", nextO()))
-addTo("VISUALS", createToggle("Hitmarker", "Hitmarker", nextO()))
-addTo("VISUALS", createToggle("Kill Sound", "KillSound", nextO()))
-addTo("VISUALS", createToggle("Hit Sound", "HitSound", nextO()))
-addTo("VISUALS", createToggle("Reload Indicator", "ReloadIndicator", nextO()))
 
 addTo("WORLD", createCategory("WORLD", nextO()))
-addTo("WORLD", createToggle("No Bullet Drop", "NoBulletDrop", nextO()))
-
-addTo("WORLD", createCategory("OPTIMIZATION", nextO()))
 addTo("WORLD", createToggle("Low GFX", "OptLowGFX", nextO()))
 
-addTo("MISC", createCategory("ADMIN LIST", nextO()))
-addTo("MISC", createToggle("Show Admin List", "AdminList", nextO()))
-
--- ============ ADMIN LIST UI ============
-local AdminGui = N("ScreenGui", {Name="FerAdminList", ResetOnSpawn=false}, CoreGui)
-local AdminFrame = N("Frame", {Size=UDim2.new(0,200,0,100), Position=UDim2.new(0,20,0.3,0), BackgroundColor3=Colors.Panel, BorderSizePixel=0, Visible=false}, AdminGui)
-corner(AdminFrame,8); stroke(AdminFrame, Colors.Accent, 1)
-N("TextLabel", {Size=UDim2.new(1,0,0,26), BackgroundTransparency=1, Text="Admins Online", TextColor3=Colors.Text, Font=Enum.Font.GothamBold, TextSize=13}, AdminFrame)
-local AdminListContainer = N("ScrollingFrame", {Size=UDim2.new(1,0,1,-26), Position=UDim2.new(0,0,0,26), BackgroundTransparency=1, BorderSizePixel=0, CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y}, AdminFrame)
-N("UIListLayout", {Padding=UDim.new(0,4)}, AdminListContainer)
-
-local detectedAdmins = {}
-local function checkAdmin(pl)
-    if pl == LP then return end
-    task.spawn(function()
-        local success, role = pcall(function() return pl:GetRoleInGroup(15631191) end)
-        if success and role and role ~= "Guest" and role ~= "Member" then
-            if not detectedAdmins[pl] then
-                detectedAdmins[pl] = true
-                local label = N("TextLabel", {Size=UDim2.new(1,0,0,20), BackgroundTransparency=1, Text="• "..pl.Name.." ["..role.."]", TextColor3=Color3.fromRGB(255,100,100), Font=Enum.Font.Gotham, TextSize=12, TextXAlignment=Enum.TextXAlignment.Left}, AdminListContainer)
-                pl.AncestryChanged:Connect(function() if not pl.Parent then if label then label:Destroy() end; detectedAdmins[pl] = nil end end)
-            end
-        end
-    end)
-end
-for _, p in ipairs(Players:GetPlayers()) do checkAdmin(p) end
-Players.PlayerAdded:Connect(checkAdmin)
-Players.PlayerRemoving:Connect(function(pl)
-    if detectedAdmins[pl] then detectedAdmins[pl] = nil; for _, v in ipairs(AdminListContainer:GetChildren()) do if v:IsA("TextLabel") and v.Text:find(pl.Name) then v:Destroy() end end end
-end)
-
--- ============ SILENT WALK (FIXED) ============
-local NoFootsteps = { Enabled = false, OldVolumes = setmetatable({}, { __mode = "k" }) }
-local function MuteSound(s) 
-    if not s:IsA("Sound") then return end
-    if not NoFootsteps.OldVolumes[s] then NoFootsteps.OldVolumes[s]=s.Volume end
-    s.Volume=0; s:Stop() 
-end
-local function RestoreSounds()
-    for s, v in pairs(NoFootsteps.OldVolumes) do
-        if s and s.Parent then pcall(function() s.Volume = v end) end
-    end
-    table.clear(NoFootsteps.OldVolumes)
-end
-local function MuteFootsteps() if not NoFootsteps.Enabled then return end; local f=SoundService:FindFirstChild("FootstepSounds"); if f then for _,o in ipairs(f:GetDescendants()) do if o:IsA("Sound") then MuteSound(o) end end end end
-local function MuteChar(char) if not NoFootsteps.Enabled then return end; local r=char:FindFirstChild("HumanoidRootPart"); if r then for _,o in ipairs(r:GetChildren()) do if o:IsA("Sound") then MuteSound(o) end end end end
-RunService.Heartbeat:Connect(function() if NoFootsteps.Enabled then MuteFootsteps(); if LP.Character then MuteChar(LP.Character) end end end)
-LP.CharacterAdded:Connect(function(c) if NoFootsteps.Enabled then task.wait(1); MuteChar(c) end end)
-
--- ============ FIX 2: RAYCAST ============
+-- ============ ТОЧНАЯ ЛОГИКА ВОМАГЛЫ ============
 local v13 = { Enabled = false, TargetPart = "Head", UseFOV = true, FOVRadius = 150, FOVRadiusSq = 22500, MaxDistance = 500, MaxDistanceSq = 250000 }
 local screenCenter = Vector2.new(0,0)
 local function getMousePosition() local cam = Workspace.CurrentCamera; if cam then local vp = cam.ViewportSize; screenCenter = Vector2.new(vp.X*0.5, vp.Y*0.5) end; return Vector2.new(screenCenter.X, screenCenter.Y + 50) end
@@ -301,21 +221,20 @@ local function getClosestVomagla()
     return best
 end
 
--- ХУК 1: RAYCAST (ПЕРЕДАЕМ ВСЕ АРГУМЕНТЫ)
+-- ХУК 1: RAYCAST (ТОЧНО КАК В ВОМАГЛЕ)
 local oldNamecall
 oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     local method = getnamecallmethod()
     if method == "Raycast" and self == Workspace then
         if not checkcaller() then
-            local args = table.pack(...)
+            local args = {...}
             local origin = args[1]
             local direction = args[2]
             if typeof(origin) == "Vector3" and typeof(direction) == "Vector3" then
                 local mag = direction.Magnitude
-                if C.SilentAim and CurrentAimTarget and CurrentAimTarget.part then
+                if mag > 50 and C.SilentAim and CurrentAimTarget and CurrentAimTarget.part then
                     local newDir = (CurrentAimTarget.part.Position - origin).Unit * mag
-                    args[2] = newDir
-                    return oldNamecall(self, table.unpack(args, 1, args.n))
+                    return oldNamecall(self, origin, newDir, args[3])
                 end
             end
         end
@@ -323,24 +242,20 @@ oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     return oldNamecall(self, ...)
 end))
 
--- ХУК 2: GUNBASE.FIRE (ТОЛЬКО ПОЗИЦИЯ)
+-- ХУК 2: GUNBASE.FIRE (ТОЧНО КАК В ВОМАГЛЕ)
 pcall(function()
     local GunBase = require(game:GetService("ReplicatedStorage").Gun.Scripts.GunBase)
     if GunBase and type(GunBase.fire) == "function" then
         local origFire = GunBase.fire
         GunBase.fire = function(self, ...)
             if C.SilentAim and CurrentAimTarget and CurrentAimTarget.part then
-                local args = table.pack(...)
+                local args = {...}
                 local patched = false
                 local pos = CurrentAimTarget.part.Position
-                for i = 1, args.n do
-                    local v = args[i]
+                for i, v in ipairs(args) do
                     if typeof(v) == "Vector3" and not patched then
-                        -- Проверяем, что это позиция, а не направление (магнитуда > 1)
-                        if v.Magnitude > 1 then
-                            args[i] = pos
-                            patched = true
-                        end
+                        args[i] = pos
+                        patched = true
                     elseif typeof(v) == "buffer" and not patched then
                         pcall(function()
                             buffer.writef32(v, 4, pos.X)
@@ -351,7 +266,7 @@ pcall(function()
                     end
                 end
                 if patched then
-                    return origFire(self, table.unpack(args, 1, args.n))
+                    return origFire(self, table.unpack(args))
                 end
             end
             return origFire(self, ...)
@@ -392,7 +307,7 @@ for _,p in ipairs(Players:GetPlayers()) do createESP(p) end
 Players.PlayerAdded:Connect(function(p) task.wait(1); createESP(p) end)
 Players.PlayerRemoving:Connect(function(p) removeESP(p) end)
 
--- ============ FIX 3: HEAD EXPANDER (ОБНОВЛЕНИЕ РАЗМЕРА) ============
+-- HEAD EXPANDER
 local HeadHitboxes = {}
 local function setupHeadExpander(char)
     if not char then return end
@@ -415,33 +330,7 @@ end
 for _,pl in ipairs(Players:GetPlayers()) do if pl.Character then setupHeadExpander(pl.Character) end; pl.CharacterAdded:Connect(setupHeadExpander) end
 Players.PlayerAdded:Connect(function(pl) pl.CharacterAdded:Connect(setupHeadExpander) end)
 
--- HITMARKER & SOUNDS
-local function playHitSound() if not C.HitSound then return end; local s=Instance.new("Sound"); s.SoundId="rbxassetid://988593556"; s.Volume=2; s.Parent=SoundService; s:Play(); game:GetService("Debris"):AddItem(s,1) end
-local function playKillSound() if not C.KillSound then return end; local s=Instance.new("Sound"); s.SoundId="rbxassetid://116907610084760"; s.Volume=2; s.Parent=SoundService; s:Play(); game:GetService("Debris"):AddItem(s,1) end
-local function createHitmarker(pos)
-    if not C.Hitmarker then return end
-    local p=Instance.new("Part"); p.Size=Vector3.new(0.1,0.1,0.1); p.Transparency=1; p.Anchored=true; p.CanCollide=false; p.Position=pos; p.Parent=Workspace
-    local bill=Instance.new("BillboardGui"); bill.Size=UDim2.new(0,20,0,20); bill.AlwaysOnTop=true; bill.Parent=p
-    for i=1,4 do local l=Instance.new("Frame"); l.Size=UDim2.new(0,7,0,1); l.BackgroundColor3=Color3.new(1,1,1); l.BorderSizePixel=0; l.Position=UDim2.new(0.5,0,0.5,0); l.Rotation=i==1 and 45 or i==2 and -45 or i==3 and 135 or 225; l.AnchorPoint=Vector2.new(0.5,0.5); l.Parent=bill end
-    game:GetService("Debris"):AddItem(p,0.5)
-end
-pcall(function()
-    local GunClient = require(game:GetService("ReplicatedStorage").Gun.Scripts.GunClient)
-    local oldHit = GunClient.hit
-    GunClient.hit = function(self, hitResult, ...)
-        if oldHit then oldHit(self, hitResult, ...) end
-        if hitResult and hitResult.Instance then
-            local char = hitResult.Instance:FindFirstAncestorOfClass("Model")
-            local pl = Players:GetPlayerFromCharacter(char)
-            if pl and pl ~= LP then createHitmarker(hitResult.Position); playHitSound() end
-        end
-    end
-end)
-for _,pl in ipairs(Players:GetPlayers()) do
-    if pl~=LP then pl.CharacterAdded:Connect(function(char) local hum=char:WaitForChild("Humanoid"); hum.Died:Connect(function() if C.KillSound then playKillSound() end end) end) end
-end
-
--- ============ FIX 4: FALL DAMAGE (ОДИН HEARTBEAT) ============
+-- FALL DAMAGE
 local FallDamageConn = nil
 local function setupNFD(char)
     if FallDamageConn then FallDamageConn:Disconnect() end
@@ -469,13 +358,6 @@ RunService.RenderStepped:Connect(function()
         FOVStroke.Color = CurrentAimTarget and Color3.fromRGB(0,255,0) or Colors.Accent
     else FOVRing.Visible = false end
 
-    if C.AdminList then
-        AdminFrame.Visible = true
-        local totalSize = 26
-        for _,v in ipairs(AdminListContainer:GetChildren()) do if v:IsA("TextLabel") then totalSize+=24 end end
-        AdminFrame.Size = UDim2.new(0,200,0,totalSize)
-    else AdminFrame.Visible = false end
-
     if C.SilentAim then
         v13.Enabled = true
         v13.TargetPart = C.AimPart
@@ -493,7 +375,6 @@ RunService.RenderStepped:Connect(function()
             local draw=false
             if C.ESP and hrp and hum and hum.Health>0 then
                 local ps,on=cam:WorldToViewportPoint(hrp.Position)
-                -- ИСПОЛЬЗУЕМ DISTANCE (MAGNITUDE)
                 local dist = (hrp.Position - cam.CFrame.Position).Magnitude
                 if on and dist <= C.ESPMaxDist then
                     draw=true; local sy=4500/ps.Z; local sx=2800/ps.Z; local x,y=ps.X-sx/2,ps.Y-sy/2
@@ -543,7 +424,6 @@ RunService.RenderStepped:Connect(function()
     if C.OptLowGFX then pcall(function() settings().Rendering.QualityLevel=Enum.QualityLevel.Level01 end); Lighting.GlobalShadows=false end
 end)
 
--- OTHER
 UserInputService.JumpRequest:Connect(function() if C.InfJump and LP.Character then local h=LP.Character:FindFirstChildOfClass("Humanoid"); if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end end end)
 task.spawn(function()
     while true do task.wait(0.2)
@@ -551,7 +431,6 @@ task.spawn(function()
         if C.ThirdPerson then pcall(function() LP.CameraMaxZoomDistance=C.ThirdPersonDist; LP.CameraMinZoomDistance=C.ThirdPersonDist end) end
     end
 end)
-workspace.DescendantAdded:Connect(function(obj) if C.NoBulletDrop and obj:IsA("BasePart") and (obj.Name:find("Bullet") or obj.Name:find("Projectile")) then pcall(function() local bf=Instance.new("BodyForce"); bf.Force=Vector3.new(0,obj:GetMass()*workspace.Gravity,0); bf.Parent=obj end) end end)
 
 -- F-BUTTON
 local OpenBtn = N("TextButton", {Size=UDim2.new(0,36,0,36), Position=UDim2.new(0,12,0.42,0), BackgroundColor3=Colors.Sidebar, Text="F", TextColor3=Colors.Accent, Font=Enum.Font.GothamBold, TextSize=16, AutoButtonColor=false, ZIndex=50}, SG)
@@ -569,5 +448,5 @@ UserInputService.InputChanged:Connect(function(i) if mdrag and (i.UserInputType=
 
 UserInputService.InputBegan:Connect(function(input) if input.KeyCode==Enum.KeyCode.RightShift then M.Visible=not M.Visible end end)
 showTab("AIM")
-pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v24.0", Text="Fixed: Cache, Raycast, FallDamage", Duration=4}) end)
-print("[FerClient v24.0] Loaded.")
+pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title="FerClient v26.0", Text="Exact Vomagla Silent Aim", Duration=4}) end)
+print("[FerClient v26.0] Loaded.")
